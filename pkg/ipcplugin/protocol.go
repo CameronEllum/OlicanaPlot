@@ -1,0 +1,95 @@
+package ipcplugin
+
+import (
+	"encoding/binary"
+	"encoding/json"
+	"math"
+	"os"
+)
+
+// Request represents an IPC request from the host.
+type Request struct {
+	Method   string `json:"method"`
+	Args     string `json:"args,omitempty"`
+	SeriesID string `json:"series_id,omitempty"`
+}
+
+// Response represents an IPC response to the host.
+type Response struct {
+	Result  interface{} `json:"result,omitempty"`
+	Error   string      `json:"error,omitempty"`
+	Type    string      `json:"type,omitempty"`
+	Length  int         `json:"length,omitempty"`
+	Name    string      `json:"name,omitempty"`
+	Version uint32      `json:"version,omitempty"`
+}
+
+// ChartConfig holds chart display configuration.
+type ChartConfig struct {
+	Title      string   `json:"title"`
+	AxisLabels []string `json:"axis_labels"`
+}
+
+// SeriesConfig describes a data series metadata.
+type SeriesConfig struct {
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	Color string `json:"color,omitempty"`
+}
+
+// ChartColors provides the standard Plotly-inspired color palette.
+var ChartColors = []string{
+	"#636EFA", "#EF553B", "#00CC96", "#AB63FA", "#FFA15A",
+	"#19D3F3", "#FF6692", "#B6E880", "#FF97FF", "#FECB52",
+}
+
+// SendResponse sends a JSON response to stdout.
+func SendResponse(resp Response) {
+	respJSON, _ := json.Marshal(resp)
+	os.Stdout.Write(respJSON)
+	os.Stdout.Write([]byte("\n"))
+	os.Stdout.Sync()
+}
+
+// SendError sends an error response to stdout.
+func SendError(msg string) {
+	SendResponse(Response{Error: msg})
+}
+
+// SendBinaryData sends binary float64 data following a JSON header.
+func SendBinaryData(data []float64) {
+	binaryData := floatsToBytes(data)
+	headerJSON, _ := json.Marshal(Response{
+		Type:   "binary",
+		Length: len(binaryData),
+	})
+
+	os.Stdout.Write(headerJSON)
+	os.Stdout.Write([]byte("\n"))
+	os.Stdout.Sync()
+
+	os.Stdout.Write(binaryData)
+	os.Stdout.Sync()
+}
+
+// Log sends an asynchronous log message to the host.
+func Log(level, message string) {
+	msg := map[string]string{
+		"method":  "log",
+		"level":   level,
+		"message": message,
+	}
+	bytes, _ := json.Marshal(msg)
+	os.Stdout.Write(bytes)
+	os.Stdout.Write([]byte("\n"))
+	os.Stdout.Sync()
+}
+
+// FloatsToBytes converts a float64 slice to little-endian bytes.
+func floatsToBytes(data []float64) []byte {
+	result := make([]byte, len(data)*8)
+	for i, f := range data {
+		binary.LittleEndian.PutUint64(result[i*8:], math.Float64bits(f))
+	}
+	return result
+}

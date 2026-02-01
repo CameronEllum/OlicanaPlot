@@ -1,0 +1,120 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "IPC Plugin Messages",
+    "definitions": {
+        "SeriesConfig": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "color": {
+                    "type": "string"
+                }
+            },
+            "required": [
+                "id",
+                "name"
+            ]
+        },
+        "ChartConfig": {
+            "type": "object",
+            "properties": {
+                "title": {
+                    "type": "string"
+                },
+                "axis_labels": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "minItems": 2,
+                    "maxItems": 2
+                }
+            },
+            "required": [
+                "title",
+                "axis_labels"
+            ]
+        }
+    },
+    "oneOf": [
+        {
+            "title": "Request",
+            "type": "object",
+            "properties": {
+                "method": {
+                    "type": "string"
+                },
+                "args": {
+                    "type": "string"
+                },
+                "series_id": {
+                    "type": "string"
+                }
+            },
+            "required": [
+                "method"
+            ]
+        },
+        {
+            "title": "Response",
+            "type": "object",
+            "properties": {
+                "result": {
+                    "type": [
+                        "object",
+                        "array",
+                        "string",
+                        "number",
+                        "boolean",
+                        "null"
+                    ]
+                },
+                "error": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                },
+                "length": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "integer"
+                }
+            }
+        },
+        {
+            "title": "Log Message",
+            "type": "object",
+            "properties": {
+                "method": {
+                    "const": "log"
+                },
+                "level": {
+                    "enum": [
+                        "info",
+                        "warn",
+                        "error",
+                        "debug"
+                    ]
+                },
+                "message": {
+                    "type": "string"
+                }
+            },
+            "required": [
+                "method",
+                "level",
+                "message"
+            ]
+        }
+    ]
+}

@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.0
+Name=OlicanaPlot
+Comment=OlicanaPlot application
+# The Exec line includes %u to pass the URL to the application
+Exec=/usr/local/bin/OlicanaPlot %u
+Terminal=false
+Type=Application
+Icon=OlicanaPlot
+Categories=Utility;
+StartupWMClass=OlicanaPlot
+
+ 

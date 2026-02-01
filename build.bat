@@ -1,0 +1,50 @@
+@echo off
+setlocal enabledelayedexpansion
+
+echo ========================================
+echo Building OlicanaPlot and Plugins
+echo ========================================
+
+set ROOT_DIR=%~dp0
+cd /d "%ROOT_DIR%"
+
+echo.
+echo [1/5] Building Main Application...
+call wails3 build
+if %errorlevel% neq 0 (
+    echo Error building main application.
+    exit /b %errorlevel%
+)
+
+echo.
+echo [2/5] Building Random Walk Generator (C++ Plugin)...
+cd /d "%ROOT_DIR%plugins\random_walk_generator"
+if exist build.bat (
+    call build.bat
+) else (
+    echo Warning: random_walk_generator\build.bat not found.
+)
+
+echo.
+echo [3/5] Building CSV IPC (Go Plugin)...
+cd /d "%ROOT_DIR%plugins\csv"
+if exist build.bat (
+    call build.bat
+) else (
+    echo Warning: csv\build.bat not found.
+)
+
+echo.
+echo [4/5] Building Synthetic Data Generator (Wails Plugin)...
+cd /d "%ROOT_DIR%plugins\synthetic_data_generator"
+call wails3 build
+if %errorlevel% neq 0 (
+    echo Warning: Error building synthetic_data_generator.
+)
+
+echo.
+echo ========================================
+echo Build Complete
+echo ========================================
+cd /d "%ROOT_DIR%"
+

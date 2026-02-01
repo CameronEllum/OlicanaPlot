@@ -1,0 +1,30 @@
+# Wails / Build output
+bin/
+.task/
+build/linux/appimage/build/
+build/windows/nsis/MicrosoftEdgeWebview2Setup.exe
+*.syso
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/bindings/
+.npm
+.eslintcache
+
+# Go
+vendor/
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.bak
+
+# Plugins
+plugins/**/*.exe
+*.obj
+*.pdb
+*.ilk
