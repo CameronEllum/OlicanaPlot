@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"math"
 	"os"
 	"os/exec"
@@ -27,22 +26,26 @@ import (
 // Loader discovers and manages IPC plugins.
 type Loader struct {
 	pluginsDir string
+	logger     logging.Logger
 }
 
 // NewLoader creates a new IPC plugin loader.
-func NewLoader(pluginsDir string) *Loader {
-	return &Loader{pluginsDir: pluginsDir}
+func NewLoader(pluginsDir string, logger logging.Logger) *Loader {
+	return &Loader{
+		pluginsDir: pluginsDir,
+		logger:     logger,
+	}
 }
 
 // Discover finds and loads all IPC plugins in the plugins directory.
 func (l *Loader) Discover() ([]*Plugin, error) {
 	var result []*Plugin
 
-	log.Printf("Scanning for IPC plugins in: %s", l.pluginsDir)
+	l.logger.Info("Scanning for IPC plugins", "dir", l.pluginsDir)
 
 	// Check if plugins directory exists
 	if _, err := os.Stat(l.pluginsDir); os.IsNotExist(err) {
-		log.Printf("IPC plugins directory not found: %s", l.pluginsDir)
+		l.logger.Warn("IPC plugins directory not found", "dir", l.pluginsDir)
 		return nil, nil
 	}
 
@@ -67,22 +70,22 @@ func (l *Loader) Discover() ([]*Plugin, error) {
 		execPath := filepath.Join(l.pluginsDir, dirName, execName)
 
 		if _, err := os.Stat(execPath); err != nil {
-			log.Printf("  - Skipped directory %s: no executable %s found", dirName, execName)
+			l.logger.Debug("Skipping directory: no executable found", "dir", dirName, "exec", execName)
 			continue
 		}
 
-		log.Printf("  + Found IPC plugin candidate: %s", execPath)
+		l.logger.Info("Found IPC plugin candidate", "path", execPath)
 
 		plugin, err := NewPlugin(execPath)
 		if err != nil {
-			log.Printf("Failed to load IPC plugin %s: %v", dirName, err)
+			l.logger.Error("Failed to load IPC plugin", "dir", dirName, "error", err)
 			continue
 		}
 
 		result = append(result, plugin)
 	}
 
-	log.Printf("IPC discovery complete. Found %d plugin(s).", len(result))
+	l.logger.Info("IPC discovery complete", "count", len(result))
 	return result, nil
 }
 

@@ -5,6 +5,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"strings"
 	"sync"
 )
 
@@ -83,4 +84,22 @@ func (l *slogLogger) Warn(msg string, args ...any) {
 
 func (l *slogLogger) Error(msg string, args ...any) {
 	l.getLogger().Error(msg, args...)
+}
+
+// Redirector implements io.Writer to redirect standard log calls to slog.
+type Redirector struct {
+	logger Logger
+}
+
+func (r *Redirector) Write(p []byte) (n int, err error) {
+	msg := strings.TrimSpace(string(p))
+	if msg != "" {
+		r.logger.Info(msg)
+	}
+	return len(p), nil
+}
+
+// NewRedirector creates a new writer that redirects output to the given logger.
+func NewRedirector(l Logger) io.Writer {
+	return &Redirector{logger: l}
 }

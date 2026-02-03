@@ -3,21 +3,24 @@ package plugins
 
 import (
 	"fmt"
-	"log"
 	"sync"
+
+	"olicanaplot/internal/logging"
 )
 
 // Manager handles registration and lookup of plugins.
 type Manager struct {
 	mu           sync.RWMutex
 	plugins      map[string]Plugin
-	activePlugin string // Currently active plugin name
+	activePlugin string         // Currently active plugin name
+	logger       logging.Logger // Structured logger
 }
 
 // NewManager creates a new plugin manager.
-func NewManager() *Manager {
+func NewManager(logger logging.Logger) *Manager {
 	return &Manager{
 		plugins: make(map[string]Plugin),
+		logger:  logger,
 	}
 }
 
@@ -39,7 +42,7 @@ func (m *Manager) Register(p Plugin) error {
 	}
 
 	m.plugins[name] = p
-	log.Printf("Registered plugin: %s (Version %d)", name, p.Version())
+	m.logger.Info("Registered plugin", "name", name, "version", p.Version())
 
 	// Set as active if it's the first plugin
 	if m.activePlugin == "" {

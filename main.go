@@ -50,7 +50,11 @@ func main() {
 		// Log to both file and stdout (SafeMultiWriter handles closed stdout in GUI)
 		multiWriter := &logging.SafeMultiWriter{Writers: []io.Writer{os.Stdout, logFile}}
 		logging.SetOutput(multiWriter)
-		log.SetOutput(multiWriter)
+
+		// Redirect standard Go logs to our structured logger
+		log.SetFlags(0)
+		log.SetOutput(logging.NewRedirector(logging.NewLogger("System")))
+
 		defer logFile.Close()
 	}
 
@@ -59,7 +63,7 @@ func main() {
 	logger.Info("Starting OlicanaPlot")
 
 	// Create plugin manager and register plugins
-	pluginManager := plugins.NewManager()
+	pluginManager := plugins.NewManager(logger)
 
 	if err := pluginManager.Register(sine.New()); err != nil {
 		logger.Warn("Failed to register sine plugin", "error", err)
@@ -73,7 +77,7 @@ func main() {
 
 	// Load IPC plugins
 	pluginsDir, _ := filepath.Abs("plugins")
-	loader := ipc.NewLoader(pluginsDir)
+	loader := ipc.NewLoader(pluginsDir, logger)
 	ipcPlugins, err := loader.Discover()
 	if err != nil {
 		logger.Warn("Failed to discover IPC plugins", "error", err)
