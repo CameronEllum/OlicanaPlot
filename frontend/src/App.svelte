@@ -6,7 +6,6 @@
   import ContextMenu from "./lib/ContextMenu.svelte";
   import MeasurementResult from "./lib/MeasurementResult.svelte";
   import OptionsDialog from "./lib/OptionsDialog.svelte";
-  import SchemaForm from "./lib/SchemaForm.svelte";
 
   let chartContainer;
   let chartInstance;
@@ -26,13 +25,6 @@
   let measurementStart = $state(null);
   let measurementResult = $state(null);
   let optionsVisible = $state(false);
-
-  // Schema Form State
-  let schemaVisible = $state(false);
-  let currentSchema = $state({});
-  let currentUISchema = $state({});
-  let currentFormTitle = $state("");
-  let formRequestID = $state(null);
 
   // Store current data to restore chart on theme change
   let currentSeriesData = null;
@@ -629,18 +621,6 @@
     }
   }
 
-  // Listen for schema form requests from IPC plugins
-  const unsubSchema = Events.On("ipc-show-form", (e) => {
-    console.log("Received ipc-show-form:", e);
-    // In Wails v3, the first argument is typically an event object with a .data property
-    const data = e.data || e;
-    currentSchema = data.schema || {};
-    currentUISchema = data.uiSchema || {};
-    currentFormTitle = data.title || "Plugin Configuration";
-    formRequestID = data.requestID;
-    schemaVisible = true;
-  });
-
   onMount(() => {
     if (chartContainer) {
       initChart();
@@ -655,20 +635,7 @@
   onDestroy(() => {
     resizeObserver?.disconnect();
     chartInstance?.dispose();
-    unsubSchema();
   });
-
-  function handleFormSubmit(data) {
-    console.log("Form submitted:", data);
-    Events.Emit(`ipc-form-result-${formRequestID}`, data);
-    schemaVisible = false;
-  }
-
-  function handleFormCancel() {
-    console.log("Form cancelled");
-    Events.Emit(`ipc-form-result-${formRequestID}`, "error:cancelled");
-    schemaVisible = false;
-  }
 </script>
 
 <div class="app-container" class:dark-mode={isDarkMode}>
@@ -829,34 +796,9 @@
       optionsVisible = false;
     }}
   />
-
-  {#if schemaVisible}
-    <div class="modal-overlay">
-      <SchemaForm
-        schema={currentSchema}
-        uiSchema={currentUISchema}
-        title={currentFormTitle}
-        onsubmit={handleFormSubmit}
-        oncancel={handleFormCancel}
-      />
-    </div>
-  {/if}
 </div>
 
 <style>
-  .modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.4);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 10000;
-  }
-
   :global(html),
   :global(body),
   :global(#app) {

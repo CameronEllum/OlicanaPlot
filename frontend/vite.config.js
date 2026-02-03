@@ -11,6 +11,7 @@ export default defineConfig({
         main: "index.html",
         csv: "csv-dialog.html",
         synthetic: "synthetic-dialog.html",
+        dialog: "dialog.html",
       },
     },
   },

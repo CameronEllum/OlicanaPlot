@@ -99,29 +99,33 @@ type Plugin struct {
 	running      bool
 	logger       logging.Logger
 	app          *application.App
+	commsMu      sync.Mutex // For synchronizing stdin/stdout access
 }
 
 // Request represents an IPC request message sent from the host.
 type Request struct {
-	Method   string `json:"method"`
-	Args     string `json:"args,omitempty"`
-	SeriesID string `json:"series_id,omitempty"`
+	Method   string                 `json:"method"`
+	Args     string                 `json:"args,omitempty"`
+	SeriesID string                 `json:"series_id,omitempty"`
+	Data     map[string]interface{} `json:"data,omitempty"`
 }
 
 // Response represents an IPC response message received from a plugin.
 // This structure follows IPC_PROTOCOL.md but uses json.RawMessage for Result
 // to allow the host to unmarshal it into different concrete types.
 type Response struct {
-	Method   string          `json:"method,omitempty"` // For async messages like "log" or "show_form"
-	Result   json.RawMessage `json:"result,omitempty"`
-	Error    string          `json:"error,omitempty"`
-	Type     string          `json:"type,omitempty"`
-	Length   int             `json:"length,omitempty"`
-	Name     string          `json:"name,omitempty"`
-	Version  uint32          `json:"version,omitempty"`
-	Title    string          `json:"title,omitempty"`
-	Schema   json.RawMessage `json:"schema,omitempty"`
-	UISchema json.RawMessage `json:"uiSchema,omitempty"`
+	Method           string          `json:"method,omitempty"` // For async messages like "log" or "show_form"
+	Result           json.RawMessage `json:"result,omitempty"`
+	Error            string          `json:"error,omitempty"`
+	Type             string          `json:"type,omitempty"`
+	Length           int             `json:"length,omitempty"`
+	Name             string          `json:"name,omitempty"`
+	Version          uint32          `json:"version,omitempty"`
+	Title            string          `json:"title,omitempty"`
+	Schema           json.RawMessage `json:"schema,omitempty"`
+	UISchema         json.RawMessage `json:"uiSchema,omitempty"`
+	Data             json.RawMessage `json:"data,omitempty"`
+	HandleFormChange bool            `json:"handle_form_change,omitempty"`
 }
 
 // PluginMetadata contains everything required for plugin discovery.
@@ -183,7 +187,7 @@ func (p *Plugin) start() error {
 	}
 
 	p.cmd = exec.Command(p.execPath)
-	configureCommand(p.cmd, false)
+	configureCommand(p.cmd, true)
 
 	stdin, err := p.cmd.StdinPipe()
 	if err != nil {
@@ -237,12 +241,28 @@ func (p *Plugin) sendRequest(req Request) (*Response, error) {
 		return nil, fmt.Errorf("plugin not running")
 	}
 
+	return p.sendLockedRequest(req)
+}
+
+// sendLockedRequest performs the actual comms while holding necessary locks.
+func (p *Plugin) sendLockedRequest(req Request) (*Response, error) {
+	p.commsMu.Lock()
+	defer p.commsMu.Unlock()
+
+	return p.sendInternal(req)
+}
+
+func (p *Plugin) sendInternal(req Request) (*Response, error) {
 	// Send request as JSON line
 	reqBytes, err := json.Marshal(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 	reqBytes = append(reqBytes, '\n')
+
+	if p.logger != nil {
+		p.logger.Debug("IPC -> PLUGIN", "json", strings.TrimSpace(string(reqBytes)))
+	}
 
 	if _, err := p.stdin.Write(reqBytes); err != nil {
 		return nil, fmt.Errorf("failed to write request: %w", err)
@@ -254,6 +274,10 @@ func (p *Plugin) sendRequest(req Request) (*Response, error) {
 		if err != nil {
 			p.running = false
 			return nil, fmt.Errorf("failed to read response: %w", err)
+		}
+
+		if p.logger != nil {
+			p.logger.Debug("PLUGIN -> IPC", "json", strings.TrimSpace(respLine))
 		}
 
 		var resp Response
@@ -286,10 +310,14 @@ func (p *Plugin) sendRequest(req Request) (*Response, error) {
 
 		// Handle "show_form" request from plugin
 		if resp.Method == "show_form" {
-			if err := p.handleShowForm(resp); err != nil {
+			// We MUST release commsMu while waiting for the form to allow form_change events
+			p.commsMu.Unlock()
+			err := p.handleShowForm(resp)
+			p.commsMu.Lock()
+			if err != nil {
 				return nil, err
 			}
-			continue // After handling the form and sending result back to plugin, wait for plugin's final response
+			continue // After handling the form, wait for plugin's final response
 		}
 
 		if resp.Error != "" {
@@ -311,6 +339,7 @@ func (p *Plugin) handleShowForm(formMsg Response) error {
 	// Result channel for the form result
 	resultChan := make(chan interface{})
 	errChan := make(chan string)
+	doneChan := make(chan struct{})
 
 	// Unique string ID for this form request to avoid JS precision issues
 	requestID := fmt.Sprintf("req-%d", time.Now().UnixNano())
@@ -327,6 +356,59 @@ func (p *Plugin) handleShowForm(formMsg Response) error {
 	})
 	defer unsub()
 
+	// Register listener for form changes (dynamic updates) if plugin requested it
+	if formMsg.HandleFormChange {
+		go func() {
+			unsubChange := p.app.Event.On(fmt.Sprintf("ipc-form-change-%s", requestID), func(e *application.CustomEvent) {
+				if e.Data == nil {
+					return
+				}
+				data, ok := e.Data.(map[string]interface{})
+				if !ok {
+					return
+				}
+
+				// Send form_change request to plugin using the unified communication lock
+				p.logger.Debug("Sending form_change to plugin", "requestID", requestID)
+				resp, err := p.sendLockedRequest(Request{
+					Method: "form_change",
+					Data:   data,
+				})
+				if err != nil {
+					p.logger.Error("Failed to send form_change to plugin", "error", err)
+					return
+				}
+
+				// Always notify the frontend that the change has been processed to clear the loading state
+				var schemaObj, uiSchemaObj, dataObj interface{}
+				if len(resp.Schema) > 0 {
+					json.Unmarshal(resp.Schema, &schemaObj)
+				}
+				if len(resp.UISchema) > 0 {
+					json.Unmarshal(resp.UISchema, &uiSchemaObj)
+				}
+				if len(resp.Data) > 0 {
+					json.Unmarshal(resp.Data, &dataObj)
+				} else if len(resp.Result) > 0 {
+					// Fallback to Result for data if it's a JSON object
+					// Check first byte to see if it's '{'
+					trimmed := strings.TrimSpace(string(resp.Result))
+					if strings.HasPrefix(trimmed, "{") {
+						json.Unmarshal(resp.Result, &dataObj)
+					}
+				}
+
+				p.app.Event.Emit(fmt.Sprintf("ipc-form-update-%s", requestID), map[string]interface{}{
+					"schema":   schemaObj,
+					"uiSchema": uiSchemaObj,
+					"data":     dataObj,
+				})
+			})
+			defer unsubChange()
+			<-doneChan
+		}()
+	}
+
 	// Unmarshal schema and uiSchema so they are sent as objects, not raw bytes
 	var schemaObj, uiSchemaObj interface{}
 	if len(formMsg.Schema) > 0 {
@@ -336,13 +418,43 @@ func (p *Plugin) handleShowForm(formMsg Response) error {
 		json.Unmarshal(formMsg.UISchema, &uiSchemaObj)
 	}
 
-	// Emit event to frontend to show the form
-	p.app.Event.Emit("ipc-show-form", map[string]interface{}{
-		"requestID": requestID,
-		"title":     formMsg.Title,
-		"schema":    schemaObj,
-		"uiSchema":  uiSchemaObj,
+	// Create a new window for the dialog
+	dialogWindow := p.app.Window.NewWithOptions(application.WebviewWindowOptions{
+		Title:       formMsg.Title,
+		Width:       500,
+		Height:      500,
+		AlwaysOnTop: true,
+		URL:         fmt.Sprintf("/dialog.html?requestID=%s&title=%s&handleFormChange=%v", requestID, formMsg.Title, formMsg.HandleFormChange),
 	})
+
+	// Register listener for window resizing
+	unsubResize := p.app.Event.On(`ipc-form-resize-`+requestID, func(e *application.CustomEvent) {
+		if e.Data == nil {
+			return
+		}
+		data, ok := e.Data.(map[string]interface{})
+		if !ok {
+			return
+		}
+		width, _ := data["width"].(float64)
+		height, _ := data["height"].(float64)
+		if width > 0 && height > 0 {
+			// Add buffer for OS title bar (typically 30-40px)
+			dialogWindow.SetSize(int(width), int(height)+34)
+		}
+	})
+	defer unsubResize()
+
+	// Register a one-time listener for the dialog to request its initial data
+	unsubReady := p.app.Event.On(`ipc-form-ready-`+requestID, func(e *application.CustomEvent) {
+		p.app.Event.Emit(`ipc-form-init-`+requestID, map[string]interface{}{
+			"schema":           schemaObj,
+			"uiSchema":         uiSchemaObj,
+			"handleFormChange": formMsg.HandleFormChange,
+		})
+	})
+	defer unsubReady()
+	dialogWindow.Center()
 
 	// Wait for result or error
 	var finalResult interface{}
@@ -357,7 +469,21 @@ func (p *Plugin) handleShowForm(formMsg Response) error {
 		finalError = "timeout"
 	}
 
-	// Send result back to plugin via stdin
+	// SIGNAL GOROUTINE TO STOP BEFORE SENDING RESULT
+	// This prevents a late form_change from being sent while the plugin is processing the result.
+	unsub()
+	close(doneChan)
+	p.logger.Debug("Form session finished, stopping dynamic listeners", "requestID", requestID)
+
+	// Ensure dialog window is closed if it hasn't been already
+	if dialogWindow != nil {
+		dialogWindow.Close()
+	}
+
+	// Send result back to plugin via stdin, holding commsMu
+	p.commsMu.Lock()
+	defer p.commsMu.Unlock()
+
 	var response map[string]interface{}
 	if finalError != "" {
 		response = map[string]interface{}{
@@ -374,6 +500,10 @@ func (p *Plugin) handleShowForm(formMsg Response) error {
 		return fmt.Errorf("failed to marshal form response: %w", err)
 	}
 	respBytes = append(respBytes, '\n')
+
+	if p.logger != nil {
+		p.logger.Debug("IPC -> PLUGIN (form-result)", "json", strings.TrimSpace(string(respBytes)))
+	}
 
 	if _, err := p.stdin.Write(respBytes); err != nil {
 		return fmt.Errorf("failed to write form response to plugin: %w", err)
@@ -459,7 +589,8 @@ func (p *Plugin) GetSeriesConfig() ([]plugins.SeriesConfig, error) {
 	return series, nil
 }
 
-// GetSeriesData returns series data. For binary responses, reads raw bytes.
+// GetSeriesData returns interleaved [x0, y0, x1, y1, ...] float64 data
+// for the specified series ID.
 func (p *Plugin) GetSeriesData(seriesID string) ([]float64, error) {
 	// Re-check running status - sendRequest handles it too but GetSeriesData is custom
 	if !p.running {
@@ -470,6 +601,9 @@ func (p *Plugin) GetSeriesData(seriesID string) ([]float64, error) {
 
 	p.mu.Lock()
 	defer p.mu.Unlock()
+
+	p.commsMu.Lock()
+	defer p.commsMu.Unlock()
 
 	req := Request{
 		Method:   "get_series_data",
@@ -482,6 +616,10 @@ func (p *Plugin) GetSeriesData(seriesID string) ([]float64, error) {
 	}
 	reqBytes = append(reqBytes, '\n')
 
+	if p.logger != nil {
+		p.logger.Debug("IPC -> PLUGIN", "json", strings.TrimSpace(string(reqBytes)))
+	}
+
 	if _, err := p.stdin.Write(reqBytes); err != nil {
 		return nil, fmt.Errorf("failed to write request: %w", err)
 	}
@@ -492,6 +630,10 @@ func (p *Plugin) GetSeriesData(seriesID string) ([]float64, error) {
 		if err != nil {
 			p.running = false
 			return nil, fmt.Errorf("failed to read response header: %w", err)
+		}
+
+		if p.logger != nil {
+			p.logger.Debug("PLUGIN -> IPC", "json", strings.TrimSpace(respLine))
 		}
 
 		var resp Response

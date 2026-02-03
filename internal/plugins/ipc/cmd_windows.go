@@ -12,6 +12,7 @@ func configureCommand(cmd *exec.Cmd, hide bool) {
 		if cmd.SysProcAttr == nil {
 			cmd.SysProcAttr = &syscall.SysProcAttr{}
 		}
-		cmd.SysProcAttr.HideWindow = true
+		// CREATE_NO_WINDOW (0x08000000) hides the console window without affecting GUI windows.
+		cmd.SysProcAttr.CreationFlags = 0x08000000
 	}
 }

@@ -9,19 +9,26 @@ import (
 
 // Request represents an IPC request from the host.
 type Request struct {
-	Method   string `json:"method"`
-	Args     string `json:"args,omitempty"`
-	SeriesID string `json:"series_id,omitempty"`
+	Method   string                 `json:"method"`
+	Args     string                 `json:"args,omitempty"`
+	SeriesID string                 `json:"series_id,omitempty"`
+	Data     map[string]interface{} `json:"data,omitempty"` // For form_change
 }
 
 // Response represents an IPC response to the host.
 type Response struct {
-	Result  interface{} `json:"result,omitempty"`
-	Error   string      `json:"error,omitempty"`
-	Type    string      `json:"type,omitempty"`
-	Length  int         `json:"length,omitempty"`
-	Name    string      `json:"name,omitempty"`
-	Version uint32      `json:"version,omitempty"`
+	Method           string                 `json:"method,omitempty"` // For async messages like "log" or "show_form"
+	Result           interface{}            `json:"result,omitempty"`
+	Error            string                 `json:"error,omitempty"`
+	Type             string                 `json:"type,omitempty"`
+	Length           int                    `json:"length,omitempty"`
+	Name             string                 `json:"name,omitempty"`
+	Version          uint32                 `json:"version,omitempty"`
+	Title            string                 `json:"title,omitempty"`    // For show_form
+	Schema           interface{}            `json:"schema,omitempty"`   // For form updates
+	UISchema         interface{}            `json:"uiSchema,omitempty"` // For form updates
+	Data             map[string]interface{} `json:"data,omitempty"`     // For form updates
+	HandleFormChange bool                   `json:"handle_form_change,omitempty"`
 }
 
 // ChartConfig holds chart display configuration.
@@ -82,6 +89,22 @@ func Log(level, message string) {
 	bytes, _ := json.Marshal(msg)
 	os.Stdout.Write(bytes)
 	os.Stdout.Write([]byte("\n"))
+	os.Stdout.Sync()
+}
+
+// SendFormUpdate sends an updated form configuration.
+func SendFormUpdate(schema, uiSchema interface{}, data map[string]interface{}) {
+	resp := Response{
+		Schema:   schema,
+		UISchema: uiSchema,
+		Data:     data,
+	}
+	SendResponse(resp)
+}
+
+// SendNoUpdate indicates no UI change is needed.
+func SendNoUpdate() {
+	os.Stdout.Write([]byte("{}\n"))
 	os.Stdout.Sync()
 }
 

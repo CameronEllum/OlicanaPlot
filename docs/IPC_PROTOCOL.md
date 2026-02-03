@@ -15,19 +15,25 @@ Plugins communicate with the host via **Standard Input (stdin)** and **Standard 
 {
   "method": "string",
   "args": "string (optional)",
-  "series_id": "string (optional)"
+  "series_id": "string (optional)",
+  "data": "object (optional - for form_change)"
 }
 ```
 
 ### Response (Plugin -> Host)
 ```json
 {
+  "method": "string (optional - for host-bound calls like log/show_form)",
   "result": any (optional),
   "error": "string (optional)",
   "type": "string (optional)",
   "length": number (optional),
   "name": "string (optional)",
-  "version": number (optional)
+  "version": number (optional),
+  "title": "string (optional - for show_form)",
+  "schema": "object (optional - for show_form/update)",
+  "uiSchema": "object (optional - for show_form/update)",
+  "data": "object (optional - for form updates)"
 }
 ```
 
@@ -67,7 +73,8 @@ During initialization, a plugin may request the host to show a configuration for
     "method": "show_form",
     "title": "Config Title",
     "schema": { ... JSON Schema ... },
-    "uiSchema": { ... Optional UI hints ... }
+    "uiSchema": { ... Optional UI hints ... },
+    "handle_form_change": true  // Optional: Set to true to receive dynamic 'form_change' notifications
   }
   ```
 - **Response (Host to Plugin stdin)**:
@@ -82,6 +89,27 @@ During initialization, a plugin may request the host to show a configuration for
     "error": "cancelled"
   }
   ```
+
+### 7. Form Change Notifications (Host <-> Plugin)
+During an active `show_form` session, the host sends field change notifications if the plugin supports it. The plugin can respond with an updated UI (schema/uiSchema) or an empty response if no update is needed.
+
+- **Notification (Host to Plugin stdin)**:
+  ```json
+  {
+    "method": "form_change",
+    "data": { "field1": "val1", ... }
+  }
+  ```
+
+- **Response (Plugin to Host stdout)**:
+  ```json
+  {
+    "schema": { ... },
+    "uiSchema": { ... },
+    "data": { ... }
+  }
+  ```
+  *Note: An empty JSON object `{}` indicates no UI update is required.*
 
 ## Logging (Plugin -> Host)
 Plugins can send asynchronous log messages at any time (except during binary transfer) by sending a JSON line:

@@ -2,14 +2,18 @@
     import { onMount } from "svelte";
 
     let {
-        schema = {},
-        uiSchema = {},
+        schema = $bindable({}),
+        uiSchema = $bindable({}),
         title = "Configuration",
+        requestID = "",
+        handleFormChange = false,
         onsubmit,
         oncancel,
     } = $props();
 
     let formData = $state({});
+    let loading = $state(false);
+    let loadingTimer = null;
 
     // Initialize formData with defaults from schema
     $effect(() => {
@@ -28,6 +32,66 @@
                 }
             });
         }
+    });
+
+    // Handle external data updates from plugin
+    import { Events } from "@wailsio/runtime";
+    onMount(() => {
+        if (!requestID) return;
+
+        const unsub = Events.On(`ipc-form-update-${requestID}`, (e) => {
+            const update = e.data || e;
+            if (update.schema) schema = update.schema;
+            if (update.uiSchema) uiSchema = update.uiSchema;
+            if (
+                update.data &&
+                typeof update.data === "object" &&
+                !Array.isArray(update.data)
+            ) {
+                Object.assign(formData, update.data);
+            }
+            // Stop loading state when update received
+            stopLoading();
+        });
+        return unsub;
+    });
+
+    function startLoading() {
+        if (loadingTimer) clearTimeout(loadingTimer);
+        loadingTimer = setTimeout(() => {
+            loading = true;
+        }, 250);
+    }
+
+    function stopLoading() {
+        if (loadingTimer) {
+            clearTimeout(loadingTimer);
+            loadingTimer = null;
+        }
+        loading = false;
+    }
+
+    // Debounce form changes to notify host
+    let changeTimer = null;
+    let isFirstRun = true;
+    $effect(() => {
+        // Track formData changes and also isFirstRun
+        JSON.stringify(formData);
+
+        if (changeTimer) clearTimeout(changeTimer);
+        changeTimer = setTimeout(() => {
+            if (isFirstRun) {
+                isFirstRun = false;
+                return;
+            }
+            if (requestID) {
+                console.log("Emitting form change:", formData);
+                if (handleFormChange) {
+                    startLoading();
+                }
+                Events.Emit(`ipc-form-change-${requestID}`, formData);
+            }
+        }, 100);
     });
 
     function handleSubmit() {
@@ -65,13 +129,27 @@
         }
         return val;
     }
+
+    let container = $state(null);
+    $effect(() => {
+        if (!container || !requestID) return;
+
+        const resizeObserver = new ResizeObserver((entries) => {
+            for (let entry of entries) {
+                const height = entry.target.getBoundingClientRect().height;
+                Events.Emit(`ipc-form-resize-${requestID}`, {
+                    width: 500,
+                    height: Math.ceil(height),
+                });
+            }
+        });
+
+        resizeObserver.observe(container);
+        return () => resizeObserver.disconnect();
+    });
 </script>
 
-<div class="schema-form-container">
-    <header>
-        <h2>{title}</h2>
-    </header>
-
+<div class="schema-form-container" bind:this={container}>
     <div class="form-content">
         {#if schema && schema.properties}
             {#each Object.keys(schema.properties) as key}
@@ -198,29 +276,25 @@
         <button class="cancel-btn" onclick={handleCancel}>Cancel</button>
         <button class="submit-btn" onclick={handleSubmit}>OK</button>
     </div>
+
+    {#if loading}
+        <div class="form-loading-overlay">
+            <div class="spinner"></div>
+        </div>
+    {/if}
 </div>
 
 <style>
     .schema-form-container {
-        background: rgba(255, 255, 255, 0.95);
-        backdrop-filter: blur(10px);
-        border-radius: 12px;
         padding: 24px;
         width: 100%;
-        max-width: 450px;
-        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        background: #fff;
         color: #2a3f5f;
     }
 
     :global(.dark-mode) .schema-form-container {
         background: rgba(45, 45, 45, 0.95);
         color: #e0e0e0;
-    }
-
-    header h2 {
-        margin: 0 0 20px 0;
-        font-size: 1.4em;
-        text-align: center;
     }
 
     .form-content {
@@ -379,5 +453,42 @@
     :global(.dark-mode) .cancel-btn {
         background: #555;
         color: #eee;
+    }
+
+    .form-loading-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(255, 255, 255, 0.4);
+        backdrop-filter: blur(2px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 12px;
+        z-index: 10;
+    }
+
+    :global(.dark-mode) .form-loading-overlay {
+        background: rgba(0, 0, 0, 0.4);
+    }
+
+    .spinner {
+        width: 30px;
+        height: 30px;
+        border: 3px solid rgba(74, 144, 226, 0.3);
+        border-top: 3px solid #4a90e2;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+        0% {
+            transform: rotate(0deg);
+        }
+        100% {
+            transform: rotate(360deg);
+        }
     }
 </style>

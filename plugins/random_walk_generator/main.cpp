@@ -131,7 +131,7 @@ bool show_host_form() {
     // Remove newlines to keep it a single-line JSON for the IPC protocol
     schema_str.erase(std::remove(schema_str.begin(), schema_str.end(), '\n'), schema_str.end());
     schema_str.erase(std::remove(schema_str.begin(), schema_str.end(), '\r'), schema_str.end());
-    
+
     send_response(schema_str);
 
     // Read response from host (stdin)

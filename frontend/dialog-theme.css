@@ -34,8 +34,8 @@ body {
 
 body {
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    background: var(--bg-primary);
-    color: var(--text-primary);
+    background: #fff;
+    color: #2a3f5f;
     display: flex;
     flex-direction: column;
 }
