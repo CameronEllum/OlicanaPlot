@@ -10,7 +10,8 @@ import (
 
 // ConfigService handles application configuration and settings.
 type ConfigService struct {
-	logPath string
+	logPath      string
+	chartLibrary string
 }
 
 // NewConfigService creates a new config service with default values.
@@ -25,7 +26,8 @@ func NewConfigService() *ConfigService {
 	}
 
 	return &ConfigService{
-		logPath: defaultLogPath,
+		logPath:      defaultLogPath,
+		chartLibrary: "echarts", // Default to ECharts
 	}
 }
 
@@ -37,6 +39,16 @@ func (s *ConfigService) GetLogPath() string {
 // SetLogPath updates the log path.
 func (s *ConfigService) SetLogPath(path string) {
 	s.logPath = path
+}
+
+// GetChartLibrary returns the current chart library ("echarts" or "plotly").
+func (s *ConfigService) GetChartLibrary() string {
+	return s.chartLibrary
+}
+
+// SetChartLibrary sets the chart library preference.
+func (s *ConfigService) SetChartLibrary(lib string) {
+	s.chartLibrary = lib
 }
 
 // OpenLogFile opens the current log file in the OS default text editor.

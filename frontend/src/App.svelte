@@ -1,14 +1,17 @@
 <script>
-  import * as echarts from "echarts";
   import { onMount, onDestroy } from "svelte";
   import { Events } from "@wailsio/runtime";
   import * as PluginService from "../bindings/olicanaplot/internal/plugins/service";
+  import * as ConfigService from "../bindings/olicanaplot/internal/appconfig/configservice";
   import ContextMenu from "./lib/ContextMenu.svelte";
   import MeasurementResult from "./lib/MeasurementResult.svelte";
   import OptionsDialog from "./lib/OptionsDialog.svelte";
+  import { EChartsAdapter } from "./lib/chart/EChartsAdapter.js";
+  import { PlotlyAdapter } from "./lib/chart/PlotlyAdapter.js";
 
   let chartContainer;
-  let chartInstance;
+  let chartAdapter = null;
+  let chartLibrary = $state("echarts");
   let resizeObserver;
   let loading = $state(true);
   let error = $state(null);
@@ -161,207 +164,42 @@
     loading = false;
   }
 
-  // Update chart with single series
-  function updateChartSingleSeries(seriesInfo, title) {
-    if (!chartInstance) return;
-
-    const textColor = isDarkMode ? "#ccc" : "#333";
-    const bgColor = isDarkMode ? "#2b2b2b" : "#ffffff";
-
-    const option = {
-      backgroundColor: bgColor,
-      animation: false,
-      title: {
-        text: title,
-        left: "center",
-        textStyle: { color: textColor },
-      },
-      tooltip: { trigger: "axis" },
-      toolbox: {
-        feature: {
-          dataZoom: {},
-          restore: {},
-          saveAsImage: {},
-        },
-        right: 20,
-        iconStyle: { borderColor: textColor },
-      },
-      dataZoom: [
-        {
-          type: "inside",
-          xAxisIndex: [0],
-          filterMode: "none",
-        },
-        {
-          type: "inside",
-          yAxisIndex: [0],
-          filterMode: "none",
-        },
-      ],
-      legend: {
-        data: [seriesInfo.name],
-        orient: "vertical",
-        right: 10,
-        top: 60,
-        textStyle: { color: textColor },
-        type: "scroll",
-        triggerEvent: true,
-      },
-      dataset: {
-        source: seriesInfo.data,
-        dimensions: ["x", "y"],
-      },
-      xAxis: {
-        type: "value",
-        name: "Time",
-        nameLocation: "center",
-        nameGap: 40,
-        nameTextStyle: { color: textColor, fontWeight: "bold", fontSize: 16 },
-        axisLine: { lineStyle: { color: textColor } },
-        splitLine: { lineStyle: { color: isDarkMode ? "#444" : "#e0e0e0" } },
-      },
-      yAxis: {
-        type: "value",
-        name: "Value",
-        nameLocation: "center",
-        nameGap: 55,
-        nameRotate: 90,
-        nameTextStyle: { color: textColor, fontWeight: "bold", fontSize: 16 },
-        axisLine: { lineStyle: { color: textColor } },
-        splitLine: { lineStyle: { color: isDarkMode ? "#444" : "#e0e0e0" } },
-      },
-      series: [
-        {
-          name: seriesInfo.name,
-          type: "line",
-          showSymbol: false,
-          encode: { x: "x", y: "y" },
-          large: true,
-          emphasis: { disabled: true },
-          color: seriesInfo.color,
-          lineStyle: {
-            width: 2,
-          },
-          sampling: "lttb",
-        },
-      ],
-      grid: {
-        containLabel: true,
-        top: 60,
-        bottom: 70,
-        left: 80,
-        right: getGridRight(seriesInfo),
-      },
-    };
-
-    chartInstance.setOption(option, { notMerge: true });
+  // Unified chart update function using adapter
+  function updateChart() {
+    if (!chartAdapter || !currentSeriesData) return;
+    chartAdapter.setData(
+      currentSeriesData,
+      currentTitle,
+      isDarkMode,
+      getGridRight,
+    );
   }
 
-  // Update chart with multi series
+  // Legacy wrappers for compatibility
+  function updateChartSingleSeries(seriesInfo, title) {
+    currentSeriesData = seriesInfo;
+    currentTitle = title;
+    currentMode = "single";
+    updateChart();
+  }
+
   function updateChartMultiSeries(seriesDataArray, title) {
-    if (!chartInstance) return;
-
-    const textColor = isDarkMode ? "#ccc" : "#333";
-    const bgColor = isDarkMode ? "#2b2b2b" : "#ffffff";
-
-    const datasets = seriesDataArray.map((s) => ({
-      source: s.data,
-      dimensions: ["x", "y"],
-    }));
-
-    const series = seriesDataArray.map((s, i) => ({
-      name: s.name,
-      type: "line",
-      showSymbol: false,
-      datasetIndex: i,
-      encode: { x: "x", y: "y" },
-      large: true,
-      emphasis: { disabled: true },
-      color: s.color,
-      lineStyle: { width: 2 },
-      sampling: "lttb",
-    }));
-
-    const option = {
-      backgroundColor: bgColor,
-      animation: false,
-      title: {
-        text: title,
-        left: "center",
-        textStyle: { color: textColor },
-      },
-      tooltip: { trigger: "axis" },
-      toolbox: {
-        feature: {
-          dataZoom: {},
-          restore: {},
-          saveAsImage: {},
-        },
-        right: 20,
-        iconStyle: { borderColor: textColor },
-      },
-      dataZoom: [
-        {
-          type: "inside",
-          xAxisIndex: [0],
-          filterMode: "none",
-        },
-        {
-          type: "inside",
-          yAxisIndex: [0],
-          filterMode: "none",
-        },
-      ],
-      legend: {
-        data: seriesDataArray.map((s) => s.name),
-        orient: "vertical",
-        right: 10,
-        top: 60,
-        textStyle: { color: textColor },
-        type: "scroll",
-        triggerEvent: true,
-      },
-      dataset: datasets,
-      xAxis: {
-        type: "value",
-        name: "Time",
-        nameLocation: "center",
-        nameGap: 40,
-        nameTextStyle: { color: textColor, fontWeight: "bold", fontSize: 16 },
-        axisLine: { lineStyle: { color: textColor } },
-        splitLine: { lineStyle: { color: isDarkMode ? "#444" : "#e0e0e0" } },
-      },
-      yAxis: {
-        type: "value",
-        name: "Value",
-        nameLocation: "center",
-        nameGap: 55,
-        nameRotate: 90,
-        nameTextStyle: { color: textColor, fontWeight: "bold", fontSize: 16 },
-        axisLine: { lineStyle: { color: textColor } },
-        splitLine: { lineStyle: { color: isDarkMode ? "#444" : "#e0e0e0" } },
-      },
-      series: series,
-      grid: {
-        containLabel: true,
-        top: 60,
-        bottom: 70,
-        left: 80,
-        right: getGridRight(seriesDataArray),
-      },
-    };
-
-    chartInstance.setOption(option, { notMerge: true });
+    currentSeriesData = seriesDataArray;
+    currentTitle = title;
+    currentMode = "multi";
+    updateChart();
   }
 
   // --- Context Menu & Measurement Logic ---
 
   function getNearestPoint(pixelPtr) {
-    if (!chartInstance || !currentSeriesData) return null;
+    if (!chartAdapter || !currentSeriesData) return null;
 
     const [px, py] = pixelPtr;
-    const dataCoord = chartInstance.convertFromPixel("grid", [px, py]);
-    const targetX = dataCoord[0];
+    const dataCoord = chartAdapter.getDataAtPixel(px, py);
+    if (!dataCoord) return null;
+
+    const targetX = dataCoord.x;
 
     // Check all visible series
     let closestPoint = null;
@@ -399,15 +237,17 @@
       if (closestIdx !== -1) {
         const x = series.data[closestIdx * 2];
         const y = series.data[closestIdx * 2 + 1];
-        const pointPixel = chartInstance.convertToPixel("grid", [x, y]);
+        const pointPixel = chartAdapter.getPixelFromData(x, y);
 
-        const dx = pointPixel[0] - px;
-        const dy = pointPixel[1] - py;
-        const distSq = dx * dx + dy * dy;
+        if (pointPixel) {
+          const dx = pointPixel.x - px;
+          const dy = pointPixel.y - py;
+          const distSq = dx * dx + dy * dy;
 
-        if (distSq < SNAP_RADIUS * SNAP_RADIUS && distSq < minDistanceSq) {
-          minDistanceSq = distSq;
-          closestPoint = { x, y };
+          if (distSq < SNAP_RADIUS * SNAP_RADIUS && distSq < minDistanceSq) {
+            minDistanceSq = distSq;
+            closestPoint = { x, y };
+          }
         }
       }
     }
@@ -416,7 +256,8 @@
   }
 
   function handleContextMenu(e) {
-    const event = e.event;
+    // Handle both ECharts zrender events and native DOM events
+    const event = e.event || e;
     if (!event || !event.preventDefault) return;
 
     // Prevent default browser menu
@@ -427,54 +268,57 @@
     menuY = event.clientY;
     menuItems = [];
 
-    const offX = e.offsetX;
-    const offY = e.offsetY;
+    // Get offset relative to container
+    const rect = chartContainer.getBoundingClientRect();
+    const offX = event.clientX - rect.left;
+    const offY = event.clientY - rect.top;
 
-    // Try to detect legend item by inspecting the zrender target
-    let target = e.target;
+    // For ECharts adapter, try to detect legend item
     let legendIndex = -1;
-
-    // Traverse up to find the group containing the legend item info
-    while (target) {
-      if (target.__legendDataIndex !== undefined) {
-        legendIndex = target.__legendDataIndex;
-        break;
+    if (e.target) {
+      let target = e.target;
+      while (target) {
+        if (target.__legendDataIndex !== undefined) {
+          legendIndex = target.__legendDataIndex;
+          break;
+        }
+        target = target.parent;
       }
-      target = target.parent;
     }
 
-    if (legendIndex !== -1) {
-      const option = chartInstance.getOption();
-      const legendData = option.legend[0].data;
+    if (legendIndex !== -1 && chartAdapter.instance) {
+      // ECharts-specific legend handling
+      const option = chartAdapter.instance.getOption();
+      const legendData = option?.legend?.[0]?.data || [];
       const item = legendData[legendIndex];
-      const componentName = typeof item === "string" ? item : item.name;
+      const componentName = typeof item === "string" ? item : item?.name;
 
-      PluginService.LogDebug(
-        "ContextMenu",
-        "Legend item detected via zrender",
-        componentName,
-      );
+      if (componentName) {
+        PluginService.LogDebug(
+          "ContextMenu",
+          "Legend item detected via zrender",
+          componentName,
+        );
 
-      menuItems.push({
-        label: `Rename "${componentName}"`,
-        action: () => renameSeries(componentName),
-      });
-      menuItems.push({
-        label: `Differentiate "${componentName}"`,
-        action: () => differentiateSeries(componentName),
-      });
+        menuItems.push({
+          label: `Rename "${componentName}"`,
+          action: () => renameSeries(componentName),
+        });
+        menuItems.push({
+          label: `Differentiate "${componentName}"`,
+          action: () => differentiateSeries(componentName),
+        });
+      }
     } else {
       // Check if we are in the grid area for measurement
-      if (chartInstance.containPixel("grid", [offX, offY])) {
+      const dataPoint = chartAdapter.getDataAtPixel(offX, offY);
+      if (dataPoint) {
         if (measurementStart === null) {
           menuItems.push({
             label: "Start Measurement Here",
             action: () => {
               const snap = getNearestPoint([offX, offY]);
-              measurementStart = snap || {
-                x: chartInstance.convertFromPixel("grid", [offX, offY])[0],
-                y: chartInstance.convertFromPixel("grid", [offX, offY])[1],
-              };
+              measurementStart = snap || dataPoint;
             },
           });
         } else {
@@ -482,10 +326,7 @@
             label: "End Measurement Here",
             action: () => {
               const snap = getNearestPoint([offX, offY]);
-              const end = snap || {
-                x: chartInstance.convertFromPixel("grid", [offX, offY])[0],
-                y: chartInstance.convertFromPixel("grid", [offX, offY])[1],
-              };
+              const end = snap || dataPoint;
 
               measurementResult = {
                 dx: end.x - measurementStart.x,
@@ -605,21 +446,37 @@
   }
 
   async function initChart() {
-    if (chartInstance) {
-      chartInstance.dispose();
+    // Destroy existing adapter
+    if (chartAdapter) {
+      chartAdapter.destroy();
+      chartAdapter = null;
     }
     if (!chartContainer) return;
 
-    // Use built-in 'dark' theme if requested
-    const theme = isDarkMode ? "dark" : null;
-    chartInstance = echarts.init(chartContainer, theme);
+    // Load chart library preference
+    try {
+      chartLibrary = await ConfigService.GetChartLibrary();
+    } catch (e) {
+      console.warn("Failed to get chart library preference:", e);
+      chartLibrary = "echarts";
+    }
 
-    // Use ZR contextmenu for all hit detection
-    chartInstance.getZr().on("contextmenu", handleContextMenu);
+    // Create appropriate adapter
+    if (chartLibrary === "plotly") {
+      chartAdapter = new PlotlyAdapter();
+    } else {
+      chartAdapter = new EChartsAdapter();
+    }
+
+    chartAdapter.init(chartContainer, isDarkMode);
+    chartAdapter.onContextMenu(handleContextMenu);
 
     // Initial load handled by calling loadData directly if not restored
     if (!currentSeriesData) {
       await loadData("sine");
+    } else {
+      // Restore existing data
+      updateChart();
     }
 
     // Load available plugins
@@ -631,20 +488,30 @@
     }
   }
 
+  // Handle chart library change from options dialog
+  function handleChartLibraryChange(newLibrary) {
+    chartLibrary = newLibrary;
+    initChart();
+  }
+
   onMount(() => {
     if (chartContainer) {
       initChart();
 
       resizeObserver = new ResizeObserver(() => {
-        chartInstance?.resize();
+        chartAdapter?.resize();
       });
       resizeObserver.observe(chartContainer);
     }
+
+    // Listen for chart library changes
+    Events.On("chartLibraryChanged", handleChartLibraryChange);
   });
 
   onDestroy(() => {
     resizeObserver?.disconnect();
-    chartInstance?.dispose();
+    chartAdapter?.destroy();
+    Events.Off("chartLibraryChanged", handleChartLibraryChange);
   });
 </script>
 

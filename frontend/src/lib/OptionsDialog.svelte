@@ -1,21 +1,32 @@
 <script>
     import { onMount } from "svelte";
+    import { Events } from "@wailsio/runtime";
     import * as ConfigService from "../../bindings/olicanaplot/internal/appconfig/configservice";
 
     let { visible, onClose } = $props();
     let logPath = $state("");
+    let chartLibrary = $state("echarts");
 
     onMount(async () => {
         try {
             logPath = await ConfigService.GetLogPath();
+            chartLibrary = await ConfigService.GetChartLibrary();
         } catch (e) {
-            console.error("Failed to get log path:", e);
+            console.error("Failed to get config:", e);
         }
     });
 
     async function handleSave() {
         try {
             await ConfigService.SetLogPath(logPath);
+            const oldLibrary = await ConfigService.GetChartLibrary();
+            await ConfigService.SetChartLibrary(chartLibrary);
+
+            // Emit event if chart library changed
+            if (oldLibrary !== chartLibrary) {
+                Events.Emit("chartLibraryChanged", chartLibrary);
+            }
+
             onClose();
         } catch (e) {
             console.error("Failed to save config:", e);
@@ -73,6 +84,18 @@
             </div>
 
             <div class="options-body">
+                <div class="option-item">
+                    <label for="chartLibrary">Chart Library</label>
+                    <select id="chartLibrary" bind:value={chartLibrary}>
+                        <option value="echarts">Apache ECharts</option>
+                        <option value="plotly">Plotly.js (WebGL)</option>
+                    </select>
+                    <p class="help-text">
+                        Select the charting engine. Plotly uses WebGL for large
+                        datasets.
+                    </p>
+                </div>
+
                 <div class="option-item">
                     <label for="logPath">Log File Path</label>
                     <div class="input-group">
@@ -250,6 +273,29 @@
     }
 
     :global(.dark-mode) input[type="text"] {
+        background: #121212;
+        border-color: #444;
+        color: #eee;
+    }
+
+    select {
+        padding: 10px 14px;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        font-size: 0.95rem;
+        background: white;
+        color: #2a3f5f;
+        cursor: pointer;
+        transition: border-color 0.2s;
+    }
+
+    select:focus {
+        outline: none;
+        border-color: #4db8ff;
+        box-shadow: 0 0 0 3px rgba(77, 184, 255, 0.1);
+    }
+
+    :global(.dark-mode) select {
         background: #121212;
         border-color: #444;
         color: #eee;
