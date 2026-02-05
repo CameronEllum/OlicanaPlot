@@ -27,15 +27,10 @@ export class PlotlyAdapter extends ChartAdapter {
         const seriesArr = isMulti ? seriesData : [seriesData];
 
         const traces = seriesArr.map((s) => {
-            // Extract x and y from interleaved Float64Array
             const pointCount = s.data.length / 2;
-            const xData = new Float64Array(pointCount);
-            const yData = new Float64Array(pointCount);
-
-            for (let i = 0; i < pointCount; i++) {
-                xData[i] = s.data[i * 2];
-                yData[i] = s.data[i * 2 + 1];
-            }
+            // Zero-copy: just slice the buffer. Application ensures data is in track format.
+            const xData = s.data.subarray(0, pointCount);
+            const yData = s.data.subarray(pointCount);
 
             return {
                 x: xData,

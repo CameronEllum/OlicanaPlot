@@ -204,7 +204,7 @@ void generate_data(std::string_view series_id) {
 
     // Send header
     size_t byte_len = result.size() * sizeof(double);
-    std::cout << std::format("{{\"type\":\"binary\",\"length\":{}}}", byte_len) << std::endl;
+    std::cout << std::format("{{\"type\":\"binary\",\"length\":{},\"storage\":\"interleaved\"}}", byte_len) << std::endl;
     std::cout.flush();
 
     // Send binary data (stdout must be in binary mode)

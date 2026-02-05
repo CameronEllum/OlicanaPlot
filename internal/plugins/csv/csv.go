@@ -254,41 +254,47 @@ func (p *Plugin) GetSeriesConfig() ([]plugins.SeriesConfig, error) {
 	return series, nil
 }
 
-// GetSeriesData generates and returns interleaved [x0, y0, x1, y1, ...] data.
-func (p *Plugin) GetSeriesData(seriesID string) ([]float64, error) {
+// GetSeriesData returns binary float64 data for the specified series ID.
+func (p *Plugin) GetSeriesData(seriesID string, preferredStorage string) ([]float64, string, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
 	yData, ok := p.data[seriesID]
 	if !ok {
-		return nil, fmt.Errorf("series not found: %s", seriesID)
+		return nil, "", fmt.Errorf("series not found: %s", seriesID)
 	}
 
 	count := len(yData)
-	result := make([]float64, 0, count*2)
+	result := make([]float64, count*2)
+	isArrays := preferredStorage == "arrays"
+	storage := "interleaved"
+	if isArrays {
+		storage = "arrays"
+	}
 
+	xSrc, hasX := p.data[p.selectedX]
 	if p.selectedX == "" || p.selectedX == "Index" {
-		// Use row index as X
-		for i, y := range yData {
-			result = append(result, float64(i), y)
+		hasX = false
+	}
+
+	for i := 0; i < count; i++ {
+		var x float64
+		if hasX && i < len(xSrc) {
+			x = xSrc[i]
+		} else {
+			x = float64(i)
 		}
-	} else if xData, ok := p.data[p.selectedX]; ok {
-		// Use selected column as X
-		minLen := count
-		if len(xData) < minLen {
-			minLen = len(xData)
-		}
-		for i := 0; i < minLen; i++ {
-			result = append(result, xData[i], yData[i])
-		}
-	} else {
-		// Fallback to index
-		for i, y := range yData {
-			result = append(result, float64(i), y)
+
+		if isArrays {
+			result[i] = x
+			result[count+i] = yData[i]
+		} else {
+			result[i*2] = x
+			result[i*2+1] = yData[i]
 		}
 	}
 
-	return result, nil
+	return result, storage, nil
 }
 
 // Close cleans up plugin resources.

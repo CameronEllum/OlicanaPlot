@@ -9,7 +9,6 @@ package main
 
 import (
 	"bufio"
-	"encoding/binary"
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
@@ -17,18 +16,14 @@ import (
 	"os"
 	"strconv"
 	"strings"
+
+	"olicanaplot/pkg/ipcplugin"
 )
 
 const (
 	pluginName    = "CSV IPC"
 	pluginVersion = 1
 )
-
-// Standard Plotly colors
-var ChartColors = []string{
-	"#636EFA", "#EF553B", "#00CC96", "#AB63FA", "#FFA15A",
-	"#19D3F3", "#FF6692", "#B6E880", "#FF97FF", "#FECB52",
-}
 
 // Plugin state
 var (
@@ -38,36 +33,6 @@ var (
 	selectedX   string
 	selectedY   []string
 )
-
-// Request represents an IPC request from the host.
-type Request struct {
-	Method   string `json:"method"`
-	Args     string `json:"args,omitempty"`
-	SeriesID string `json:"series_id,omitempty"`
-}
-
-// Response represents an IPC response.
-type Response struct {
-	Result  interface{} `json:"result,omitempty"`
-	Error   string      `json:"error,omitempty"`
-	Type    string      `json:"type,omitempty"`
-	Length  int         `json:"length,omitempty"`
-	Name    string      `json:"name,omitempty"`
-	Version uint32      `json:"version,omitempty"`
-}
-
-// ChartConfig holds chart display configuration.
-type ChartConfig struct {
-	Title      string   `json:"title"`
-	AxisLabels []string `json:"axis_labels"`
-}
-
-// SeriesConfig describes a data series.
-type SeriesConfig struct {
-	ID    string `json:"id"`
-	Name  string `json:"name"`
-	Color string `json:"color,omitempty"`
-}
 
 func main() {
 	// Check for --metadata flag
@@ -92,54 +57,8 @@ func main() {
 	handleIPC()
 }
 
-func log(level, message string) {
-	msg := map[string]string{
-		"method":  "log",
-		"level":   level,
-		"message": message,
-	}
-	bytes, _ := json.Marshal(msg)
-	os.Stdout.Write(bytes)
-	os.Stdout.Write([]byte("\n"))
-	os.Stdout.Sync()
-}
-
-func sendResponse(resp Response) {
-	respJSON, _ := json.Marshal(resp)
-	os.Stdout.Write(respJSON)
-	os.Stdout.Write([]byte("\n"))
-	os.Stdout.Sync()
-}
-
-func sendError(msg string) {
-	sendResponse(Response{Error: msg})
-}
-
-func sendBinaryData(floats []float64) {
-	binaryData := floatsToBytes(floats)
-	header := Response{
-		Type:   "binary",
-		Length: len(binaryData),
-	}
-	headerJSON, _ := json.Marshal(header)
-	os.Stdout.Write(headerJSON)
-	os.Stdout.Write([]byte("\n"))
-	os.Stdout.Sync()
-
-	os.Stdout.Write(binaryData)
-	os.Stdout.Sync()
-}
-
-func floatsToBytes(data []float64) []byte {
-	result := make([]byte, len(data)*8)
-	for i, f := range data {
-		binary.LittleEndian.PutUint64(result[i*8:], math.Float64bits(f))
-	}
-	return result
-}
-
 func handleIPC() {
-	log("info", "CSV IPC Plugin started")
+	ipcplugin.Log("info", "CSV IPC Plugin started")
 	scanner := bufio.NewScanner(os.Stdin)
 	// Increase buffer for large JSON messages
 	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
@@ -150,24 +69,24 @@ func handleIPC() {
 			continue
 		}
 
-		var req Request
+		var req ipcplugin.Request
 		if err := json.Unmarshal([]byte(line), &req); err != nil {
-			sendError(fmt.Sprintf("Invalid JSON: %v", err))
+			ipcplugin.SendError(fmt.Sprintf("Invalid JSON: %v", err))
 			continue
 		}
 
 		switch req.Method {
 		case "info":
-			sendResponse(Response{
+			ipcplugin.SendResponse(ipcplugin.Response{
 				Name:    pluginName,
 				Version: pluginVersion,
 			})
 
 		case "initialize":
 			if err := handleInitialize(req.Args, scanner); err != nil {
-				sendError(err.Error())
+				ipcplugin.SendError(err.Error())
 			} else {
-				sendResponse(Response{Result: map[string]interface{}{}})
+				ipcplugin.SendResponse(ipcplugin.Response{Result: map[string]interface{}{}})
 			}
 
 		case "get_chart_config":
@@ -179,34 +98,34 @@ func handleIPC() {
 			if selectedX != "" {
 				xLabel = selectedX
 			}
-			sendResponse(Response{
-				Result: ChartConfig{
+			ipcplugin.SendResponse(ipcplugin.Response{
+				Result: ipcplugin.ChartConfig{
 					Title:      title,
 					AxisLabels: []string{xLabel, "Value"},
 				},
 			})
 
 		case "get_series_config":
-			series := make([]SeriesConfig, len(selectedY))
+			series := make([]ipcplugin.SeriesConfig, len(selectedY))
 			for i, yCol := range selectedY {
-				series[i] = SeriesConfig{
+				series[i] = ipcplugin.SeriesConfig{
 					ID:    yCol,
 					Name:  yCol,
-					Color: ChartColors[i%len(ChartColors)],
+					Color: ipcplugin.ChartColors[i%len(ipcplugin.ChartColors)],
 				}
 			}
-			sendResponse(Response{Result: series})
+			ipcplugin.SendResponse(ipcplugin.Response{Result: series})
 
 		case "get_series_data":
-			handleGetSeriesData(req.SeriesID)
+			handleGetSeriesData(req.SeriesID, req.PreferredStorage)
 
 		default:
-			sendError(fmt.Sprintf("Unknown method: %s", req.Method))
+			ipcplugin.SendError(fmt.Sprintf("Unknown method: %s", req.Method))
 		}
 	}
 
 	if err := scanner.Err(); err != nil {
-		log("error", fmt.Sprintf("Scanner error: %v", err))
+		ipcplugin.Log("error", fmt.Sprintf("Scanner error: %v", err))
 	}
 }
 
@@ -216,35 +135,28 @@ func handleInitialize(initStr string, scanner *bufio.Scanner) error {
 	if initStr != "" {
 		// File path provided via drag-drop or recent files
 		filePath = initStr
-		log("info", fmt.Sprintf("Using provided file path: %s", filePath))
+		ipcplugin.Log("info", fmt.Sprintf("Using provided file path: %s", filePath))
 	} else {
 		// Request file selection from host using show_form
-		fileSchema := map[string]interface{}{
-			"method": "show_form",
-			"title":  "Select CSV File",
-			"schema": map[string]interface{}{
-				"type": "object",
-				"properties": map[string]interface{}{
-					"filePath": map[string]interface{}{
-						"type":  "string",
-						"title": "CSV File Path",
-					},
+		schema := map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"filePath": map[string]interface{}{
+					"type":  "string",
+					"title": "CSV File Path",
 				},
 			},
-			"uiSchema": map[string]interface{}{
-				"filePath": map[string]interface{}{
-					"ui:widget": "file",
-					"ui:options": map[string]interface{}{
-						"accept": ".csv",
-					},
+		}
+		uiSchema := map[string]interface{}{
+			"filePath": map[string]interface{}{
+				"ui:widget": "file",
+				"ui:options": map[string]interface{}{
+					"accept": ".csv",
 				},
 			},
 		}
 
-		schemaJSON, _ := json.Marshal(fileSchema)
-		os.Stdout.Write(schemaJSON)
-		os.Stdout.Write([]byte("\n"))
-		os.Stdout.Sync()
+		ipcplugin.SendShowForm("Select CSV File", schema, uiSchema)
 
 		// Wait for response from host
 		if !scanner.Scan() {
@@ -278,7 +190,7 @@ func handleInitialize(initStr string, scanner *bufio.Scanner) error {
 		return fmt.Errorf("failed to load CSV: %v", err)
 	}
 
-	log("info", fmt.Sprintf("Loaded CSV with %d columns", len(headers)))
+	ipcplugin.Log("info", fmt.Sprintf("Loaded CSV with %d columns", len(headers)))
 
 	// Build column selection form schema
 	columnOptions := make([]map[string]interface{}, 0, len(headers)+1)
@@ -301,44 +213,37 @@ func handleInitialize(initStr string, scanner *bufio.Scanner) error {
 		})
 	}
 
-	columnSchema := map[string]interface{}{
-		"method": "show_form",
-		"title":  "Select Columns",
-		"schema": map[string]interface{}{
-			"type": "object",
-			"properties": map[string]interface{}{
-				"xColumn": map[string]interface{}{
-					"type":    "string",
-					"title":   "X-Axis Column",
-					"oneOf":   columnOptions,
-					"default": "",
-				},
-				"yColumns": map[string]interface{}{
-					"type":  "array",
-					"title": "Y-Axis Columns",
-					"items": map[string]interface{}{
-						"type":  "string",
-						"oneOf": yColumnItems,
-					},
-					"uniqueItems": true,
-					"minItems":    1,
-				},
-			},
-		},
-		"uiSchema": map[string]interface{}{
+	schema := map[string]interface{}{
+		"type": "object",
+		"properties": map[string]interface{}{
 			"xColumn": map[string]interface{}{
-				"ui:widget": "select",
+				"type":    "string",
+				"title":   "X-Axis Column",
+				"oneOf":   columnOptions,
+				"default": "",
 			},
 			"yColumns": map[string]interface{}{
-				"ui:widget": "checkboxes",
+				"type":  "array",
+				"title": "Y-Axis Columns",
+				"items": map[string]interface{}{
+					"type":  "string",
+					"oneOf": yColumnItems,
+				},
+				"uniqueItems": true,
+				"minItems":    1,
 			},
 		},
 	}
+	uiSchema := map[string]interface{}{
+		"xColumn": map[string]interface{}{
+			"ui:widget": "select",
+		},
+		"yColumns": map[string]interface{}{
+			"ui:widget": "checkboxes",
+		},
+	}
 
-	schemaJSON, _ := json.Marshal(columnSchema)
-	os.Stdout.Write(schemaJSON)
-	os.Stdout.Write([]byte("\n"))
-	os.Stdout.Sync()
+	ipcplugin.SendShowForm("Select Columns", schema, uiSchema)
 
 	// Wait for column selection response
 	if !scanner.Scan() {
@@ -374,7 +279,7 @@ func handleInitialize(initStr string, scanner *bufio.Scanner) error {
 		return fmt.Errorf("no Y columns selected")
 	}
 
-	log("info", fmt.Sprintf("Selected X=%s, Y=%v", selectedX, selectedY))
+	ipcplugin.Log("info", fmt.Sprintf("Selected X=%s, Y=%v", selectedX, selectedY))
 	return nil
 }
 
@@ -423,36 +328,42 @@ func loadCSVFile(path string) error {
 	return nil
 }
 
-func handleGetSeriesData(seriesID string) {
+func handleGetSeriesData(seriesID string, preferredStorage string) {
 	yData, ok := data[seriesID]
 	if !ok {
-		sendError(fmt.Sprintf("series not found: %s", seriesID))
+		ipcplugin.SendError(fmt.Sprintf("series not found: %s", seriesID))
 		return
 	}
 
 	count := len(yData)
-	result := make([]float64, 0, count*2)
+	result := make([]float64, count*2)
+	isArrays := preferredStorage == "arrays"
+	storage := "interleaved"
+	if isArrays {
+		storage = "arrays"
+	}
 
+	xSrc, hasX := data[selectedX]
 	if selectedX == "" || selectedX == "Index" {
-		// Use row index as X
-		for i, y := range yData {
-			result = append(result, float64(i), y)
+		hasX = false
+	}
+
+	for i := 0; i < count; i++ {
+		var x float64
+		if hasX && i < len(xSrc) {
+			x = xSrc[i]
+		} else {
+			x = float64(i)
 		}
-	} else if xData, ok := data[selectedX]; ok {
-		// Use selected column as X
-		minLen := count
-		if len(xData) < minLen {
-			minLen = len(xData)
-		}
-		for i := 0; i < minLen; i++ {
-			result = append(result, xData[i], yData[i])
-		}
-	} else {
-		// Fallback to index
-		for i, y := range yData {
-			result = append(result, float64(i), y)
+
+		if isArrays {
+			result[i] = x
+			result[count+i] = yData[i]
+		} else {
+			result[i*2] = x
+			result[i*2+1] = yData[i]
 		}
 	}
 
-	sendBinaryData(result)
+	ipcplugin.SendBinaryData(result, storage)
 }

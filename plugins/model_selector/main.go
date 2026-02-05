@@ -131,7 +131,8 @@ func handleIPC() {
 			})
 
 		case "get_series_data":
-			ipcplugin.SendBinaryData(generateData(req.SeriesID))
+			data, storage := generateData(req.SeriesID, req.PreferredStorage)
+			ipcplugin.SendBinaryData(data, storage)
 
 		default:
 			ipcplugin.SendError("unknown method")
@@ -250,7 +251,7 @@ func getUI(model string) (interface{}, interface{}) {
 	return schema, uiSchema
 }
 
-func generateData(seriesID string) []float64 {
+func generateData(seriesID string, preferredStorage string) ([]float64, string) {
 	numPoints := int(float64(state.multiplier) * math.Pow(10, float64(state.order)))
 
 	// Use series index to jitter the seed
@@ -259,11 +260,21 @@ func generateData(seriesID string) []float64 {
 
 	rng := rand.New(rand.NewSource(state.seed + int64(seriesIdx*54321)))
 	data := make([]float64, (numPoints+1)*2)
+	isArrays := preferredStorage == "arrays"
+	storage := "interleaved"
+	if isArrays {
+		storage = "arrays"
+	}
 
 	t := 0.0
 	y := 0.0
-	data[0] = t
-	data[1] = y
+	if isArrays {
+		data[0] = t
+		data[numPoints+1] = y
+	} else {
+		data[0] = t
+		data[1] = y
+	}
 
 	for i := 1; i <= numPoints; i++ {
 		t += 1.0
@@ -276,8 +287,14 @@ func generateData(seriesID string) []float64 {
 			phase := float64(seriesIdx) * 0.5
 			y = state.amplitude*math.Sin(2*math.Pi*state.frequency*t+phase) + rng.NormFloat64()*0.1
 		}
-		data[i*2] = t
-		data[i*2+1] = y
+
+		if isArrays {
+			data[i] = t
+			data[numPoints+1+i] = y
+		} else {
+			data[i*2] = t
+			data[i*2+1] = y
+		}
 	}
-	return data
+	return data, storage
 }

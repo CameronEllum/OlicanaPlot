@@ -60,9 +60,11 @@ Returns the list of series available.
 - **Response**: `{"result": [{"id": "s1", "name": "Series 1", "color": "#hex"}]}`
 
 ### 5. `get_series_data`
-Returns interleaved [x, y] data for a series.
-- **Request**: `{"method": "get_series_data", "series_id": "s1"}`
-- **Response (Header)**: `{"type": "binary", "length": N}`
+Returns [x, y] data for a series.
+- **Request**: `{"method": "get_series_data", "series_id": "s1", "preferred_storage": "interleaved|arrays"}`
+  - `preferred_storage`: (Optional) Hint for preferred data layout.
+- **Response (Header)**: `{"type": "binary", "length": N, "storage": "interleaved|arrays"}`
+  - `storage`: The actual layout used in the follow-up binary data.
 - **Followed by**: N bytes of raw binary data (float64, little-endian).
 
 ### 6. `show_form` (Plugin -> Host Request)
@@ -122,5 +124,9 @@ Plugins can send asynchronous log messages at any time (except during binary tra
 ```
 
 ## Binary Data Format
-The binary data should be a sequence of 64-bit IEEE 754 floating-point numbers in **Little Endian** format. The data must be interleaved: `x0, y0, x1, y1, ...`.
+The binary data should be a sequence of 64-bit IEEE 754 floating-point numbers in **Little Endian** format. 
+
+If `storage` is `interleaved`: `x0, y0, x1, y1, ...`.
+If `storage` is `arrays`: `x0, x1, ... xn, y0, y1, ... yn`.
+
 Total number of points is `length / 16`.

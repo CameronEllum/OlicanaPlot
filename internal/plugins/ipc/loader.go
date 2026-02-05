@@ -4,11 +4,9 @@ package ipc
 
 import (
 	"bufio"
-	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"io"
-	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -16,6 +14,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unsafe"
 
 	"olicanaplot/internal/logging"
 	"olicanaplot/internal/plugins"
@@ -107,10 +106,11 @@ type Plugin struct {
 
 // Request represents an IPC request message sent from the host.
 type Request struct {
-	Method   string                 `json:"method"`
-	Args     string                 `json:"args,omitempty"`
-	SeriesID string                 `json:"series_id,omitempty"`
-	Data     map[string]interface{} `json:"data,omitempty"`
+	Method           string                 `json:"method"`
+	Args             string                 `json:"args,omitempty"`
+	SeriesID         string                 `json:"series_id,omitempty"`
+	PreferredStorage string                 `json:"preferred_storage,omitempty"`
+	Data             map[string]interface{} `json:"data,omitempty"`
 }
 
 // Response represents an IPC response message received from a plugin.
@@ -122,6 +122,7 @@ type Response struct {
 	Error            string          `json:"error,omitempty"`
 	Type             string          `json:"type,omitempty"`
 	Length           int             `json:"length,omitempty"`
+	Storage          string          `json:"storage,omitempty"`
 	Name             string          `json:"name,omitempty"`
 	Version          uint32          `json:"version,omitempty"`
 	Title            string          `json:"title,omitempty"`
@@ -592,13 +593,12 @@ func (p *Plugin) GetSeriesConfig() ([]plugins.SeriesConfig, error) {
 	return series, nil
 }
 
-// GetSeriesData returns interleaved [x0, y0, x1, y1, ...] float64 data
-// for the specified series ID.
-func (p *Plugin) GetSeriesData(seriesID string) ([]float64, error) {
+// GetSeriesData returns binary float64 data for the specified series ID.
+func (p *Plugin) GetSeriesData(seriesID string, preferredStorage string) ([]float64, string, error) {
 	// Re-check running status - sendRequest handles it too but GetSeriesData is custom
 	if !p.running {
 		if err := p.start(); err != nil {
-			return nil, err
+			return nil, "", err
 		}
 	}
 
@@ -609,13 +609,14 @@ func (p *Plugin) GetSeriesData(seriesID string) ([]float64, error) {
 	defer p.commsMu.Unlock()
 
 	req := Request{
-		Method:   "get_series_data",
-		SeriesID: seriesID,
+		Method:           "get_series_data",
+		SeriesID:         seriesID,
+		PreferredStorage: preferredStorage,
 	}
 
 	reqBytes, err := json.Marshal(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal request: %w", err)
+		return nil, "", fmt.Errorf("failed to marshal request: %w", err)
 	}
 	reqBytes = append(reqBytes, '\n')
 
@@ -624,7 +625,7 @@ func (p *Plugin) GetSeriesData(seriesID string) ([]float64, error) {
 	}
 
 	if _, err := p.stdin.Write(reqBytes); err != nil {
-		return nil, fmt.Errorf("failed to write request: %w", err)
+		return nil, "", fmt.Errorf("failed to write request: %w", err)
 	}
 
 	for {
@@ -632,7 +633,7 @@ func (p *Plugin) GetSeriesData(seriesID string) ([]float64, error) {
 		respLine, err := p.stdout.ReadString('\n')
 		if err != nil {
 			p.running = false
-			return nil, fmt.Errorf("failed to read response header: %w", err)
+			return nil, "", fmt.Errorf("failed to read response header: %w", err)
 		}
 
 		if p.logger != nil {
@@ -641,7 +642,7 @@ func (p *Plugin) GetSeriesData(seriesID string) ([]float64, error) {
 
 		var resp Response
 		if err := json.Unmarshal([]byte(strings.TrimSpace(respLine)), &resp); err != nil {
-			return nil, fmt.Errorf("failed to parse response header: %w", err)
+			return nil, "", fmt.Errorf("failed to parse response header: %w", err)
 		}
 
 		// Handle intermediate "log" messages
@@ -667,33 +668,30 @@ func (p *Plugin) GetSeriesData(seriesID string) ([]float64, error) {
 		}
 
 		if resp.Error != "" {
-			return nil, fmt.Errorf("plugin error: %s", resp.Error)
+			return nil, "", fmt.Errorf("plugin error: %s", resp.Error)
 		}
 
 		if resp.Type != "binary" {
-			return nil, fmt.Errorf("expected binary response, got: %s", resp.Type)
+			return nil, "", fmt.Errorf("expected binary response, got: %s", resp.Type)
 		}
 
 		// Read binary data (resp.Length bytes)
 		binaryData := make([]byte, resp.Length)
 		if _, err := io.ReadFull(p.stdout, binaryData); err != nil {
-			return nil, fmt.Errorf("failed to read binary data: %w", err)
+			return nil, "", fmt.Errorf("failed to read binary data: %w", err)
 		}
 
 		// Convert bytes to float64 slice
-		return bytesToFloats(binaryData), nil
+		return bytesToFloats(binaryData), resp.Storage, nil
 	}
 }
 
-// bytesToFloats converts little-endian bytes to float64 slice.
+// bytesToFloats converts little-endian bytes to float64 slice without copying.
 func bytesToFloats(data []byte) []float64 {
-	count := len(data) / 8
-	result := make([]float64, count)
-	for i := 0; i < count; i++ {
-		bits := binary.LittleEndian.Uint64(data[i*8:])
-		result[i] = math.Float64frombits(bits)
+	if len(data) == 0 {
+		return nil
 	}
-	return result
+	return unsafe.Slice((*float64)(unsafe.Pointer(&data[0])), len(data)/8)
 }
 
 // Close stops the plugin process.

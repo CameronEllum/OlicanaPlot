@@ -1,18 +1,18 @@
 package ipcplugin
 
 import (
-	"encoding/binary"
 	"encoding/json"
-	"math"
 	"os"
+	"unsafe"
 )
 
 // Request represents an IPC request from the host.
 type Request struct {
-	Method   string                 `json:"method"`
-	Args     string                 `json:"args,omitempty"`
-	SeriesID string                 `json:"series_id,omitempty"`
-	Data     map[string]interface{} `json:"data,omitempty"` // For form_change
+	Method           string                 `json:"method"`
+	Args             string                 `json:"args,omitempty"`
+	SeriesID         string                 `json:"series_id,omitempty"`
+	PreferredStorage string                 `json:"preferred_storage,omitempty"` // interleaved or arrays
+	Data             map[string]interface{} `json:"data,omitempty"`              // For form_change
 }
 
 // Response represents an IPC response to the host.
@@ -22,6 +22,7 @@ type Response struct {
 	Error            string                 `json:"error,omitempty"`
 	Type             string                 `json:"type,omitempty"`
 	Length           int                    `json:"length,omitempty"`
+	Storage          string                 `json:"storage,omitempty"` // interleaved or arrays
 	Name             string                 `json:"name,omitempty"`
 	Version          uint32                 `json:"version,omitempty"`
 	Title            string                 `json:"title,omitempty"`    // For show_form
@@ -64,11 +65,12 @@ func SendError(msg string) {
 }
 
 // SendBinaryData sends binary float64 data following a JSON header.
-func SendBinaryData(data []float64) {
+func SendBinaryData(data []float64, storage string) {
 	binaryData := floatsToBytes(data)
 	headerJSON, _ := json.Marshal(Response{
-		Type:   "binary",
-		Length: len(binaryData),
+		Type:    "binary",
+		Length:  len(binaryData),
+		Storage: storage,
 	})
 
 	os.Stdout.Write(headerJSON)
@@ -102,17 +104,27 @@ func SendFormUpdate(schema, uiSchema interface{}, data map[string]interface{}) {
 	SendResponse(resp)
 }
 
+// SendShowForm requests the host to show a form.
+func SendShowForm(title string, schema, uiSchema interface{}) {
+	resp := Response{
+		Method:   "show_form",
+		Title:    title,
+		Schema:   schema,
+		UISchema: uiSchema,
+	}
+	SendResponse(resp)
+}
+
 // SendNoUpdate indicates no UI change is needed.
 func SendNoUpdate() {
 	os.Stdout.Write([]byte("{}\n"))
 	os.Stdout.Sync()
 }
 
-// FloatsToBytes converts a float64 slice to little-endian bytes.
+// FloatsToBytes converts a float64 slice to little-endian bytes without copying.
 func floatsToBytes(data []float64) []byte {
-	result := make([]byte, len(data)*8)
-	for i, f := range data {
-		binary.LittleEndian.PutUint64(result[i*8:], math.Float64bits(f))
+	if len(data) == 0 {
+		return nil
 	}
-	return result
+	return unsafe.Slice((*byte)(unsafe.Pointer(&data[0])), len(data)*8)
 }

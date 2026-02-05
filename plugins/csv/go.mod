@@ -1,3 +1,7 @@
 module csv-ipc
 
-go 1.24.0
+go 1.25
+
+replace olicanaplot => ../../
+
+require olicanaplot v0.0.0-00010101000000-000000000000

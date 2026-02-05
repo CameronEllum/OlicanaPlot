@@ -59,10 +59,42 @@ type Plugin interface {
 	// GetSeriesConfig returns the list of available data series.
 	GetSeriesConfig() ([]SeriesConfig, error)
 
-	// GetSeriesData returns interleaved [x0, y0, x1, y1, ...] float64 data
-	// for the specified series ID.
-	GetSeriesData(seriesID string) ([]float64, error)
+	// GetSeriesData returns binary float64 data for the specified series ID.
+	// preferredStorage parameter: "interleaved" or "arrays" ([x...][y...]).
+	// Returns the data and the actual storage format used.
+	GetSeriesData(seriesID string, preferredStorage string) ([]float64, string, error)
 
 	// Close cleans up plugin resources. Called on shutdown.
 	Close() error
+}
+
+// ConvertStorage converts data between storage formats if necessary.
+// input: the data in current format
+// current: the current layout ("interleaved" or "arrays")
+// desired: the desired layout ("interleaved" or "arrays")
+func ConvertStorage(data []float64, current, desired string) []float64 {
+	if current == desired {
+		return data
+	}
+
+	numPoints := len(data) / 2
+	result := make([]float64, len(data))
+
+	if current == "interleaved" && desired == "arrays" {
+		// x0, y0, x1, y1 -> x0, x1, ..., y0, y1, ...
+		for i := 0; i < numPoints; i++ {
+			result[i] = data[i*2]
+			result[numPoints+i] = data[i*2+1]
+		}
+	} else if current == "arrays" && desired == "interleaved" {
+		// x0, x1, ..., y0, y1, ... -> x0, y0, x1, y1
+		for i := 0; i < numPoints; i++ {
+			result[i*2] = data[i]
+			result[i*2+1] = data[numPoints+i]
+		}
+	} else {
+		return data
+	}
+
+	return result
 }

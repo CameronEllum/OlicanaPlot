@@ -214,8 +214,8 @@ func (p *Plugin) GetSeriesConfig() ([]plugins.SeriesConfig, error) {
 	return series, nil
 }
 
-// GetSeriesData generates and returns interleaved [x0, y0, x1, y1, ...] data.
-func (p *Plugin) GetSeriesData(seriesID string) ([]float64, error) {
+// GetSeriesData generates and returns synthetic data.
+func (p *Plugin) GetSeriesData(seriesID string, preferredStorage string) ([]float64, string, error) {
 	p.mu.Lock()
 	simType := p.simulationType
 	numPoints := p.numPoints
@@ -233,44 +233,55 @@ func (p *Plugin) GetSeriesData(seriesID string) ([]float64, error) {
 	// Use standard math/rand with unique seed for each series
 	rng := rand.New(rand.NewSource(int64(seed + uint64(seriesIdx)*12345)))
 
-	result := make([]float64, 0, (numPoints+1)*2)
+	result := make([]float64, (numPoints+1)*2)
+	isArrays := preferredStorage == "arrays"
+	storage := "interleaved"
+	if isArrays {
+		storage = "arrays"
+	}
 
 	var t, y float64
 	// Gauss-Markov theta is inverse of correlation time
 	theta := 1.0 / correlationTime
 
 	// Initial point
-	result = append(result, t, y)
+	if isArrays {
+		result[0] = t
+		result[numPoints+1] = y
+	} else {
+		result[0] = t
+		result[1] = y
+	}
 
-	for i := 0; i < numPoints; i++ {
+	for i := 1; i <= numPoints; i++ {
 		// Time increment (uniform)
 		dt := 0.1 + rng.Float64()*9.9
 		t += dt
 
 		switch simType {
 		case "Random Walk":
-			// Normally distributed step noise
 			y += rng.NormFloat64() * math.Sqrt(dt) * noise
-
 		case "Gauss-Markov":
-			// OU process: dy = -theta*y*dt + sigma*dW
 			noiseVal := rng.NormFloat64() * math.Sqrt(dt) * noise
 			y = y - theta*y*dt + noiseVal
-
 		case "Sinusoidal":
-			// Deterministic signal + white noise
 			whiteNoise := rng.NormFloat64() * 0.1
 			phase := float64(seriesIdx) * 0.5
 			y = amplitude*math.Sin(2*math.Pi*frequency*t+phase) + whiteNoise
-
 		default:
 			y += rng.NormFloat64() * math.Sqrt(dt)
 		}
 
-		result = append(result, t, y)
+		if isArrays {
+			result[i] = t
+			result[numPoints+1+i] = y
+		} else {
+			result[i*2] = t
+			result[i*2+1] = y
+		}
 	}
 
-	return result, nil
+	return result, storage, nil
 }
 
 // Close cleans up plugin resources.

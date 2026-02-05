@@ -125,6 +125,27 @@
   }
 
   // Load data using unified API
+  function convertStorage(data, current, desired) {
+    if (current === desired) return data;
+    const numPoints = data.length / 2;
+    const result = new Float64Array(data.length);
+
+    if (current === "interleaved" && desired === "arrays") {
+      for (let i = 0; i < numPoints; i++) {
+        result[i] = data[i * 2];
+        result[numPoints + i] = data[i * 2 + 1];
+      }
+    } else if (current === "arrays" && desired === "interleaved") {
+      for (let i = 0; i < numPoints; i++) {
+        result[i * 2] = data[i];
+        result[i * 2 + 1] = data[numPoints + i];
+      }
+    } else {
+      return data;
+    }
+    return result;
+  }
+
   async function loadData(source) {
     loading = true;
     try {
@@ -132,15 +153,29 @@
       const seriesResponse = await fetch("/api/series_config");
       const seriesConfig = await seriesResponse.json();
 
+      // Determine requested storage format
+      const storage = chartLibrary === "plotly" ? "arrays" : "interleaved";
+
       // Fetch data for each series in parallel
-      const dataPromises = seriesConfig.map((series) =>
-        fetch(`/api/series_data?series=${series.id}`)
-          .then((res) => res.arrayBuffer())
-          .then((buffer) => ({
-            ...series,
-            data: new Float64Array(buffer),
-          })),
-      );
+      const dataPromises = seriesConfig.map(async (series) => {
+        const res = await fetch(
+          `/api/series_data?series=${series.id}&storage=${storage}`,
+        );
+        const actualStorage =
+          res.headers.get("X-Data-Storage") || "interleaved";
+        const buffer = await res.arrayBuffer();
+        let data = new Float64Array(buffer);
+
+        if (actualStorage !== storage) {
+          data = convertStorage(data, actualStorage, storage);
+        }
+
+        return {
+          ...series,
+          data: data,
+          actualStorage: storage, // It is now in the engine's format
+        };
+      });
 
       const seriesData = await Promise.all(dataPromises);
 
@@ -394,23 +429,41 @@
 
     // Compute discrete derivative: dy/dx = (y[i+1] - y[i]) / (x[i+1] - x[i])
     const sourceData = sourceSeries.data;
+    const currentStorage = sourceSeries.actualStorage || "interleaved"; // What we have
+    const engineStorage = chartLibrary === "plotly" ? "arrays" : "interleaved"; // What engine wants
+
     const numPoints = sourceData.length / 2;
     const derivData = new Float64Array((numPoints - 1) * 2);
 
     for (let i = 0; i < numPoints - 1; i++) {
-      const x0 = sourceData[i * 2];
-      const y0 = sourceData[i * 2 + 1];
-      const x1 = sourceData[(i + 1) * 2];
-      const y1 = sourceData[(i + 1) * 2 + 1];
+      let x0, y0, x1, y1;
+      if (currentStorage === "arrays") {
+        x0 = sourceData[i];
+        y0 = sourceData[numPoints + i];
+        x1 = sourceData[i + 1];
+        y1 = sourceData[numPoints + i + 1];
+      } else {
+        x0 = sourceData[i * 2];
+        y0 = sourceData[i * 2 + 1];
+        x1 = sourceData[(i + 1) * 2];
+        y1 = sourceData[(i + 1) * 2 + 1];
+      }
 
       const dx = x1 - x0;
       const dy = y1 - y0;
       const derivative = dx !== 0 ? dy / dx : 0;
 
-      // Use midpoint for x-coordinate of derivative
+      // Output of this loop is interleaved [x,y,x,y] (by derivData[i*2] access)
       derivData[i * 2] = (x0 + x1) / 2;
       derivData[i * 2 + 1] = derivative;
     }
+
+    // Convert output to engine storage if it was interleaved
+    const finalDerivData = convertStorage(
+      derivData,
+      "interleaved",
+      engineStorage,
+    );
 
     // Create new series
     const newSeriesName = `d(${seriesName})/dt`;
@@ -431,7 +484,8 @@
       id: `deriv_${Date.now()}`,
       name: newSeriesName,
       color: colors[colorIndex % colors.length],
-      data: derivData,
+      data: finalDerivData,
+      actualStorage: engineStorage,
     };
 
     // Log the added series
@@ -495,8 +549,12 @@
 
   // Handle chart library change from options dialog
   function handleChartLibraryChange(newLibrary) {
-    chartLibrary = newLibrary;
-    initChart();
+    if (chartLibrary !== newLibrary) {
+      chartLibrary = newLibrary;
+      // Reset data on engine change as requested
+      currentSeriesData = null;
+      initChart();
+    }
   }
 
   onMount(() => {

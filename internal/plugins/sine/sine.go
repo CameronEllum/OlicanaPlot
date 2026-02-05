@@ -58,7 +58,27 @@ func (p *Plugin) GetSeriesConfig() ([]plugins.SeriesConfig, error) {
 }
 
 // GetSeriesData generates and returns sine wave data.
-func (p *Plugin) GetSeriesData(seriesID string) ([]float64, error) {
+func (p *Plugin) GetSeriesData(seriesID string, preferredStorage string) ([]float64, string, error) {
+	if preferredStorage == "arrays" {
+		return getSeriesDataArrays(), "arrays", nil
+	}
+	return getSeriesDataInterleaved(), "interleaved", nil
+}
+
+func getSeriesDataArrays() []float64 {
+	numPoints := 361
+	result := make([]float64, numPoints*2)
+
+	for i := 0; i < numPoints; i++ {
+		x := float64(i)
+		y := math.Sin(float64(i) * math.Pi / 180.0)
+		result[i] = x
+		result[numPoints+i] = y
+	}
+	return result
+}
+
+func getSeriesDataInterleaved() []float64 {
 	numPoints := 361
 	result := make([]float64, numPoints*2)
 
@@ -68,8 +88,7 @@ func (p *Plugin) GetSeriesData(seriesID string) ([]float64, error) {
 		result[i*2] = x
 		result[i*2+1] = y
 	}
-
-	return result, nil
+	return result
 }
 
 // Close cleans up plugin resources.

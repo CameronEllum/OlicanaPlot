@@ -96,7 +96,7 @@ func handleIPC() {
 
 		case "get_series_data":
 			data := []float64{0, 0, 1, 1, 2, 0, 3, 1}
-			ipcplugin.SendBinaryData(data)
+			ipcplugin.SendBinaryData(data, "interleaved")
 
 		default:
 			ipcplugin.SendError("unknown method: " + req.Method)

@@ -107,18 +107,23 @@ func handleSeriesData(w http.ResponseWriter, r *http.Request, manager *plugins.M
 		return
 	}
 
+	storage := r.URL.Query().Get("storage") // interleaved or arrays
+
 	plugin := manager.GetActive()
 	if plugin == nil {
 		http.Error(w, "No active plugin", http.StatusNotFound)
 		return
 	}
 
-	data, err := plugin.GetSeriesData(seriesID)
+	data, actualStorage, err := plugin.GetSeriesData(seriesID, storage)
 	if err != nil {
 		logger.Error("Error getting series data", "series", seriesID, "error", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	// Set actual storage header so frontend knows if it needs to convert
+	w.Header().Set("X-Data-Storage", actualStorage)
 
 	numPoints := len(data) / 2
 	logger.Info("Serving series data", "series", seriesID, "points", numPoints)
