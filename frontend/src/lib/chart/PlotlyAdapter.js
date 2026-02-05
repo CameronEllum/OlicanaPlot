@@ -106,6 +106,32 @@ export class PlotlyAdapter extends ChartAdapter {
         };
 
         Plotly.react(this.container, traces, layout, config);
+
+        // Attach legend context menu listeners after plot/re-plot
+        // We use a one-time event or just re-attach on every afterplot
+        this.container.removeAllListeners("plotly_afterplot");
+        this.container.on("plotly_afterplot", () => {
+            const legendItems = this.container.querySelectorAll(".legendtext, .legendtoggle");
+            legendItems.forEach((el) => {
+                el.oncontextmenu = (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+
+                    // Extract trace name from the specific trace group
+                    const traceGroup = el.closest(".traces");
+                    const textEl = traceGroup ? traceGroup.querySelector(".legendtext") : null;
+                    const traceName = textEl ? textEl.textContent.trim() : null;
+
+                    if (traceName && this.contextMenuHandler) {
+                        // Pass a synthetic event-like object
+                        this.contextMenuHandler({
+                            event: e,
+                            plotlyLegendName: traceName,
+                        });
+                    }
+                };
+            });
+        });
     }
 
     resize() {
@@ -172,6 +198,7 @@ export class PlotlyAdapter extends ChartAdapter {
     }
 
     onContextMenu(handler) {
+        this.contextMenuHandler = handler;
         if (this.container) {
             this.container.addEventListener("contextmenu", handler);
         }

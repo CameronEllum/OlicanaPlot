@@ -286,17 +286,22 @@
       }
     }
 
-    if (legendIndex !== -1 && chartAdapter.instance) {
-      // ECharts-specific legend handling
-      const option = chartAdapter.instance.getOption();
-      const legendData = option?.legend?.[0]?.data || [];
-      const item = legendData[legendIndex];
-      const componentName = typeof item === "string" ? item : item?.name;
+    if (e.plotlyLegendName || (legendIndex !== -1 && chartAdapter.instance)) {
+      let componentName;
+      if (e.plotlyLegendName) {
+        componentName = e.plotlyLegendName;
+      } else {
+        // ECharts-specific legend handling
+        const option = chartAdapter.instance.getOption();
+        const legendData = option?.legend?.[0]?.data || [];
+        const item = legendData[legendIndex];
+        componentName = typeof item === "string" ? item : item?.name;
+      }
 
       if (componentName) {
         PluginService.LogDebug(
           "ContextMenu",
-          "Legend item detected via zrender",
+          "Legend item detected",
           componentName,
         );
 
