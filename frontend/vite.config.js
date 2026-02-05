@@ -9,8 +9,6 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: "index.html",
-        csv: "csv-dialog.html",
-        synthetic: "synthetic-dialog.html",
         dialog: "dialog.html",
       },
     },

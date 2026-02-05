@@ -149,7 +149,11 @@
     });
 </script>
 
-<div class="schema-form-container" bind:this={container}>
+<div class="schema-form-root" bind:this={container}>
+    <header class="modal-header">
+        <h3 class="text-gradient">{title}</h3>
+    </header>
+
     <div class="form-content">
         {#if schema && schema.properties}
             {#each Object.keys(schema.properties) as key}
@@ -210,7 +214,12 @@
                         </div>
                     {:else if prop.type === "integer" || prop.type === "number"}
                         {#if ui["ui:widget"] === "range"}
-                            <div class="slider-container">
+                            <div class="slider-group">
+                                <div class="slider-header">
+                                    <span class="slider-value"
+                                        >{formatValue(key, formData[key])}</span
+                                    >
+                                </div>
                                 <input
                                     type="range"
                                     id={key}
@@ -230,9 +239,6 @@
                                             parseFloat(e.target.value),
                                         )}
                                 />
-                                <span class="value-display"
-                                    >{formatValue(key, formData[key])}</span
-                                >
                             </div>
                         {:else}
                             <input
@@ -263,7 +269,7 @@
 
     {#if formData.order !== undefined && formData.multiplier !== undefined}
         <div class="preview-stats">
-            <span class="preview-label">Points per Series:</span>
+            <span class="preview-label">Points per Series</span>
             <span class="preview-value">
                 {Math.round(
                     formData.multiplier * Math.pow(10, formData.order),
@@ -272,9 +278,9 @@
         </div>
     {/if}
 
-    <div class="actions">
-        <button class="cancel-btn" onclick={handleCancel}>Cancel</button>
-        <button class="submit-btn" onclick={handleSubmit}>OK</button>
+    <div class="modal-footer">
+        <button class="btn btn-secondary" onclick={handleCancel}>Cancel</button>
+        <button class="btn btn-primary" onclick={handleSubmit}>OK</button>
     </div>
 
     {#if loading}
@@ -285,210 +291,122 @@
 </div>
 
 <style>
-    .schema-form-container {
-        padding: 24px;
+    .schema-form-root {
+        padding: 32px;
         width: 100%;
-        background: #fff;
-        color: #2a3f5f;
-    }
-
-    :global(.dark-mode) .schema-form-container {
-        background: rgba(45, 45, 45, 0.95);
-        color: #e0e0e0;
+        background: var(--bg-glass);
+        color: var(--text-primary);
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
     }
 
     .form-content {
         display: flex;
         flex-direction: column;
-        gap: 16px;
-        margin-bottom: 24px;
-    }
-
-    .form-group {
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
-    }
-
-    label {
-        font-weight: 600;
-        font-size: 0.9em;
-    }
-
-    input[type="text"],
-    input[type="number"],
-    select {
-        padding: 8px 12px;
-        border: 1px solid #d8d8d8;
-        border-radius: 6px;
-        background: #fff;
-        font-size: 1em;
-    }
-
-    :global(.dark-mode) input[type="text"],
-    :global(.dark-mode) input[type="number"],
-    :global(.dark-mode) select {
-        background: #3d3d3d;
-        border-color: #555;
-        color: #fff;
-    }
-
-    .slider-container {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-    }
-
-    input[type="range"] {
+        gap: 24px;
         flex: 1;
-        cursor: pointer;
-    }
-
-    .value-display {
-        min-width: 50px;
-        font-weight: 700;
-        color: #4a90e2;
     }
 
     .description {
-        font-size: 0.8em;
-        color: #666;
-        margin: 4px 0 0 0;
-    }
-
-    :global(.dark-mode) .description {
-        color: #aaa;
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+        margin: 0;
     }
 
     .checkbox-group {
         display: flex;
         flex-direction: column;
         gap: 8px;
+        padding: 16px;
+        background: rgba(0, 0, 0, 0.2);
+        border-radius: 12px;
+        border: 1px solid var(--border-color);
         max-height: 200px;
         overflow-y: auto;
-        padding: 10px;
-        background: rgba(0, 0, 0, 0.03);
-        border-radius: 6px;
-        border: 1px solid #eee;
-    }
-
-    :global(.dark-mode) .checkbox-group {
-        background: rgba(0, 0, 0, 0.2);
-        border-color: #444;
     }
 
     .checkbox-label {
         display: flex;
         align-items: center;
-        gap: 8px;
-        font-weight: normal;
+        gap: 12px;
+        font-size: 0.95rem;
         cursor: pointer;
-        padding: 4px 0;
+        transition: color 0.2s;
+    }
+
+    .checkbox-label:hover {
+        color: #fff;
     }
 
     .checkbox-label input {
-        cursor: pointer;
+        width: 18px;
+        height: 18px;
+        accent-color: var(--accent);
+    }
+
+    .slider-group {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .slider-header {
+        display: flex;
+        justify-content: flex-end;
+    }
+
+    .slider-value {
+        font-size: 0.9rem;
+        font-weight: 700;
+        color: var(--accent);
+        font-variant-numeric: tabular-nums;
     }
 
     .preview-stats {
-        background: rgba(74, 144, 226, 0.1);
-        border-radius: 8px;
-        padding: 12px;
-        margin-bottom: 24px;
+        background: rgba(99, 102, 241, 0.1);
+        border-radius: 16px;
+        padding: 16px 20px;
+        margin-top: 24px;
+        margin-bottom: 8px;
         display: flex;
         justify-content: space-between;
         align-items: center;
-        border: 1px solid rgba(74, 144, 226, 0.2);
+        border: 1px solid rgba(99, 102, 241, 0.2);
     }
 
     .preview-label {
-        font-size: 0.85em;
+        font-size: 0.9rem;
         font-weight: 600;
+        color: var(--text-secondary);
     }
 
     .preview-value {
         font-weight: 700;
-        color: #4a90e2;
-        font-size: 1.1em;
-    }
-
-    :global(.dark-mode) .preview-stats {
-        background: rgba(74, 144, 226, 0.05);
-    }
-
-    .actions {
-        display: flex;
-        justify-content: center;
-        gap: 12px;
-    }
-
-    button {
-        padding: 10px 24px;
-        border-radius: 8px;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.2s;
-        border: none;
-    }
-
-    .submit-btn {
-        background: #4a90e2;
-        color: white;
-    }
-
-    .submit-btn:hover {
-        background: #357abd;
-        transform: translateY(-1px);
-    }
-
-    .cancel-btn {
-        background: #ddd;
-        color: #333;
-    }
-
-    .cancel-btn:hover {
-        background: #ccc;
-    }
-
-    :global(.dark-mode) .cancel-btn {
-        background: #555;
-        color: #eee;
+        color: var(--accent);
+        font-size: 1.2rem;
     }
 
     .form-loading-overlay {
-        position: absolute;
+        position: fixed;
         top: 0;
         left: 0;
         right: 0;
         bottom: 0;
-        background: rgba(255, 255, 255, 0.4);
-        backdrop-filter: blur(2px);
+        background: rgba(0, 0, 0, 0.5);
+        backdrop-filter: blur(4px);
         display: flex;
         align-items: center;
         justify-content: center;
-        border-radius: 12px;
-        z-index: 10;
-    }
-
-    :global(.dark-mode) .form-loading-overlay {
-        background: rgba(0, 0, 0, 0.4);
+        z-index: 100;
     }
 
     .spinner {
-        width: 30px;
-        height: 30px;
-        border: 3px solid rgba(74, 144, 226, 0.3);
-        border-top: 3px solid #4a90e2;
+        width: 40px;
+        height: 40px;
+        border: 4px solid rgba(99, 102, 241, 0.2);
+        border-top: 4px solid var(--accent);
         border-radius: 50%;
         animation: spin 1s linear infinite;
-    }
-
-    @keyframes spin {
-        0% {
-            transform: rotate(0deg);
-        }
-        100% {
-            transform: rotate(360deg);
-        }
     }
 </style>

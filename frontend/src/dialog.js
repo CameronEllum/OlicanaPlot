@@ -1,3 +1,4 @@
+import './theme.css';
 import { mount } from 'svelte'
 import SchemaForm from './lib/SchemaForm.svelte'
 import { Events } from "@wailsio/runtime";

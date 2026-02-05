@@ -20,21 +20,85 @@ type CsvDialog struct {
 	app    *application.App
 }
 
-// NewCsvDialog creates a new configuration dialog
+// NewCsvDialog creates a new configuration dialog using the standardized SchemaForm
 func NewCsvDialog(app *application.App, file string, headers []string) *CsvDialog {
 	d := &CsvDialog{
 		app:    app,
 		result: make(chan ConfigResult, 1),
 	}
 
+	requestID := fmt.Sprintf("csv-%p", d)
+
+	// Create JSON Schema for column selection
+	var xOptions []map[string]interface{}
+	xOptions = append(xOptions, map[string]interface{}{"const": "Index", "title": "Index (0 to N)"})
+	for _, h := range headers {
+		xOptions = append(xOptions, map[string]interface{}{"const": h, "title": h})
+	}
+
+	var yOptions []map[string]interface{}
+	for _, h := range headers {
+		yOptions = append(yOptions, map[string]interface{}{"const": h, "title": h})
+	}
+
+	schema := map[string]interface{}{
+		"type":  "object",
+		"title": "CSV Column Selection",
+		"properties": map[string]interface{}{
+			"xColumn": map[string]interface{}{
+				"title":   "X Column (Domain)",
+				"type":    "string",
+				"oneOf":   xOptions,
+				"default": headers[0],
+			},
+			"yColumns": map[string]interface{}{
+				"title": "Y Columns (Series)",
+				"type":  "array",
+				"items": map[string]interface{}{
+					"type":  "string",
+					"oneOf": yOptions,
+				},
+				"default": headers[1:],
+			},
+		},
+	}
+
+	// Listen for the result from the Svelte dialog
+	app.Event.On(fmt.Sprintf("ipc-form-result-%s", requestID), func(e *application.CustomEvent) {
+		if e.Data != nil {
+			if e.Data == "error:cancelled" {
+				d.Cancel()
+				return
+			}
+			if data, ok := e.Data.(map[string]interface{}); ok {
+				xCol, _ := data["xColumn"].(string)
+				yColsRaw, _ := data["yColumns"].([]interface{})
+				yCols := make([]string, 0, len(yColsRaw))
+				for _, v := range yColsRaw {
+					if s, ok := v.(string); ok {
+						yCols = append(yCols, s)
+					}
+				}
+				d.Submit(xCol, yCols)
+			}
+		}
+	})
+
+	// Listen for the ready event to send data
+	app.Event.On(fmt.Sprintf("ipc-form-ready-%s", requestID), func(e *application.CustomEvent) {
+		app.Event.Emit(fmt.Sprintf("ipc-form-init-%s", requestID), map[string]interface{}{
+			"schema":           schema,
+			"handleFormChange": false,
+		})
+	})
+
 	d.window = app.Window.NewWithOptions(application.WebviewWindowOptions{
 		Title:       "CSV Column Selection",
-		Width:       700,
-		Height:      750,
+		Width:       500,
+		Height:      600,
 		AlwaysOnTop: true,
-		Frameless:   true,
-		Hidden:      true,
-		URL:         fmt.Sprintf("/csv-dialog.html?file=%s&headers=%s", file, encodeHeaders(headers)),
+		Frameless:   false, // Use system frame for consistent UX as requested
+		URL:         fmt.Sprintf("/dialog.html?requestID=%s", requestID),
 	})
 
 	return d

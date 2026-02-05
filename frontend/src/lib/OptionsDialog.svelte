@@ -84,7 +84,7 @@
             </div>
 
             <div class="options-body">
-                <div class="option-item">
+                <div class="form-group">
                     <label for="chartLibrary">Chart Library</label>
                     <select id="chartLibrary" bind:value={chartLibrary}>
                         <option value="echarts">Apache ECharts</option>
@@ -96,7 +96,7 @@
                     </p>
                 </div>
 
-                <div class="option-item">
+                <div class="form-group">
                     <label for="logPath">Log File Path</label>
                     <div class="input-group">
                         <input
@@ -111,9 +111,9 @@
                     </p>
                 </div>
 
-                <div class="option-item">
+                <div class="form-group">
                     <button
-                        class="btn-secondary btn-full"
+                        class="btn btn-secondary btn-full"
                         onclick={handleOpenLog}
                     >
                         <svg
@@ -137,8 +137,10 @@
             </div>
 
             <div class="modal-footer">
-                <button class="btn-secondary" onclick={onClose}>Cancel</button>
-                <button class="btn-primary" onclick={handleSave}
+                <button class="btn btn-secondary" onclick={onClose}
+                    >Cancel</button
+                >
+                <button class="btn btn-primary" onclick={handleSave}
                     >Save Changes</button
                 >
             </div>
@@ -147,106 +149,26 @@
 {/if}
 
 <style>
-    .modal-backdrop {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(0, 0, 0, 0.6);
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        z-index: 3000;
-        backdrop-filter: blur(4px);
-    }
-
-    .modal-content {
-        background: white;
-        padding: 0;
-        border-radius: 12px;
-        min-width: 500px;
-        max-width: 90vw;
-        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
-        display: flex;
-        flex-direction: column;
-        overflow: hidden;
-        border: 1px solid rgba(0, 0, 0, 0.1);
-    }
-
-    :global(.dark-mode) .modal-content {
-        background: #1e1e1e;
-        color: #eee;
-        border-color: #444;
-    }
-
-    .modal-header {
-        padding: 20px 24px;
-        background: #f8f9fa;
-        border-bottom: 1px solid #eee;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-    }
-
-    :global(.dark-mode) .modal-header {
-        background: #252525;
-        border-bottom-color: #333;
-    }
-
-    h3 {
-        margin: 0;
-        font-size: 1.25rem;
-        color: #2a3f5f;
-        font-weight: 600;
-    }
-
-    :global(.dark-mode) h3 {
-        color: #fff;
-    }
-
     .icon-close {
         background: transparent;
         border: none;
-        color: #888;
+        color: var(--text-secondary);
         cursor: pointer;
         padding: 4px;
-        border-radius: 4px;
+        border-radius: 8px;
         display: flex;
         transition: all 0.2s;
     }
 
     .icon-close:hover {
-        background: #e9ecef;
-        color: #333;
-    }
-
-    :global(.dark-mode) .icon-close:hover {
-        background: #333;
+        background: rgba(255, 255, 255, 0.05);
         color: #fff;
     }
 
     .options-body {
-        padding: 24px;
         display: flex;
         flex-direction: column;
-        gap: 20px;
-    }
-
-    .option-item {
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-    }
-
-    label {
-        font-weight: 600;
-        color: #506784;
-        font-size: 0.95rem;
-    }
-
-    :global(.dark-mode) label {
-        color: #a0a0a0;
+        gap: 24px;
     }
 
     .input-group {
@@ -254,119 +176,13 @@
         gap: 8px;
     }
 
-    input[type="text"] {
-        flex: 1;
-        padding: 10px 14px;
-        border: 1px solid #ddd;
-        border-radius: 6px;
-        font-size: 0.95rem;
-        font-family: "JetBrains Mono", "Courier New", monospace;
-        background: white;
-        color: #2a3f5f;
-        transition: border-color 0.2s;
-    }
-
-    input[type="text"]:focus {
-        outline: none;
-        border-color: #4db8ff;
-        box-shadow: 0 0 0 3px rgba(77, 184, 255, 0.1);
-    }
-
-    :global(.dark-mode) input[type="text"] {
-        background: #121212;
-        border-color: #444;
-        color: #eee;
-    }
-
-    select {
-        padding: 10px 14px;
-        border: 1px solid #ddd;
-        border-radius: 6px;
-        font-size: 0.95rem;
-        background: white;
-        color: #2a3f5f;
-        cursor: pointer;
-        transition: border-color 0.2s;
-    }
-
-    select:focus {
-        outline: none;
-        border-color: #4db8ff;
-        box-shadow: 0 0 0 3px rgba(77, 184, 255, 0.1);
-    }
-
-    :global(.dark-mode) select {
-        background: #121212;
-        border-color: #444;
-        color: #eee;
-    }
-
     .help-text {
         margin: 0;
-        font-size: 0.85rem;
-        color: #888;
-    }
-
-    .modal-footer {
-        padding: 16px 24px;
-        background: #f8f9fa;
-        border-top: 1px solid #eee;
-        display: flex;
-        justify-content: flex-end;
-        gap: 12px;
-    }
-
-    :global(.dark-mode) .modal-footer {
-        background: #252525;
-        border-top-color: #333;
-    }
-
-    .btn-primary,
-    .btn-secondary {
-        padding: 10px 20px;
-        border-radius: 6px;
-        font-weight: 600;
-        cursor: pointer;
-        font-size: 0.95rem;
-        transition: all 0.2s;
-    }
-
-    .btn-primary {
-        background: #007bff;
-        color: white;
-        border: 1px solid #0069d9;
-    }
-
-    .btn-primary:hover {
-        background: #0069d9;
-    }
-
-    .btn-secondary {
-        background: white;
-        color: #506784;
-        border: 1px solid #ddd;
-    }
-
-    .btn-secondary:hover {
-        background: #f8f9fa;
-        border-color: #ccc;
-    }
-
-    :global(.dark-mode) .btn-secondary {
-        background: #333;
-        color: #eee;
-        border-color: #444;
-    }
-
-    :global(.dark-mode) .btn-secondary:hover {
-        background: #444;
-        border-color: #555;
+        font-size: 0.8rem;
+        color: var(--text-secondary);
     }
 
     .btn-full {
         width: 100%;
-        display: flex;
-        justify-content: center;
-        align-items: center;
     }
 </style>

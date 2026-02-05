@@ -45,55 +45,105 @@ type SyntheticDialog struct {
 }
 
 func NewSyntheticDialog(app *application.App) *SyntheticDialog {
-	dialog := app.Window.NewWithOptions(application.WebviewWindowOptions{
-		Title:       "Synthetic Data Configuration",
-		Width:       460,
-		Height:      700,
-		AlwaysOnTop: true,
-		Frameless:   true,
-		Hidden:      true,
-		URL:         "/synthetic-dialog.html",
-	})
-
 	d := &SyntheticDialog{
-		window: dialog,
-		result: make(chan ConfigResult),
+		result: make(chan ConfigResult, 1),
 	}
 
-	app.Event.On("synthetic-config-submit", func(e *application.CustomEvent) {
-		if data, ok := e.Data.(map[string]interface{}); ok {
-			result := ConfigResult{
-				SimulationType: data["simulationType"].(string),
-				NumPoints:      int(data["numPoints"].(float64)),
-				NumSeries:      int(data["numSeries"].(float64)),
+	requestID := fmt.Sprintf("synth-%p", d)
+
+	schema := map[string]interface{}{
+		"type":  "object",
+		"title": "Synthetic Data Configuration",
+		"properties": map[string]interface{}{
+			"simulationType": map[string]interface{}{
+				"title":   "Simulation Type",
+				"type":    "string",
+				"enum":    []string{"Random Walk", "Gauss-Markov", "Sinusoidal"},
+				"default": "Random Walk",
+			},
+			"numPoints": map[string]interface{}{
+				"title":     "Number of Points",
+				"type":      "integer",
+				"minimum":   100,
+				"maximum":   1000000,
+				"default":   100000,
+				"ui:widget": "range",
+				"ui:options": map[string]interface{}{
+					"scale": "log10",
+				},
+			},
+			"numSeries": map[string]interface{}{
+				"title":     "Number of Series",
+				"type":      "integer",
+				"minimum":   1,
+				"maximum":   20,
+				"default":   3,
+				"ui:widget": "range",
+			},
+			"noise": map[string]interface{}{
+				"title":   "Noise Level",
+				"type":    "number",
+				"minimum": 0,
+				"maximum": 10,
+				"default": 1.0,
+			},
+			"correlationTime": map[string]interface{}{
+				"title":   "Correlation Time",
+				"type":    "number",
+				"minimum": 0.1,
+				"maximum": 100,
+				"default": 10.0,
+			},
+			"amplitude": map[string]interface{}{
+				"title":   "Amplitude",
+				"type":    "number",
+				"minimum": 0,
+				"maximum": 100,
+				"default": 1.0,
+			},
+			"frequency": map[string]interface{}{
+				"title":   "Frequency (Hz)",
+				"type":    "number",
+				"minimum": 0.001,
+				"maximum": 10,
+				"default": 0.1,
+			},
+		},
+	}
+
+	app.Event.On(fmt.Sprintf("ipc-form-result-%s", requestID), func(e *application.CustomEvent) {
+		if e.Data != nil {
+			if e.Data == "error:cancelled" {
+				d.cancel()
+				return
 			}
-			// Parse optional parameters with defaults
-			if noise, ok := data["noise"].(float64); ok {
-				result.Noise = noise
-			} else {
-				result.Noise = 1.0
+			if data, ok := e.Data.(map[string]interface{}); ok {
+				result := ConfigResult{
+					SimulationType:  data["simulationType"].(string),
+					NumPoints:       int(data["numPoints"].(float64)),
+					NumSeries:       int(data["numSeries"].(float64)),
+					Noise:           data["noise"].(float64),
+					CorrelationTime: data["correlationTime"].(float64),
+					Amplitude:       data["amplitude"].(float64),
+					Frequency:       data["frequency"].(float64),
+				}
+				d.submit(result)
 			}
-			if correlationTime, ok := data["correlationTime"].(float64); ok {
-				result.CorrelationTime = correlationTime
-			} else {
-				result.CorrelationTime = 10.0
-			}
-			if amplitude, ok := data["amplitude"].(float64); ok {
-				result.Amplitude = amplitude
-			} else {
-				result.Amplitude = 1.0
-			}
-			if frequency, ok := data["frequency"].(float64); ok {
-				result.Frequency = frequency
-			} else {
-				result.Frequency = 0.1
-			}
-			d.submit(result)
 		}
 	})
 
-	app.Event.On("synthetic-config-cancel", func(e *application.CustomEvent) {
-		d.cancel()
+	app.Event.On(fmt.Sprintf("ipc-form-ready-%s", requestID), func(e *application.CustomEvent) {
+		app.Event.Emit(fmt.Sprintf("ipc-form-init-%s", requestID), map[string]interface{}{
+			"schema": schema,
+		})
+	})
+
+	d.window = app.Window.NewWithOptions(application.WebviewWindowOptions{
+		Title:       "Synthetic Data Configuration",
+		Width:       500,
+		Height:      750,
+		AlwaysOnTop: true,
+		URL:         fmt.Sprintf("/dialog.html?requestID=%s", requestID),
 	})
 
 	return d

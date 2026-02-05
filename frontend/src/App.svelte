@@ -706,10 +706,21 @@
     <div
       class="modal-backdrop"
       onclick={() => (pluginSelectionVisible = false)}
-      role="presentation"
+      onkeydown={(e) => {
+        if (e.key === "Escape" || e.key === "Enter")
+          pluginSelectionVisible = false;
+      }}
+      role="button"
+      tabindex="-1"
+      aria-label="Close selection modal"
     >
-      <div class="selection-modal" onclick={(e) => e.stopPropagation()}>
-        <h3>Select Plugin</h3>
+      <div
+        class="modal-content"
+        onclick={(e) => e.stopPropagation()}
+        role="dialog"
+        tabindex="-1"
+      >
+        <h3 class="text-gradient">Select Plugin</h3>
         <p>
           Multiple plugins can handle this file. Which one would you like to
           use?
@@ -736,7 +747,7 @@
         </div>
         <div class="modal-footer">
           <button
-            class="cancel-button"
+            class="btn btn-secondary"
             onclick={() => (pluginSelectionVisible = false)}>Cancel</button
           >
         </div>
@@ -754,77 +765,78 @@
     width: 100%;
     height: 100%;
     overflow: hidden;
-    background-color: #f2f2f2;
-    color: #2a3f5f;
-    font-family:
-      "Open Sans",
-      -apple-system,
-      BlinkMacSystemFont,
-      "Segoe UI",
-      Roboto,
-      Helvetica,
-      Arial,
-      sans-serif;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: "Inter", sans-serif;
   }
 
   .app-container {
     height: 100vh;
     display: flex;
     flex-direction: column;
+    background-color: var(--bg-primary);
   }
 
   .main-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 20px;
-    height: 50px;
-    background-color: #ffffff;
-    border-bottom: 1px solid #d8d8d8;
-    flex-shrink: 0;
+    padding: 0 24px;
+    height: 60px;
+    background: var(--bg-glass);
+    border-bottom: 1px solid var(--border-color);
+    backdrop-filter: blur(10px);
+    z-index: 100;
   }
 
   .logo {
     display: flex;
     align-items: center;
-    gap: 10px;
-    font-weight: 700;
-    font-size: 1.1em;
-    color: #2a3f5f;
+    gap: 12px;
+    font-weight: 800;
+    font-size: 1.2rem;
+    letter-spacing: -0.02em;
+    background: linear-gradient(135deg, #fff, var(--text-secondary));
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
   }
 
   .menu-bar {
     display: flex;
-    gap: 10px;
+    gap: 8px;
   }
 
   .menu-bar button {
-    background: transparent;
-    border: 1px solid transparent;
-    color: #506784;
-    padding: 6px 12px;
-    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    padding: 8px 16px;
+    border-radius: 10px;
     cursor: pointer;
     display: flex;
     align-items: center;
     gap: 8px;
-    font-size: 0.9em;
-    transition: all 0.2s;
+    font-size: 0.9rem;
+    font-weight: 500;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   .menu-bar button:hover {
-    background: #e2e2e2;
-    color: #2a3f5f;
-    border-color: #d8d8d8;
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px var(--accent-glow);
   }
 
   .content-area {
     flex: 1;
-    background-color: #ffffff;
-    padding: 20px;
+    background-color: var(--bg-primary);
+    padding: 0;
     overflow: hidden;
     position: relative;
-    min-height: 0; /* Important for flex shrinking */
+    min-height: 0;
   }
 
   .chart-container {
@@ -833,88 +845,19 @@
   }
 
   .status-bar {
-    height: 24px;
-    background-color: #ffffff;
-    border-top: 1px solid #d8d8d8;
+    height: 32px;
+    background: var(--bg-secondary);
+    border-top: 1px solid var(--border-color);
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 15px;
-    font-size: 0.75em;
-    color: #506784;
-    flex-shrink: 0;
+    padding: 0 20px;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    font-weight: 500;
   }
 
-  /* Dark Mode Styles */
-  .app-container.dark-mode {
-    background-color: #1a1a1a;
-    color: #e0e0e0;
-  }
-
-  .app-container.dark-mode .main-header,
-  .app-container.dark-mode .status-bar {
-    background-color: #2d2d2d;
-    border-color: #444;
-    color: #e0e0e0;
-  }
-
-  .app-container.dark-mode .logo {
-    color: #e0e0e0;
-  }
-
-  .app-container.dark-mode .content-area {
-    background-color: #1a1a1a; /* Match chart dark bg */
-  }
-
-  .app-container.dark-mode .menu-bar button {
-    color: #a0a0a0;
-  }
-
-  .app-container.dark-mode .menu-bar button:hover {
-    background-color: #3d3d3d;
-    color: #ffffff;
-    border-color: #555;
-  }
-
-  /* Plugin Selection Modal */
-  .modal-backdrop {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.4);
-    backdrop-filter: blur(8px);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 2000;
-    animation: fadeIn 0.2s ease-out;
-  }
-
-  .selection-modal {
-    background: rgba(45, 45, 45, 0.95);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 16px;
-    padding: 24px;
-    width: 400px;
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
-    color: white;
-  }
-
-  .selection-modal h3 {
-    margin: 0 0 8px 0;
-    font-size: 1.25rem;
-    font-weight: 600;
-  }
-
-  .selection-modal p {
-    margin: 0 0 20px 0;
-    color: #aaa;
-    font-size: 0.9rem;
-    line-height: 1.4;
-  }
-
+  /* Candidate List Styles */
   .candidate-list {
     display: flex;
     flex-direction: column;
@@ -924,10 +867,10 @@
 
   .candidate-item {
     background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 8px;
-    padding: 12px 16px;
-    color: white;
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 16px;
+    color: var(--text-primary);
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -935,43 +878,16 @@
     transition: all 0.2s;
     text-align: left;
     width: 100%;
+    font-family: inherit;
   }
 
   .candidate-item:hover {
-    background: rgba(99, 110, 250, 0.2);
-    border-color: #636efa;
+    background: rgba(99, 110, 250, 0.15);
+    border-color: var(--accent);
     transform: translateX(4px);
   }
 
   .candidate-item .plugin-name {
-    font-weight: 500;
-  }
-
-  .modal-footer {
-    display: flex;
-    justify-content: flex-end;
-  }
-
-  .cancel-button {
-    background: transparent;
-    border: none;
-    color: #888;
-    cursor: pointer;
-    font-size: 0.9rem;
-    padding: 8px 16px;
-    transition: color 0.2s;
-  }
-
-  .cancel-button:hover {
-    color: #ccc;
-  }
-
-  @keyframes fadeIn {
-    from {
-      opacity: 0;
-    }
-    to {
-      opacity: 1;
-    }
+    font-weight: 600;
   }
 </style>
