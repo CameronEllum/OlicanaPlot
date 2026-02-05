@@ -2,6 +2,16 @@ import './theme.css';
 import { mount } from 'svelte'
 import SchemaForm from './lib/SchemaForm.svelte'
 import { Events } from "@wailsio/runtime";
+import * as ConfigService from "../bindings/olicanaplot/internal/appconfig/configservice";
+
+// Apply initial theme
+ConfigService.GetTheme().then((theme) => {
+    if (theme === "dark") {
+        document.documentElement.classList.add('dark-mode');
+    } else {
+        document.documentElement.classList.remove('dark-mode');
+    }
+});
 
 const target = document.getElementById('app');
 

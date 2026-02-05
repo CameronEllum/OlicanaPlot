@@ -16,12 +16,14 @@ type ConfigService struct {
 	configPath   string
 	logPath      string
 	chartLibrary string
+	theme        string
 }
 
 // configData is the structure we save to disk
 type configData struct {
 	LogPath      string `json:"logPath"`
 	ChartLibrary string `json:"chartLibrary"`
+	Theme        string `json:"theme"`
 }
 
 // NewConfigService creates a new config service with default values.
@@ -41,6 +43,7 @@ func NewConfigService() *ConfigService {
 		configPath:   filepath.Join(appDir, "config.json"),
 		logPath:      filepath.Join(appDir, "olicana.log"),
 		chartLibrary: "echarts", // Default to ECharts
+		theme:        "light",   // Default to light
 	}
 
 	s.loadConfig()
@@ -64,6 +67,9 @@ func (s *ConfigService) loadConfig() {
 	if cfg.ChartLibrary != "" {
 		s.chartLibrary = cfg.ChartLibrary
 	}
+	if cfg.Theme != "" {
+		s.theme = cfg.Theme
+	}
 }
 
 func (s *ConfigService) saveConfig() {
@@ -71,6 +77,7 @@ func (s *ConfigService) saveConfig() {
 	cfg := configData{
 		LogPath:      s.logPath,
 		ChartLibrary: s.chartLibrary,
+		Theme:        s.theme,
 	}
 	s.mu.RUnlock()
 
@@ -108,6 +115,21 @@ func (s *ConfigService) GetChartLibrary() string {
 func (s *ConfigService) SetChartLibrary(lib string) {
 	s.mu.Lock()
 	s.chartLibrary = lib
+	s.mu.Unlock()
+	s.saveConfig()
+}
+
+// GetTheme returns the current theme ("light" or "dark").
+func (s *ConfigService) GetTheme() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.theme
+}
+
+// SetTheme sets the application theme.
+func (s *ConfigService) SetTheme(theme string) {
+	s.mu.Lock()
+	s.theme = theme
 	s.mu.Unlock()
 	s.saveConfig()
 }

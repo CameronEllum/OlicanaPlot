@@ -18,6 +18,14 @@
   let dataSource = $state("sine");
   let isDarkMode = $state(false);
 
+  $effect(() => {
+    if (isDarkMode) {
+      document.documentElement.classList.add("dark-mode");
+    } else {
+      document.documentElement.classList.remove("dark-mode");
+    }
+  });
+
   // Context Menu State
   let menuVisible = $state(false);
   let menuX = $state(0);
@@ -121,8 +129,11 @@
   }
 
   // Toggle chart theme
-  function toggleTheme() {
+  async function toggleTheme() {
     isDarkMode = !isDarkMode;
+    const newTheme = isDarkMode ? "dark" : "light";
+    await ConfigService.SetTheme(newTheme);
+
     initChart().then(() => {
       if (currentSeriesData && currentSeriesData.length > 0) {
         updateChart();
@@ -531,6 +542,11 @@
       resizeObserver.observe(chartContainer);
     }
 
+    // Load initial theme
+    ConfigService.GetTheme().then((theme) => {
+      isDarkMode = theme === "dark";
+    });
+
     // Listen for chart library changes
     Events.On("chartLibraryChanged", handleChartLibraryChange);
   });
@@ -717,6 +733,7 @@
       <div
         class="modal-content"
         onclick={(e) => e.stopPropagation()}
+        onkeydown={(e) => e.stopPropagation()}
         role="dialog"
         tabindex="-1"
       >
@@ -796,7 +813,7 @@
     font-weight: 800;
     font-size: 1.2rem;
     letter-spacing: -0.02em;
-    background: linear-gradient(135deg, #fff, var(--text-secondary));
+    background: var(--header-gradient);
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
@@ -808,7 +825,7 @@
   }
 
   .menu-bar button {
-    background: rgba(255, 255, 255, 0.03);
+    background: rgba(0, 0, 0, 0.03);
     border: 1px solid var(--border-color);
     color: var(--text-secondary);
     padding: 8px 16px;
@@ -820,6 +837,10 @@
     font-size: 0.9rem;
     font-weight: 500;
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  :global(.dark-mode) .menu-bar button {
+    background: rgba(255, 255, 255, 0.05);
   }
 
   .menu-bar button:hover {

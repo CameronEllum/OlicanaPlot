@@ -161,6 +161,11 @@
     }
 
     .icon-close:hover {
+        background: rgba(0, 0, 0, 0.05);
+        color: var(--text-primary);
+    }
+
+    :global(.dark-mode) .icon-close:hover {
         background: rgba(255, 255, 255, 0.05);
         color: #fff;
     }
@@ -168,7 +173,7 @@
     .options-body {
         display: flex;
         flex-direction: column;
-        gap: 24px;
+        gap: 14px;
     }
 
     .input-group {
@@ -177,7 +182,7 @@
     }
 
     .help-text {
-        margin: 0;
+        margin: -4px 0 0 0;
         font-size: 0.8rem;
         color: var(--text-secondary);
     }

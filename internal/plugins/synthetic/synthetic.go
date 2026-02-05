@@ -138,6 +138,17 @@ func NewSyntheticDialog(app *application.App) *SyntheticDialog {
 		})
 	})
 
+	// Add resize listener
+	app.Event.On(fmt.Sprintf("ipc-form-resize-%s", requestID), func(e *application.CustomEvent) {
+		if data, ok := e.Data.(map[string]interface{}); ok {
+			width, _ := data["width"].(float64)
+			height, _ := data["height"].(float64)
+			if width > 0 && height > 0 {
+				d.window.SetSize(int(width), int(height)+48)
+			}
+		}
+	})
+
 	d.window = app.Window.NewWithOptions(application.WebviewWindowOptions{
 		Title:       "Synthetic Data Configuration",
 		Width:       500,

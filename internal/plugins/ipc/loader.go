@@ -443,8 +443,8 @@ func (p *Plugin) handleShowForm(formMsg Response) error {
 		width, _ := data["width"].(float64)
 		height, _ := data["height"].(float64)
 		if width > 0 && height > 0 {
-			// Add buffer for OS title bar (typically 30-40px)
-			dialogWindow.SetSize(int(width), int(height)+34)
+			// Add buffer for OS title bar (typically 30-48px)
+			dialogWindow.SetSize(int(width), int(height)+48)
 		}
 	})
 	defer unsubResize()

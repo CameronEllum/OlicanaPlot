@@ -161,7 +161,14 @@
                 {@const ui = uiSchema[key] || {}}
 
                 <div class="form-group">
-                    <label for={key}>{prop.title || key}</label>
+                    <div class="label-row">
+                        <label for={key}>{prop.title || key}</label>
+                        {#if ui["ui:widget"] === "range"}
+                            <span class="slider-value"
+                                >{formatValue(key, formData[key])}</span
+                            >
+                        {/if}
+                    </div>
 
                     {#if prop.enum || prop.oneOf}
                         <select id={key} bind:value={formData[key]}>
@@ -215,11 +222,6 @@
                     {:else if prop.type === "integer" || prop.type === "number"}
                         {#if ui["ui:widget"] === "range"}
                             <div class="slider-group">
-                                <div class="slider-header">
-                                    <span class="slider-value"
-                                        >{formatValue(key, formData[key])}</span
-                                    >
-                                </div>
                                 <input
                                     type="range"
                                     id={key}
@@ -292,37 +294,37 @@
 
 <style>
     .schema-form-root {
-        padding: 32px;
+        padding: 12px 14px;
         width: 100%;
-        background: var(--bg-glass);
+        background: var(--bg-primary);
         color: var(--text-primary);
-        min-height: 100vh;
         display: flex;
         flex-direction: column;
+        overflow: hidden;
     }
 
     .form-content {
         display: flex;
         flex-direction: column;
-        gap: 24px;
+        gap: 6px;
         flex: 1;
     }
 
     .description {
-        font-size: 0.8rem;
+        font-size: 0.75rem;
         color: var(--text-secondary);
-        margin: 0;
+        margin: -2px 0 0 0;
     }
 
     .checkbox-group {
         display: flex;
         flex-direction: column;
-        gap: 8px;
-        padding: 16px;
+        gap: 6px;
+        padding: 10px 14px;
         background: rgba(0, 0, 0, 0.2);
-        border-radius: 12px;
+        border-radius: 8px;
         border: 1px solid var(--border-color);
-        max-height: 200px;
+        max-height: 160px;
         overflow-y: auto;
     }
 
@@ -345,38 +347,39 @@
         accent-color: var(--accent);
     }
 
+    .label-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+    }
+
     .slider-group {
         display: flex;
         flex-direction: column;
-        gap: 8px;
-    }
-
-    .slider-header {
-        display: flex;
-        justify-content: flex-end;
+        gap: 2px;
     }
 
     .slider-value {
-        font-size: 0.9rem;
+        font-size: 0.8rem;
         font-weight: 700;
         color: var(--accent);
         font-variant-numeric: tabular-nums;
     }
 
     .preview-stats {
-        background: rgba(99, 102, 241, 0.1);
-        border-radius: 16px;
-        padding: 16px 20px;
-        margin-top: 24px;
-        margin-bottom: 8px;
+        background: rgba(99, 102, 241, 0.08);
+        border-radius: 8px;
+        padding: 6px 12px;
+        margin-top: 8px;
+        margin-bottom: 2px;
         display: flex;
         justify-content: space-between;
         align-items: center;
-        border: 1px solid rgba(99, 102, 241, 0.2);
+        border: 1px solid rgba(99, 102, 241, 0.15);
     }
 
     .preview-label {
-        font-size: 0.9rem;
+        font-size: 0.8rem;
         font-weight: 600;
         color: var(--text-secondary);
     }
@@ -384,7 +387,7 @@
     .preview-value {
         font-weight: 700;
         color: var(--accent);
-        font-size: 1.2rem;
+        font-size: 1rem;
     }
 
     .form-loading-overlay {
