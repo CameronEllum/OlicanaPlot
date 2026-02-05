@@ -34,13 +34,18 @@
   let currentTitle = "";
   let allPlugins = $state([]);
 
+  // Plugin Selection State (for ambiguous file matches)
+  let pluginSelectionVisible = $state(false);
+  let pluginSelectionCandidates = $state([]);
+  let pendingFilePath = $state("");
+
   // Activate a plugin generically
-  async function activatePlugin(pluginName, sourceLabel) {
+  async function activatePlugin(pluginName, initStr = "", sourceLabel = "") {
     loading = true;
     try {
       // Call the plugin service to activate the plugin
       // The plugin will spawn its own dialog if needed and block until finished
-      await PluginService.ActivatePlugin(pluginName);
+      await PluginService.ActivatePlugin(pluginName, initStr);
 
       // Load data from the now-active and configured plugin
       await loadData(sourceLabel || pluginName);
@@ -55,16 +60,25 @@
   async function loadFile() {
     loading = true;
     try {
-      await PluginService.OpenFile();
-      // After OpenFile returns, the plugin has been activated and data loaded
-      // We might need to refresh data manually if ActivatePlugin doesn't trigger a frontend reload
-      // But in this app, activatePlugin helper does data loading.
-      // Let's check how to refresh after OpenFile.
-      // Actually, OpenFile calls ActivatePlugin, but we need to call loadData in frontend.
+      const result = await PluginService.OpenFile();
+      if (!result) {
+        loading = false;
+        return;
+      }
 
-      // We can't easily know which plugin was activated without checking state
-      const activePlugin = await PluginService.GetActivePlugin();
-      await loadData(activePlugin);
+      const { path, candidates } = result;
+
+      if (candidates && candidates.length === 1) {
+        await activatePlugin(candidates[0], path);
+      } else if (candidates && candidates.length > 1) {
+        pluginSelectionCandidates = candidates;
+        pendingFilePath = path;
+        pluginSelectionVisible = true;
+      } else {
+        // No matching plugin found (maybe selected via "All Files")
+        // Try a generic CSV fallback or show error
+        error = "No specific plugin found to handle this file extension.";
+      }
     } catch (e) {
       console.error("Failed to load file:", e);
       if (e.message !== "cancelled") {
@@ -72,6 +86,13 @@
       }
     }
     loading = false;
+  }
+
+  async function handlePluginSelection(pluginName) {
+    pluginSelectionVisible = false;
+    await activatePlugin(pluginName, pendingFilePath);
+    pluginSelectionCandidates = [];
+    pendingFilePath = "";
   }
 
   // Show menu for generator plugins
@@ -94,7 +115,7 @@
     menuY = event.clientY;
     menuItems = generators.map((p) => ({
       label: p.name,
-      action: () => activatePlugin(p.name),
+      action: () => activatePlugin(p.name, "", ""),
     }));
     menuVisible = true;
   }
@@ -679,6 +700,49 @@
       optionsVisible = false;
     }}
   />
+
+  <!-- Plugin Selection Modal -->
+  {#if pluginSelectionVisible}
+    <div
+      class="modal-backdrop"
+      onclick={() => (pluginSelectionVisible = false)}
+      role="presentation"
+    >
+      <div class="selection-modal" onclick={(e) => e.stopPropagation()}>
+        <h3>Select Plugin</h3>
+        <p>
+          Multiple plugins can handle this file. Which one would you like to
+          use?
+        </p>
+        <div class="candidate-list">
+          {#each pluginSelectionCandidates as plugin}
+            <button
+              class="candidate-item"
+              onclick={() => handlePluginSelection(plugin)}
+            >
+              <span class="plugin-name">{plugin}</span>
+              <svg
+                viewBox="0 0 24 24"
+                width="16"
+                height="16"
+                stroke="currentColor"
+                stroke-width="2"
+                fill="none"
+              >
+                <path d="M5 12h14M12 5l7 7-7 7" />
+              </svg>
+            </button>
+          {/each}
+        </div>
+        <div class="modal-footer">
+          <button
+            class="cancel-button"
+            onclick={() => (pluginSelectionVisible = false)}>Cancel</button
+          >
+        </div>
+      </div>
+    </div>
+  {/if}
 </div>
 
 <style>
@@ -810,5 +874,104 @@
     background-color: #3d3d3d;
     color: #ffffff;
     border-color: #555;
+  }
+
+  /* Plugin Selection Modal */
+  .modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    animation: fadeIn 0.2s ease-out;
+  }
+
+  .selection-modal {
+    background: rgba(45, 45, 45, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+    padding: 24px;
+    width: 400px;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+    color: white;
+  }
+
+  .selection-modal h3 {
+    margin: 0 0 8px 0;
+    font-size: 1.25rem;
+    font-weight: 600;
+  }
+
+  .selection-modal p {
+    margin: 0 0 20px 0;
+    color: #aaa;
+    font-size: 0.9rem;
+    line-height: 1.4;
+  }
+
+  .candidate-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 24px;
+  }
+
+  .candidate-item {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 12px 16px;
+    color: white;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    transition: all 0.2s;
+    text-align: left;
+    width: 100%;
+  }
+
+  .candidate-item:hover {
+    background: rgba(99, 110, 250, 0.2);
+    border-color: #636efa;
+    transform: translateX(4px);
+  }
+
+  .candidate-item .plugin-name {
+    font-weight: 500;
+  }
+
+  .modal-footer {
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  .cancel-button {
+    background: transparent;
+    border: none;
+    color: #888;
+    cursor: pointer;
+    font-size: 0.9rem;
+    padding: 8px 16px;
+    transition: color 0.2s;
+  }
+
+  .cancel-button:hover {
+    color: #ccc;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
   }
 </style>

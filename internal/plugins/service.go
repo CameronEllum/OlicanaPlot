@@ -71,6 +71,12 @@ type PluginMetadata struct {
 	FilePatterns []FilePattern `json:"patterns"`
 }
 
+// OpenFileResult contains the result of a file open operation.
+type OpenFileResult struct {
+	Path       string   `json:"path"`
+	Candidates []string `json:"candidates"`
+}
+
 // ListPlugins returns metadata for all registered plugins.
 func (s *Service) ListPlugins() []PluginMetadata {
 	return s.manager.ListMetadata()
@@ -96,36 +102,68 @@ func (s *Service) GetFilePatterns() []FilePatternWithPlugin {
 	return s.manager.GetAllFilePatterns()
 }
 
-// OpenFile opens a file dialog with filters from all plugins and activates the appropriate one.
-func (s *Service) OpenFile() error {
+// OpenFile opens a file dialog and returns candidates for the selected file.
+func (s *Service) OpenFile() (*OpenFileResult, error) {
 	s.logger.Info("Opening file dialog")
 	app, ok := s.app.(*application.App)
 	if !ok {
-		return fmt.Errorf("invalid application context")
+		return nil, fmt.Errorf("invalid application context")
 	}
 
 	patterns := s.GetFilePatterns()
 	dialog := app.Dialog.OpenFile().SetTitle("Load Data File")
 
-	// Map to track which extensions belong to which plugin
-	extMap := make(map[string]string)
+	// Map to track which plugins belong to which extension
+	extMap := make(map[string][]string)
+
+	// Group patterns by description to collapse duplicates in the UI
+	groupedPatterns := make(map[string]map[string]bool)
 
 	for _, fp := range patterns {
-		dialog.AddFilter(fp.Description, strings.Join(fp.Patterns, ";"))
+		if groupedPatterns[fp.Description] == nil {
+			groupedPatterns[fp.Description] = make(map[string]bool)
+		}
 		for _, p := range fp.Patterns {
-			// Extract extension (e.g., *.csv -> .csv)
-			ext := filepath.Ext(p)
+			groupedPatterns[fp.Description][p] = true
+
+			// Map extension to plugin
+			ext := strings.ToLower(filepath.Ext(p))
 			if ext != "" {
-				extMap[strings.ToLower(ext)] = fp.PluginName
+				// Avoid duplicates in the candidate list
+				exists := false
+				for _, name := range extMap[ext] {
+					if name == fp.PluginName {
+						exists = true
+						break
+					}
+				}
+				if !exists {
+					extMap[ext] = append(extMap[ext], fp.PluginName)
+				}
 			}
 		}
 	}
 
-	// Add all supported files filter if we have multiple
+	// Add grouped filters to the dialog
+	for desc, patsMap := range groupedPatterns {
+		var pats []string
+		for p := range patsMap {
+			pats = append(pats, p)
+		}
+		dialog.AddFilter(desc, strings.Join(pats, ";"))
+	}
+
+	// Add "All Supported Files" if we have multiple
 	if len(patterns) > 1 {
-		var allPatterns []string
+		allPatternsMap := make(map[string]bool)
 		for _, fp := range patterns {
-			allPatterns = append(allPatterns, fp.Patterns...)
+			for _, p := range fp.Patterns {
+				allPatternsMap[p] = true
+			}
+		}
+		var allPatterns []string
+		for p := range allPatternsMap {
+			allPatterns = append(allPatterns, p)
 		}
 		dialog.AddFilter("All Supported Files", strings.Join(allPatterns, ";"))
 	}
@@ -133,23 +171,20 @@ func (s *Service) OpenFile() error {
 
 	path, err := dialog.PromptForSingleSelection()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if path == "" {
-		return nil
+		return nil, nil
 	}
 
 	s.logger.Info("File selected for loading", "path", path)
 
-	// Determine matching plugin
+	// Determine matching plugins
 	ext := strings.ToLower(filepath.Ext(path))
-	pluginName, ok := extMap[ext]
-	if !ok {
-		// Fallback to CSV if unknown but selected anyway?
-		// Or show error.
-		return fmt.Errorf("no plugin found to handle file extension: %s", ext)
-	}
+	candidates := extMap[ext]
 
-	s.logger.Info("Routing file to plugin", "plugin", pluginName, "ext", ext)
-	return s.ActivatePlugin(pluginName, path)
+	return &OpenFileResult{
+		Path:       path,
+		Candidates: candidates,
+	}, nil
 }
