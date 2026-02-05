@@ -30,9 +30,8 @@
   let optionsVisible = $state(false);
 
   // Store current data to restore chart on theme change
-  let currentSeriesData = null;
+  let currentSeriesData = $state([]);
   let currentTitle = "";
-  let currentMode = "single"; // "single" or "multi"
   let allPlugins = $state([]);
 
   // Activate a plugin generically
@@ -104,12 +103,8 @@
   function toggleTheme() {
     isDarkMode = !isDarkMode;
     initChart().then(() => {
-      if (currentSeriesData) {
-        if (currentMode === "single") {
-          updateChartSingleSeries(currentSeriesData, currentTitle);
-        } else {
-          updateChartMultiSeries(currentSeriesData, currentTitle);
-        }
+      if (currentSeriesData && currentSeriesData.length > 0) {
+        updateChart();
       }
     });
   }
@@ -122,28 +117,6 @@
     const maxLen = Math.max(...names.map((n) => (n || "").length), 0);
     // Rough estimate: icon(25px) + gap(10px) + text(len * 8px) + padding
     return Math.max(120, maxLen * 8 + 60);
-  }
-
-  // Load data using unified API
-  function convertStorage(data, current, desired) {
-    if (current === desired) return data;
-    const numPoints = data.length / 2;
-    const result = new Float64Array(data.length);
-
-    if (current === "interleaved" && desired === "arrays") {
-      for (let i = 0; i < numPoints; i++) {
-        result[i] = data[i * 2];
-        result[numPoints + i] = data[i * 2 + 1];
-      }
-    } else if (current === "arrays" && desired === "interleaved") {
-      for (let i = 0; i < numPoints; i++) {
-        result[i * 2] = data[i];
-        result[i * 2 + 1] = data[numPoints + i];
-      }
-    } else {
-      return data;
-    }
-    return result;
   }
 
   async function loadData(source) {
@@ -161,37 +134,24 @@
         const res = await fetch(
           `/api/series_data?series=${series.id}&storage=${storage}`,
         );
-        const actualStorage =
-          res.headers.get("X-Data-Storage") || "interleaved";
         const buffer = await res.arrayBuffer();
-        let data = new Float64Array(buffer);
-
-        if (actualStorage !== storage) {
-          data = convertStorage(data, actualStorage, storage);
-        }
+        const data = new Float64Array(buffer);
 
         return {
           ...series,
           data: data,
-          actualStorage: storage, // It is now in the engine's format
         };
       });
 
       const seriesData = await Promise.all(dataPromises);
 
-      if (seriesData.length === 1) {
-        dataSource = source;
-        currentSeriesData = seriesData[0];
-        currentTitle = `${source.charAt(0).toUpperCase() + source.slice(1)} Data`;
-        currentMode = "single";
-        updateChartSingleSeries(currentSeriesData, currentTitle);
-      } else {
-        dataSource = `${source} (${seriesData.length} series)`;
-        currentSeriesData = seriesData;
-        currentTitle = `${source.charAt(0).toUpperCase() + source.slice(1)} Data`;
-        currentMode = "multi";
-        updateChartMultiSeries(currentSeriesData, currentTitle);
-      }
+      currentSeriesData = seriesData;
+      currentTitle = `${source.charAt(0).toUpperCase() + source.slice(1)} Data`;
+      dataSource =
+        seriesData.length === 1
+          ? source
+          : `${source} (${seriesData.length} series)`;
+      updateChart();
     } catch (e) {
       console.error("Failed to fetch data:", e);
       error = e.message;
@@ -210,21 +170,6 @@
     );
   }
 
-  // Legacy wrappers for compatibility
-  function updateChartSingleSeries(seriesInfo, title) {
-    currentSeriesData = seriesInfo;
-    currentTitle = title;
-    currentMode = "single";
-    updateChart();
-  }
-
-  function updateChartMultiSeries(seriesDataArray, title) {
-    currentSeriesData = seriesDataArray;
-    currentTitle = title;
-    currentMode = "multi";
-    updateChart();
-  }
-
   // --- Context Menu & Measurement Logic ---
 
   function getNearestPoint(pixelPtr) {
@@ -241,8 +186,7 @@
     let minDistanceSq = Infinity;
     const SNAP_RADIUS = 20; // pixels
 
-    const seriesToSearch =
-      currentMode === "single" ? [currentSeriesData] : currentSeriesData;
+    const seriesToSearch = currentSeriesData;
 
     for (const series of seriesToSearch) {
       if (!series.data || series.data.length === 0) continue;
@@ -252,14 +196,21 @@
       let high = series.data.length / 2 - 1;
       let closestIdx = -1;
 
+      const isArrays = chartLibrary === "plotly";
+      const numPoints = series.data.length / 2;
+
       while (low <= high) {
         let mid = Math.floor((low + high) / 2);
-        let xVal = series.data[mid * 2];
+        let xVal = isArrays ? series.data[mid] : series.data[mid * 2];
 
         if (
           closestIdx === -1 ||
           Math.abs(xVal - targetX) <
-            Math.abs(series.data[closestIdx * 2] - targetX)
+            Math.abs(
+              (isArrays
+                ? series.data[closestIdx]
+                : series.data[closestIdx * 2]) - targetX,
+            )
         ) {
           closestIdx = mid;
         }
@@ -270,8 +221,12 @@
       }
 
       if (closestIdx !== -1) {
-        const x = series.data[closestIdx * 2];
-        const y = series.data[closestIdx * 2 + 1];
+        const x = isArrays
+          ? series.data[closestIdx]
+          : series.data[closestIdx * 2];
+        const y = isArrays
+          ? series.data[numPoints + closestIdx]
+          : series.data[closestIdx * 2 + 1];
         const pointPixel = chartAdapter.getPixelFromData(x, y);
 
         if (pointPixel) {
@@ -404,23 +359,13 @@
       }
     }
 
-    if (currentMode === "single") {
-      updateChartSingleSeries(currentSeriesData, currentTitle);
-    } else {
-      updateChartMultiSeries(currentSeriesData, currentTitle);
-    }
+    updateChart();
   }
 
   function differentiateSeries(seriesName) {
     // Find the source series
     let sourceSeries;
-    if (currentMode === "single") {
-      if (currentSeriesData.name === seriesName) {
-        sourceSeries = currentSeriesData;
-      }
-    } else {
-      sourceSeries = currentSeriesData.find((s) => s.name === seriesName);
-    }
+    sourceSeries = currentSeriesData.find((s) => s.name === seriesName);
 
     if (!sourceSeries || !sourceSeries.data || sourceSeries.data.length < 4) {
       console.error("Cannot differentiate: series not found or too few points");
@@ -428,13 +373,14 @@
     }
 
     // Compute discrete derivative: dy/dx = (y[i+1] - y[i]) / (x[i+1] - x[i])
+    // Data in memory always matches current engine because it's re-fetched or cleared on engine change
+    const engineStorage = chartLibrary === "plotly" ? "arrays" : "interleaved";
+    const currentStorage = engineStorage;
     const sourceData = sourceSeries.data;
-    const currentStorage = sourceSeries.actualStorage || "interleaved"; // What we have
-    const engineStorage = chartLibrary === "plotly" ? "arrays" : "interleaved"; // What engine wants
-
     const numPoints = sourceData.length / 2;
     const derivData = new Float64Array((numPoints - 1) * 2);
 
+    const isArrays = engineStorage === "arrays";
     for (let i = 0; i < numPoints - 1; i++) {
       let x0, y0, x1, y1;
       if (currentStorage === "arrays") {
@@ -452,22 +398,22 @@
       const dx = x1 - x0;
       const dy = y1 - y0;
       const derivative = dx !== 0 ? dy / dx : 0;
+      const xMid = (x0 + x1) / 2;
 
-      // Output of this loop is interleaved [x,y,x,y] (by derivData[i*2] access)
-      derivData[i * 2] = (x0 + x1) / 2;
-      derivData[i * 2 + 1] = derivative;
+      if (isArrays) {
+        derivData[i] = xMid;
+        derivData[numPoints - 1 + i] = derivative;
+      } else {
+        derivData[i * 2] = xMid;
+        derivData[i * 2 + 1] = derivative;
+      }
     }
 
-    // Convert output to engine storage if it was interleaved
-    const finalDerivData = convertStorage(
-      derivData,
-      "interleaved",
-      engineStorage,
-    );
+    const finalDerivData = derivData;
 
     // Create new series
     const newSeriesName = `d(${seriesName})/dt`;
-    const colorIndex = currentMode === "single" ? 1 : currentSeriesData.length;
+    const colorIndex = currentSeriesData.length;
     const colors = [
       "#636EFA",
       "#EF553B",
@@ -485,23 +431,16 @@
       name: newSeriesName,
       color: colors[colorIndex % colors.length],
       data: finalDerivData,
-      actualStorage: engineStorage,
     };
 
     // Log the added series
     PluginService.LogSeriesAdded(newSeriesName, numPoints - 1);
 
     // Add to current data
-    if (currentMode === "single") {
-      // Convert to multi-series mode
-      currentSeriesData = [currentSeriesData, newSeries];
-      currentMode = "multi";
-    } else {
-      currentSeriesData.push(newSeries);
-    }
+    currentSeriesData.push(newSeries);
 
     // Refresh chart
-    updateChartMultiSeries(currentSeriesData, currentTitle);
+    updateChart();
   }
 
   async function initChart() {
@@ -531,7 +470,7 @@
     chartAdapter.onContextMenu(handleContextMenu);
 
     // Initial load handled by calling loadData directly if not restored
-    if (!currentSeriesData) {
+    if (currentSeriesData.length === 0) {
       await loadData("sine");
     } else {
       // Restore existing data
@@ -551,8 +490,12 @@
   function handleChartLibraryChange(newLibrary) {
     if (chartLibrary !== newLibrary) {
       chartLibrary = newLibrary;
-      // Reset data on engine change as requested
-      currentSeriesData = null;
+      // Re-fetch data for the new engine since storage format is different
+      if (currentSeriesData.length > 0) {
+        // Use the base dataSource name if possible
+        const baseName = dataSource.split(" (")[0];
+        loadData(baseName.toLowerCase());
+      }
       initChart();
     }
   }

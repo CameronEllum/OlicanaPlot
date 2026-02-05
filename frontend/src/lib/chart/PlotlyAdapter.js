@@ -23,8 +23,8 @@ export class PlotlyAdapter extends ChartAdapter {
         this.darkMode = darkMode;
         this.currentData = seriesData;
 
-        const isMulti = Array.isArray(seriesData);
-        const seriesArr = isMulti ? seriesData : [seriesData];
+        // Always expect an array of series
+        const seriesArr = Array.isArray(seriesData) ? seriesData : [seriesData];
 
         const traces = seriesArr.map((s) => {
             const pointCount = s.data.length / 2;
@@ -78,6 +78,7 @@ export class PlotlyAdapter extends ChartAdapter {
                 zerolinecolor: gridColor,
                 tickfont: { color: textColor },
             },
+            showlegend: true,
             legend: {
                 orientation: "v",
                 x: 1.02,
@@ -86,7 +87,7 @@ export class PlotlyAdapter extends ChartAdapter {
             },
             margin: {
                 l: 80,
-                r: getGridRight(seriesData),
+                r: getGridRight(seriesArr),
                 t: 60,
                 b: 70,
             },

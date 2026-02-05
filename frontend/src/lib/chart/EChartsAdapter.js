@@ -25,102 +25,15 @@ export class EChartsAdapter extends ChartAdapter {
         const textColor = darkMode ? "#ccc" : "#333";
         const bgColor = darkMode ? "#2b2b2b" : "#ffffff";
 
-        const isMulti = Array.isArray(seriesData);
+        // Always expect an array of series
+        const seriesArr = Array.isArray(seriesData) ? seriesData : [seriesData];
 
-        if (isMulti) {
-            this._setMultiSeries(seriesData, title, textColor, bgColor, darkMode, getGridRight);
-        } else {
-            this._setSingleSeries(seriesData, title, textColor, bgColor, darkMode, getGridRight);
-        }
-    }
-
-    _setSingleSeries(seriesInfo, title, textColor, bgColor, darkMode, getGridRight) {
-        const option = {
-            backgroundColor: bgColor,
-            animation: false,
-            title: {
-                text: title,
-                left: "center",
-                textStyle: { color: textColor },
-            },
-            tooltip: { trigger: "axis" },
-            toolbox: {
-                feature: {
-                    dataZoom: {},
-                    restore: {},
-                    saveAsImage: {},
-                },
-                right: 20,
-                iconStyle: { borderColor: textColor },
-            },
-            dataZoom: [
-                { type: "inside", xAxisIndex: [0], filterMode: "none" },
-                { type: "inside", yAxisIndex: [0], filterMode: "none" },
-            ],
-            legend: {
-                data: [seriesInfo.name],
-                orient: "vertical",
-                right: 10,
-                top: 60,
-                textStyle: { color: textColor },
-                type: "scroll",
-                triggerEvent: true,
-            },
-            dataset: {
-                source: seriesInfo.data,
-                dimensions: ["x", "y"],
-            },
-            xAxis: {
-                type: "value",
-                name: "Time",
-                nameLocation: "center",
-                nameGap: 40,
-                nameTextStyle: { color: textColor, fontWeight: "bold", fontSize: 16 },
-                axisLine: { lineStyle: { color: textColor } },
-                splitLine: { lineStyle: { color: darkMode ? "#444" : "#e0e0e0" } },
-            },
-            yAxis: {
-                type: "value",
-                name: "Value",
-                nameLocation: "center",
-                nameGap: 55,
-                nameRotate: 90,
-                nameTextStyle: { color: textColor, fontWeight: "bold", fontSize: 16 },
-                axisLine: { lineStyle: { color: textColor } },
-                splitLine: { lineStyle: { color: darkMode ? "#444" : "#e0e0e0" } },
-            },
-            series: [
-                {
-                    name: seriesInfo.name,
-                    type: "line",
-                    showSymbol: false,
-                    encode: { x: "x", y: "y" },
-                    large: true,
-                    emphasis: { disabled: true },
-                    color: seriesInfo.color,
-                    lineStyle: { width: 2 },
-                    sampling: "lttb",
-                },
-            ],
-            grid: {
-                containLabel: true,
-                top: 60,
-                bottom: 70,
-                left: 80,
-                right: getGridRight(seriesInfo),
-            },
-        };
-
-        this.instance.setOption(option, { notMerge: true });
-    }
-
-    _setMultiSeries(seriesDataArray, title, textColor, bgColor, darkMode, getGridRight) {
-        const datasets = seriesDataArray.map((s) => ({
+        const datasets = seriesArr.map((s) => ({
             source: s.data,
             dimensions: ["x", "y"],
         }));
 
-        const series = seriesDataArray.map((s, i) => ({
+        const series = seriesArr.map((s, i) => ({
             name: s.name,
             type: "line",
             showSymbol: false,
@@ -156,7 +69,7 @@ export class EChartsAdapter extends ChartAdapter {
                 { type: "inside", yAxisIndex: [0], filterMode: "none" },
             ],
             legend: {
-                data: seriesDataArray.map((s) => s.name),
+                data: seriesArr.map((s) => s.name),
                 orient: "vertical",
                 right: 10,
                 top: 60,
@@ -190,12 +103,13 @@ export class EChartsAdapter extends ChartAdapter {
                 top: 60,
                 bottom: 70,
                 left: 80,
-                right: getGridRight(seriesDataArray),
+                right: getGridRight(seriesArr),
             },
         };
 
         this.instance.setOption(option, { notMerge: true });
     }
+
 
     resize() {
         if (this.instance) {

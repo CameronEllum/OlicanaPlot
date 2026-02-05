@@ -122,7 +122,13 @@ func handleSeriesData(w http.ResponseWriter, r *http.Request, manager *plugins.M
 		return
 	}
 
-	// Set actual storage header so frontend knows if it needs to convert
+	// If the plugin returned a different format, convert it here on the backend
+	if storage != "" && actualStorage != storage {
+		data = convertStorage(data, actualStorage, storage)
+		actualStorage = storage
+	}
+
+	// Set actual storage header so frontend knows what it got (should now match requested)
 	w.Header().Set("X-Data-Storage", actualStorage)
 
 	numPoints := len(data) / 2
@@ -146,4 +152,32 @@ func handlePluginList(w http.ResponseWriter, r *http.Request, manager *plugins.M
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
+}
+
+// convertStorage converts data between storage formats if necessary.
+func convertStorage(data []float64, current, desired string) []float64 {
+	if current == desired || current == "" || desired == "" {
+		return data
+	}
+
+	numPoints := len(data) / 2
+	result := make([]float64, len(data))
+
+	if current == "interleaved" && desired == "arrays" {
+		// x0, y0, x1, y1 -> x0, x1, ..., y0, y1, ...
+		for i := 0; i < numPoints; i++ {
+			result[i] = data[i*2]
+			result[numPoints+i] = data[i*2+1]
+		}
+	} else if current == "arrays" && desired == "interleaved" {
+		// x0, x1, ..., y0, y1, ... -> x0, y0, x1, y1
+		for i := 0; i < numPoints; i++ {
+			result[i*2] = data[i]
+			result[i*2+1] = data[numPoints+i]
+		}
+	} else {
+		return data
+	}
+
+	return result
 }
