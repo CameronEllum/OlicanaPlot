@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"sync"
+
+	"olicanaplot/internal/logging"
 )
 
 // ConfigService handles application configuration and settings.
@@ -17,6 +19,7 @@ type ConfigService struct {
 	logPath      string
 	chartLibrary string
 	theme        string
+	logLevel     string
 }
 
 // configData is the structure we save to disk
@@ -24,6 +27,7 @@ type configData struct {
 	LogPath      string `json:"logPath"`
 	ChartLibrary string `json:"chartLibrary"`
 	Theme        string `json:"theme"`
+	LogLevel     string `json:"logLevel"`
 }
 
 // NewConfigService creates a new config service with default values.
@@ -44,6 +48,7 @@ func NewConfigService() *ConfigService {
 		logPath:      filepath.Join(appDir, "olicana.log"),
 		chartLibrary: "echarts", // Default to ECharts
 		theme:        "light",   // Default to light
+		logLevel:     "info",    // Default to info
 	}
 
 	s.loadConfig()
@@ -70,6 +75,12 @@ func (s *ConfigService) loadConfig() {
 	if cfg.Theme != "" {
 		s.theme = cfg.Theme
 	}
+	if cfg.LogLevel != "" {
+		s.logLevel = cfg.LogLevel
+	}
+
+	// Apply log level
+	logging.SetLevel(s.logLevel)
 }
 
 func (s *ConfigService) saveConfig() {
@@ -78,6 +89,7 @@ func (s *ConfigService) saveConfig() {
 		LogPath:      s.logPath,
 		ChartLibrary: s.chartLibrary,
 		Theme:        s.theme,
+		LogLevel:     s.logLevel,
 	}
 	s.mu.RUnlock()
 
@@ -131,6 +143,23 @@ func (s *ConfigService) SetTheme(theme string) {
 	s.mu.Lock()
 	s.theme = theme
 	s.mu.Unlock()
+	s.saveConfig()
+}
+
+// GetLogLevel returns the current log level.
+func (s *ConfigService) GetLogLevel() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.logLevel
+}
+
+// SetLogLevel sets the application log level.
+func (s *ConfigService) SetLogLevel(level string) {
+	s.mu.Lock()
+	s.logLevel = level
+	s.mu.Unlock()
+
+	logging.SetLevel(level)
 	s.saveConfig()
 }
 

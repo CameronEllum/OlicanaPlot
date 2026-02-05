@@ -43,6 +43,25 @@ func SetOutput(w ...io.Writer) {
 	}
 }
 
+// SetLevel updates the global log level.
+func SetLevel(level string) {
+	writerMu.Lock()
+	defer writerMu.Unlock()
+
+	switch strings.ToLower(level) {
+	case "debug":
+		logLevel = slog.LevelDebug
+	case "info":
+		logLevel = slog.LevelInfo
+	case "warn":
+		logLevel = slog.LevelWarn
+	case "error":
+		logLevel = slog.LevelError
+	default:
+		logLevel = slog.LevelInfo
+	}
+}
+
 // Logger is the interface for structured logging.
 type Logger interface {
 	Debug(msg string, args ...any)

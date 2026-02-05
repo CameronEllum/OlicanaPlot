@@ -42,7 +42,7 @@ func main() {
 				"name": pluginName,
 				"patterns": []map[string]interface{}{
 					{
-						"description": "CSV Files (IPC plug-in)",
+						"description": "CSV Files",
 						"patterns":    []string{"*.csv"},
 					},
 				},
