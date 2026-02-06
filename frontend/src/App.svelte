@@ -64,6 +64,83 @@
     loading = false;
   }
 
+  // Add data to existing chart from a plugin (asFacets = CTRL held)
+  async function addDataToChart(pluginName, initStr = "", asFacets = false) {
+    loading = true;
+    try {
+      await PluginService.ActivatePlugin(pluginName, initStr);
+
+      // Fetch the new series config and data
+      const seriesResponse = await fetch("/api/series_config");
+      const seriesConfig = await seriesResponse.json();
+      const storage = chartLibrary === "plotly" ? "arrays" : "interleaved";
+
+      const dataPromises = seriesConfig.map(async (series) => {
+        const res = await fetch(
+          `/api/series_data?series=${series.id}&storage=${storage}`,
+        );
+        const buffer = await res.arrayBuffer();
+        const data = new Float64Array(buffer);
+        return { ...series, data };
+      });
+
+      const newSeriesData = await Promise.all(dataPromises);
+
+      if (asFacets) {
+        // Add as facets - assign a new facet index
+        const nextFacetIndex =
+          Math.max(0, ...currentSeriesData.map((s) => s.facetIndex || 0)) + 1;
+        newSeriesData.forEach((s) => {
+          s.facetIndex = nextFacetIndex;
+          s.id = `facet_${Date.now()}_${s.id}`;
+        });
+      } else {
+        // Add as new series - assign new colors from the color palette
+        const colors = [
+          "#636EFA",
+          "#EF553B",
+          "#00CC96",
+          "#AB63FA",
+          "#FFA15A",
+          "#19D3F3",
+          "#FF6692",
+          "#B6E880",
+          "#FF97FF",
+          "#FECB52",
+        ];
+        newSeriesData.forEach((s, i) => {
+          const colorIndex =
+            currentSeriesData.reduce(
+              (count, ser) => ((ser.facetIndex || 0) === 0 ? count + 1 : count),
+              0,
+            ) + i;
+          s.color = colors[colorIndex % colors.length];
+          s.id = `added_${Date.now()}_${s.id}`;
+          s.facetIndex = 0; // Explicitly part of the main facet
+        });
+      }
+
+      // Append to existing data
+      currentSeriesData = [...currentSeriesData, ...newSeriesData];
+      const facetLabel = asFacets
+        ? "Facet " +
+          Math.max(0, ...currentSeriesData.map((s) => s.facetIndex || 0))
+        : "Series";
+      dataSource = `${dataSource} + [${facetLabel}] ${pluginName}`;
+      updateChart();
+
+      PluginService.LogDebug(
+        "AddData",
+        `Added ${newSeriesData.length} series (asFacets=${asFacets})`,
+        "",
+      );
+    } catch (e) {
+      console.error("Failed to add data:", e);
+      error = e.message;
+    }
+    loading = false;
+  }
+
   // Open unified file loader
   async function loadFile() {
     loading = true;
@@ -96,16 +173,60 @@
     loading = false;
   }
 
+  // Track pending add mode for plugin selection
+  let pendingAddMode = $state(false);
+  let pendingAsFacets = $state(false);
+
+  // Add file to existing chart (CTRL = facets, otherwise series)
+  async function addFile(event) {
+    const asFacets = event.ctrlKey;
+    loading = true;
+    try {
+      const result = await PluginService.OpenFile();
+      if (!result) {
+        loading = false;
+        return;
+      }
+
+      const { path, candidates } = result;
+
+      if (candidates && candidates.length === 1) {
+        await addDataToChart(candidates[0], path, asFacets);
+      } else if (candidates && candidates.length > 1) {
+        pluginSelectionCandidates = candidates;
+        pendingFilePath = path;
+        pendingAddMode = true;
+        pendingAsFacets = asFacets;
+        pluginSelectionVisible = true;
+      } else {
+        error = "No specific plugin found to handle this file extension.";
+      }
+    } catch (e) {
+      console.error("Failed to add file:", e);
+      if (e.message !== "cancelled") {
+        error = e.message;
+      }
+    }
+    loading = false;
+  }
+
   async function handlePluginSelection(pluginName) {
     pluginSelectionVisible = false;
-    await activatePlugin(pluginName, pendingFilePath);
+    if (pendingAddMode) {
+      await addDataToChart(pluginName, pendingFilePath, pendingAsFacets);
+      pendingAddMode = false;
+      pendingAsFacets = false;
+    } else {
+      await activatePlugin(pluginName, pendingFilePath);
+    }
     pluginSelectionCandidates = [];
     pendingFilePath = "";
   }
 
-  // Show menu for generator plugins
+  // Show menu for generator plugins (CTRL = add to existing chart)
   function showGenerateMenu(event) {
     event.stopPropagation();
+    const isAddMode = event.ctrlKey;
     const generators = allPlugins.filter(
       (p) =>
         (!p.patterns || p.patterns.length === 0) &&
@@ -121,10 +242,21 @@
 
     menuX = event.clientX;
     menuY = event.clientY;
-    menuItems = generators.map((p) => ({
-      label: p.name,
-      action: () => activatePlugin(p.name, "", ""),
-    }));
+    menuItems = generators.map((p) => {
+      const modeLabel = isAddMode ? "Add as Facet" : "Replace with";
+      return {
+        label: `${modeLabel} ${p.name}`,
+        action: isAddMode
+          ? () => {
+              console.log(`Adding facet data from ${p.name}`);
+              addDataToChart(p.name, "", true); // Set asFacets to true when CTRL is held
+            }
+          : () => {
+              console.log(`Activating plugin ${p.name}`);
+              activatePlugin(p.name, "", "");
+            },
+      };
+    });
     menuVisible = true;
   }
 
@@ -177,12 +309,10 @@
 
       const seriesData = await Promise.all(dataPromises);
 
+      seriesData.forEach((s) => (s.facetIndex = 0));
       currentSeriesData = seriesData;
       currentTitle = `${source.charAt(0).toUpperCase() + source.slice(1)} Data`;
-      dataSource =
-        seriesData.length === 1
-          ? source
-          : `${source} (${seriesData.length} series)`;
+      dataSource = source;
       updateChart();
     } catch (e) {
       console.error("Failed to fetch data:", e);
@@ -646,6 +776,28 @@
           /><polyline points="13 2 13 9 20 9" /></svg
         >
         Load File
+      </button>
+      <button
+        onclick={(e) => addFile(e)}
+        title="Add data to current chart (Ctrl = add as facets)"
+      >
+        <svg
+          viewBox="0 0 24 24"
+          width="16"
+          height="16"
+          stroke="currentColor"
+          stroke-width="2"
+          fill="none"
+          ><path
+            d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"
+          /><polyline points="13 2 13 9 20 9" /><line
+            x1="12"
+            y1="18"
+            x2="12"
+            y2="12"
+          /><line x1="9" y1="15" x2="15" y2="15" /></svg
+        >
+        Add File
       </button>
       <button onclick={(e) => showGenerateMenu(e)}>
         <svg

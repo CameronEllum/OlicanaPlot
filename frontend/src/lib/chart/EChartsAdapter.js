@@ -3,6 +3,7 @@ import { ChartAdapter } from "./ChartAdapter.js";
 
 /**
  * ECharts implementation of ChartAdapter.
+ * Implements true facets (subplots) by using multiple grid objects.
  */
 export class EChartsAdapter extends ChartAdapter {
     constructor() {
@@ -28,23 +29,80 @@ export class EChartsAdapter extends ChartAdapter {
         // Always expect an array of series
         const seriesArr = Array.isArray(seriesData) ? seriesData : [seriesData];
 
+        // Group series by facetIndex
+        const facetIndices = [...new Set(seriesArr.map((s) => s.facetIndex || 0))].sort((a, b) => a - b);
+        const numFacets = facetIndices.length;
+
+        console.log(`EChartsAdapter: Rendering ${numFacets} facets...`);
+
+        // Map facetIndex to actual grid/axis index in ECharts
+        const facetToIndexMap = {};
+        facetIndices.forEach((fidx, i) => {
+            facetToIndexMap[fidx] = i;
+        });
+
+        // Split the vertical space into N grids
+        const totalHeight = 84;
+        const facetHeight = totalHeight / numFacets;
+        const gap = numFacets > 1 ? 5 : 0;
+
+        const grids = facetIndices.map((_, i) => {
+            const top = 10 + (i * facetHeight);
+            return {
+                left: 80,
+                right: getGridRight(seriesArr),
+                top: `${top}%`,
+                height: `${facetHeight - gap}%`,
+                containLabel: true
+            };
+        });
+
         const datasets = seriesArr.map((s) => ({
             source: s.data,
             dimensions: ["x", "y"],
         }));
 
-        const series = seriesArr.map((s, i) => ({
-            name: s.name,
-            type: "line",
-            showSymbol: false,
-            datasetIndex: i,
-            encode: { x: "x", y: "y" },
-            large: true,
-            emphasis: { disabled: true },
-            color: s.color,
-            lineStyle: { width: 2 },
-            sampling: "lttb",
+        const xAxes = facetIndices.map((_, i) => ({
+            type: "value",
+            name: i === numFacets - 1 ? "Time" : "",
+            nameLocation: "center",
+            nameGap: 30,
+            gridIndex: i,
+            axisLabel: { show: i === numFacets - 1 },
+            axisLine: { lineStyle: { color: textColor } },
+            splitLine: { lineStyle: { color: darkMode ? "#444" : "#e0e0e0" } },
         }));
+
+        const yAxes = facetIndices.map((fidx, i) => ({
+            type: "value",
+            name: `Facet ${fidx}`,
+            nameLocation: "center",
+            nameGap: 45,
+            nameRotate: 90,
+            gridIndex: i,
+            axisLine: { lineStyle: { color: textColor } },
+            splitLine: { lineStyle: { color: darkMode ? "#444" : "#e0e0e0" } },
+            nameTextStyle: { color: textColor, fontWeight: "bold" },
+            axisTick: { show: true },
+        }));
+
+        const series = seriesArr.map((s, i) => {
+            const facetIdx = facetToIndexMap[s.facetIndex || 0];
+            return {
+                name: s.name,
+                type: "line",
+                showSymbol: false,
+                datasetIndex: i,
+                xAxisIndex: facetIdx,
+                yAxisIndex: facetIdx,
+                encode: { x: "x", y: "y" },
+                large: true,
+                emphasis: { disabled: true },
+                color: s.color,
+                lineStyle: { width: 2 },
+                sampling: "lttb",
+            };
+        });
 
         const option = {
             backgroundColor: bgColor,
@@ -57,7 +115,7 @@ export class EChartsAdapter extends ChartAdapter {
             tooltip: { trigger: "axis" },
             toolbox: {
                 feature: {
-                    dataZoom: {},
+                    dataZoom: { xAxisIndex: facetIndices.map((_, i) => i) },
                     restore: {},
                     saveAsImage: {},
                 },
@@ -65,8 +123,8 @@ export class EChartsAdapter extends ChartAdapter {
                 iconStyle: { borderColor: textColor },
             },
             dataZoom: [
-                { type: "inside", xAxisIndex: [0], filterMode: "none" },
-                { type: "inside", yAxisIndex: [0], filterMode: "none" },
+                { type: "inside", xAxisIndex: facetIndices.map((_, i) => i), filterMode: "none" },
+                { type: "slider", xAxisIndex: facetIndices.map((_, i) => i), bottom: 10, height: 20 },
             ],
             legend: {
                 data: seriesArr.map((s) => s.name),
@@ -78,38 +136,14 @@ export class EChartsAdapter extends ChartAdapter {
                 triggerEvent: true,
             },
             dataset: datasets,
-            xAxis: {
-                type: "value",
-                name: "Time",
-                nameLocation: "center",
-                nameGap: 40,
-                nameTextStyle: { color: textColor, fontWeight: "bold", fontSize: 16 },
-                axisLine: { lineStyle: { color: textColor } },
-                splitLine: { lineStyle: { color: darkMode ? "#444" : "#e0e0e0" } },
-            },
-            yAxis: {
-                type: "value",
-                name: "Value",
-                nameLocation: "center",
-                nameGap: 55,
-                nameRotate: 90,
-                nameTextStyle: { color: textColor, fontWeight: "bold", fontSize: 16 },
-                axisLine: { lineStyle: { color: textColor } },
-                splitLine: { lineStyle: { color: darkMode ? "#444" : "#e0e0e0" } },
-            },
+            grid: grids,
+            xAxis: xAxes,
+            yAxis: yAxes,
             series: series,
-            grid: {
-                containLabel: true,
-                top: 60,
-                bottom: 70,
-                left: 80,
-                right: getGridRight(seriesArr),
-            },
         };
 
         this.instance.setOption(option, { notMerge: true });
     }
-
 
     resize() {
         if (this.instance) {
@@ -119,13 +153,14 @@ export class EChartsAdapter extends ChartAdapter {
 
     getDataAtPixel(x, y) {
         if (!this.instance) return null;
-        const coord = this.instance.convertFromPixel("grid", [x, y]);
+        // In multi-grid, find coordinates for initial grid (usually where interaction happens)
+        const coord = this.instance.convertFromPixel({ gridIndex: 0 }, [x, y]);
         return coord ? { x: coord[0], y: coord[1] } : null;
     }
 
     getPixelFromData(x, y) {
         if (!this.instance) return null;
-        const pixel = this.instance.convertToPixel("grid", [x, y]);
+        const pixel = this.instance.convertToPixel({ gridIndex: 0 }, [x, y]);
         return pixel ? { x: pixel[0], y: pixel[1] } : null;
     }
 
@@ -139,7 +174,6 @@ export class EChartsAdapter extends ChartAdapter {
     onLegendClick(handler) {
         if (!this.instance) return;
         this.instance.on("legendselectchanged", (params) => {
-            // Prevent default toggle behavior by restoring selection
             const option = this.instance.getOption();
             const selected = option.legend[0].selected || {};
             Object.keys(selected).forEach((name) => (selected[name] = true));
