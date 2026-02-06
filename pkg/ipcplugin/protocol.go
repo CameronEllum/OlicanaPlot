@@ -104,13 +104,14 @@ func SendFormUpdate(schema, uiSchema interface{}, data map[string]interface{}) {
 	SendResponse(resp)
 }
 
-// SendShowForm requests the host to show a form.
-func SendShowForm(title string, schema, uiSchema interface{}) {
+// SendShowForm requests the host to show a form with initial data.
+func SendShowForm(title string, schema, uiSchema interface{}, data map[string]interface{}) {
 	resp := Response{
 		Method:   "show_form",
 		Title:    title,
 		Schema:   schema,
 		UISchema: uiSchema,
+		Data:     data,
 	}
 	SendResponse(resp)
 }

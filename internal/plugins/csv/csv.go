@@ -184,6 +184,9 @@ func (p *Plugin) processCSV(reader *csv.Reader, name string) ([]string, error) {
 
 	// First row is headers
 	headers := records[0]
+	for i, h := range headers {
+		headers[i] = strings.TrimSpace(h)
+	}
 
 	// Initialize data map
 	data := make(map[string][]float64)

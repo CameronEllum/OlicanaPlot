@@ -5,6 +5,7 @@
 //   - Writes JSON responses to stdout (one per line)
 //   - Uses show_form for host-controlled column selection UI
 //   - For binary data, writes a JSON header followed by raw bytes
+
 package main
 
 import (
@@ -35,7 +36,17 @@ var (
 )
 
 func main() {
-	// Check for --metadata flag
+	// Check for --metadata flag (Discovery Protocol)
+	if handleMetadata() {
+		return
+	}
+
+	data = make(map[string][]float64)
+	processIPC()
+}
+
+// handleMetadata checks for the --metadata flag and exits if found.
+func handleMetadata() bool {
 	for _, arg := range os.Args[1:] {
 		if arg == "--metadata" {
 			metadata := map[string]interface{}{
@@ -49,15 +60,14 @@ func main() {
 			}
 			jsonBytes, _ := json.Marshal(metadata)
 			fmt.Println(string(jsonBytes))
-			os.Exit(0)
+			return true
 		}
 	}
-
-	data = make(map[string][]float64)
-	handleIPC()
+	return false
 }
 
-func handleIPC() {
+// processIPC runs the main communication loop reading from stdin.
+func processIPC() {
 	ipcplugin.Log("info", "CSV IPC Plugin started")
 	scanner := bufio.NewScanner(os.Stdin)
 	// Increase buffer for large JSON messages
@@ -75,53 +85,7 @@ func handleIPC() {
 			continue
 		}
 
-		switch req.Method {
-		case "info":
-			ipcplugin.SendResponse(ipcplugin.Response{
-				Name:    pluginName,
-				Version: pluginVersion,
-			})
-
-		case "initialize":
-			if err := handleInitialize(req.Args, scanner); err != nil {
-				ipcplugin.SendError(err.Error())
-			} else {
-				ipcplugin.SendResponse(ipcplugin.Response{Result: map[string]interface{}{}})
-			}
-
-		case "get_chart_config":
-			title := "CSV Plot"
-			if currentFile != "" {
-				title = fmt.Sprintf("CSV: %s", currentFile)
-			}
-			xLabel := "Index"
-			if selectedX != "" {
-				xLabel = selectedX
-			}
-			ipcplugin.SendResponse(ipcplugin.Response{
-				Result: ipcplugin.ChartConfig{
-					Title:      title,
-					AxisLabels: []string{xLabel, "Value"},
-				},
-			})
-
-		case "get_series_config":
-			series := make([]ipcplugin.SeriesConfig, len(selectedY))
-			for i, yCol := range selectedY {
-				series[i] = ipcplugin.SeriesConfig{
-					ID:    yCol,
-					Name:  yCol,
-					Color: ipcplugin.ChartColors[i%len(ipcplugin.ChartColors)],
-				}
-			}
-			ipcplugin.SendResponse(ipcplugin.Response{Result: series})
-
-		case "get_series_data":
-			handleGetSeriesData(req.SeriesID, req.PreferredStorage)
-
-		default:
-			ipcplugin.SendError(fmt.Sprintf("Unknown method: %s", req.Method))
-		}
+		handleMethod(req, scanner)
 	}
 
 	if err := scanner.Err(); err != nil {
@@ -129,73 +93,135 @@ func handleIPC() {
 	}
 }
 
+// handleMethod dispatches incoming IPC calls to specific handlers.
+func handleMethod(req ipcplugin.Request, scanner *bufio.Scanner) {
+	switch req.Method {
+	case "info":
+		ipcplugin.SendResponse(ipcplugin.Response{
+			Name:    pluginName,
+			Version: pluginVersion,
+		})
+
+	case "initialize":
+		if err := handleInitialize(req.Args, scanner); err != nil {
+			ipcplugin.SendError(err.Error())
+		} else {
+			ipcplugin.SendResponse(ipcplugin.Response{Result: map[string]interface{}{}})
+		}
+
+	case "get_chart_config":
+		ipcplugin.SendResponse(ipcplugin.Response{
+			Result: getChartConfig(),
+		})
+
+	case "get_series_config":
+		ipcplugin.SendResponse(ipcplugin.Response{
+			Result: getSeriesConfig(),
+		})
+
+	case "get_series_data":
+		handleGetSeriesData(req.SeriesID, req.PreferredStorage)
+
+	default:
+		ipcplugin.SendError(fmt.Sprintf("Unknown method: %s", req.Method))
+	}
+}
+
+// handleInitialize manages the multi-step initialization process (file selection -> column selection).
 func handleInitialize(initStr string, scanner *bufio.Scanner) error {
-	var filePath string
+	filePath, err := resolveFilePath(initStr, scanner)
+	if err != nil {
+		return err
+	}
 
+	// Read ONLY headers initially (Lazy Loading)
+	h, err := readCSVHeaders(filePath)
+	if err != nil {
+		return fmt.Errorf("failed to read headers: %w", err)
+	}
+	headers = h
+	currentFile = filePath
+
+	// Show column selection UI
+	result, err := showColumnSelection(scanner)
+	if err != nil {
+		return err
+	}
+
+	// Apply selection
+	selectedX = result.XColumn
+	selectedY = result.YColumns
+
+	// Load the actual data ONLY after user confirms
+	ipcplugin.Log("info", fmt.Sprintf("Loading CSV data from %s...", filePath))
+	d, err := loadCSVData(filePath, headers)
+	if err != nil {
+		return fmt.Errorf("failed to load data: %w", err)
+	}
+	data = d
+
+	ipcplugin.Log("info", fmt.Sprintf("CSV loaded: %d columns, X=%s, Y=%v", len(headers), selectedX, selectedY))
+	return nil
+}
+
+// resolveFilePath either uses the provided path or requests one from the host via show_form.
+func resolveFilePath(initStr string, scanner *bufio.Scanner) (string, error) {
 	if initStr != "" {
-		// File path provided via drag-drop or recent files
-		filePath = initStr
-		ipcplugin.Log("info", fmt.Sprintf("Using provided file path: %s", filePath))
-	} else {
-		// Request file selection from host using show_form
-		schema := map[string]interface{}{
-			"type": "object",
-			"properties": map[string]interface{}{
-				"filePath": map[string]interface{}{
-					"type":  "string",
-					"title": "CSV File Path",
-				},
-			},
-		}
-		uiSchema := map[string]interface{}{
+		ipcplugin.Log("info", fmt.Sprintf("Using provided file path: %s", initStr))
+		return initStr, nil
+	}
+
+	schema := map[string]interface{}{
+		"type": "object",
+		"properties": map[string]interface{}{
 			"filePath": map[string]interface{}{
-				"ui:widget": "file",
-				"ui:options": map[string]interface{}{
-					"accept": ".csv",
-				},
+				"type":  "string",
+				"title": "CSV File Path",
 			},
-		}
-
-		ipcplugin.SendShowForm("Select CSV File", schema, uiSchema)
-
-		// Wait for response from host
-		if !scanner.Scan() {
-			return fmt.Errorf("failed to read file selection response")
-		}
-		response := scanner.Text()
-
-		if strings.Contains(response, `"error"`) {
-			return fmt.Errorf("file selection cancelled")
-		}
-
-		// Parse response
-		var resp map[string]interface{}
-		if err := json.Unmarshal([]byte(response), &resp); err != nil {
-			return fmt.Errorf("failed to parse file selection response: %v", err)
-		}
-
-		if result, ok := resp["result"].(map[string]interface{}); ok {
-			if fp, ok := result["filePath"].(string); ok {
-				filePath = fp
-			}
-		}
-
-		if filePath == "" {
-			return fmt.Errorf("no file selected")
-		}
+		},
+	}
+	uiSchema := map[string]interface{}{
+		"filePath": map[string]interface{}{
+			"ui:widget": "file",
+			"ui:options": map[string]interface{}{
+				"accept": ".csv",
+			},
+		},
 	}
 
-	// Load the CSV file
-	if err := loadCSVFile(filePath); err != nil {
-		return fmt.Errorf("failed to load CSV: %v", err)
+	ipcplugin.SendShowForm("Select CSV File", schema, uiSchema, nil)
+
+	if !scanner.Scan() {
+		return "", fmt.Errorf("failed to read file selection response")
 	}
 
-	ipcplugin.Log("info", fmt.Sprintf("Loaded CSV with %d columns", len(headers)))
+	var resp struct {
+		Result struct {
+			FilePath string `json:"filePath"`
+		} `json:"result"`
+		Error string `json:"error"`
+	}
+	if err := json.Unmarshal(scanner.Bytes(), &resp); err != nil {
+		return "", fmt.Errorf("failed to parse file selection response: %v", err)
+	}
+	if resp.Error != "" {
+		return "", fmt.Errorf("file selection cancelled: %s", resp.Error)
+	}
 
-	// Build column selection form schema
+	return resp.Result.FilePath, nil
+}
+
+type ColumnSelectionResult struct {
+	XColumn  string   `json:"xColumn"`
+	YColumns []string `json:"yColumns"`
+}
+
+// showColumnSelection requests and parses the user's column choices.
+func showColumnSelection(scanner *bufio.Scanner) (*ColumnSelectionResult, error) {
+	// Build column selection options
 	columnOptions := make([]map[string]interface{}, 0, len(headers)+1)
 	columnOptions = append(columnOptions, map[string]interface{}{
-		"const": "",
+		"const": "Index",
 		"title": "Index (row number)",
 	})
 	for _, h := range headers {
@@ -213,6 +239,17 @@ func handleInitialize(initStr string, scanner *bufio.Scanner) error {
 		})
 	}
 
+	// Defaults based on heuristics
+	defaultX := "Index"
+	defaultY := headers
+	if len(headers) > 1 {
+		defaultX = headers[0]
+		defaultY = headers[1:]
+	} else if len(headers) == 1 {
+		defaultX = "Index"
+		defaultY = headers
+	}
+
 	schema := map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
@@ -220,11 +257,12 @@ func handleInitialize(initStr string, scanner *bufio.Scanner) error {
 				"type":    "string",
 				"title":   "X-Axis Column",
 				"oneOf":   columnOptions,
-				"default": "",
+				"default": defaultX,
 			},
 			"yColumns": map[string]interface{}{
-				"type":  "array",
-				"title": "Y-Axis Columns",
+				"type":    "array",
+				"title":   "Y-Axis Columns",
+				"default": defaultY,
 				"items": map[string]interface{}{
 					"type":  "string",
 					"oneOf": yColumnItems,
@@ -235,79 +273,102 @@ func handleInitialize(initStr string, scanner *bufio.Scanner) error {
 		},
 	}
 	uiSchema := map[string]interface{}{
-		"xColumn": map[string]interface{}{
-			"ui:widget": "select",
-		},
-		"yColumns": map[string]interface{}{
-			"ui:widget": "checkboxes",
-		},
+		"xColumn":  map[string]interface{}{"ui:widget": "select"},
+		"yColumns": map[string]interface{}{"ui:widget": "checkboxes"},
 	}
 
-	ipcplugin.SendShowForm("Select Columns", schema, uiSchema)
+	ipcplugin.SendShowForm("Select Columns", schema, uiSchema, map[string]interface{}{
+		"xColumn":  defaultX,
+		"yColumns": defaultY,
+	})
 
-	// Wait for column selection response
 	if !scanner.Scan() {
-		return fmt.Errorf("failed to read column selection response")
-	}
-	response := scanner.Text()
-
-	if strings.Contains(response, `"error"`) {
-		return fmt.Errorf("column selection cancelled")
+		return nil, fmt.Errorf("failed to read column selection response")
 	}
 
-	// Parse column selection
-	var resp map[string]interface{}
-	if err := json.Unmarshal([]byte(response), &resp); err != nil {
-		return fmt.Errorf("failed to parse column selection response: %v", err)
+	var resp struct {
+		Result ColumnSelectionResult `json:"result"`
+		Error  string                `json:"error"`
+	}
+	if err := json.Unmarshal(scanner.Bytes(), &resp); err != nil {
+		return nil, fmt.Errorf("failed to parse column selection response: %v", err)
+	}
+	if resp.Error != "" {
+		return nil, fmt.Errorf("column selection cancelled")
 	}
 
-	if result, ok := resp["result"].(map[string]interface{}); ok {
-		if xCol, ok := result["xColumn"].(string); ok {
-			selectedX = xCol
-		}
-		if yCols, ok := result["yColumns"].([]interface{}); ok {
-			selectedY = make([]string, 0, len(yCols))
-			for _, col := range yCols {
-				if colStr, ok := col.(string); ok {
-					selectedY = append(selectedY, colStr)
-				}
-			}
-		}
-	}
-
-	if len(selectedY) == 0 {
-		return fmt.Errorf("no Y columns selected")
-	}
-
-	ipcplugin.Log("info", fmt.Sprintf("Selected X=%s, Y=%v", selectedX, selectedY))
-	return nil
+	return &resp.Result, nil
 }
 
-func loadCSVFile(path string) error {
+func getChartConfig() ipcplugin.ChartConfig {
+	title := "CSV Plot"
+	if currentFile != "" {
+		title = fmt.Sprintf("CSV: %s", currentFile)
+	}
+	xLabel := "Index"
+	if selectedX != "" {
+		xLabel = selectedX
+	}
+	return ipcplugin.ChartConfig{
+		Title:      title,
+		AxisLabels: []string{xLabel, "Value"},
+	}
+}
+
+func getSeriesConfig() []ipcplugin.SeriesConfig {
+	series := make([]ipcplugin.SeriesConfig, len(selectedY))
+	for i, yCol := range selectedY {
+		series[i] = ipcplugin.SeriesConfig{
+			ID:    yCol,
+			Name:  yCol,
+			Color: ipcplugin.ChartColors[i%len(ipcplugin.ChartColors)],
+		}
+	}
+	return series
+}
+
+// readCSVHeaders reads only the first line of the file to extract column names.
+func readCSVHeaders(path string) ([]string, error) {
 	file, err := os.Open(path)
 	if err != nil {
-		return fmt.Errorf("failed to open file: %w", err)
+		return nil, err
+	}
+	defer file.Close()
+
+	reader := csv.NewReader(file)
+	headers, err := reader.Read()
+	if err != nil {
+		return nil, err
+	}
+
+	for i, h := range headers {
+		headers[i] = strings.TrimSpace(h)
+	}
+	return headers, nil
+}
+
+// loadCSVData loads the entire file content into memory.
+func loadCSVData(path string, headers []string) (map[string][]float64, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
 	}
 	defer file.Close()
 
 	reader := csv.NewReader(file)
 	records, err := reader.ReadAll()
 	if err != nil {
-		return fmt.Errorf("failed to read CSV: %w", err)
+		return nil, err
 	}
 
-	if len(records) == 0 {
-		return fmt.Errorf("empty CSV file")
+	if len(records) < 2 {
+		return make(map[string][]float64), nil
 	}
-
-	// First row is headers
-	headers = records[0]
-	currentFile = path
 
 	// Initialize data map
-	data = make(map[string][]float64)
+	resultMap := make(map[string][]float64)
 	for _, h := range headers {
-		data[h] = make([]float64, 0, len(records)-1)
+		resultMap[h] = make([]float64, 0, len(records)-1)
 	}
 
 	// Parse data rows
@@ -316,18 +377,19 @@ func loadCSVFile(path string) error {
 		for colIdx, val := range row {
 			if colIdx < len(headers) {
 				header := headers[colIdx]
-				parsed, err := strconv.ParseFloat(val, 64)
+				parsed, err := strconv.ParseFloat(strings.TrimSpace(val), 64)
 				if err != nil {
 					parsed = math.NaN()
 				}
-				data[header] = append(data[header], parsed)
+				resultMap[header] = append(resultMap[header], parsed)
 			}
 		}
 	}
 
-	return nil
+	return resultMap, nil
 }
 
+// handleGetSeriesData retrieves and sends binary data for a specific series.
 func handleGetSeriesData(seriesID string, preferredStorage string) {
 	yData, ok := data[seriesID]
 	if !ok {

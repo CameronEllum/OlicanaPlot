@@ -41,6 +41,16 @@ func NewCsvDialog(app *application.App, file string, headers []string) *CsvDialo
 		yOptions = append(yOptions, map[string]interface{}{"const": h, "title": h})
 	}
 
+	defaultX := "Index"
+	defaultY := headers
+	if len(headers) > 1 {
+		defaultX = headers[0]
+		defaultY = headers[1:]
+	} else if len(headers) == 1 {
+		defaultX = "Index"
+		defaultY = headers
+	}
+
 	schema := map[string]interface{}{
 		"type":  "object",
 		"title": "CSV Column Selection",
@@ -49,7 +59,7 @@ func NewCsvDialog(app *application.App, file string, headers []string) *CsvDialo
 				"title":   "X Column (Domain)",
 				"type":    "string",
 				"oneOf":   xOptions,
-				"default": headers[0],
+				"default": defaultX,
 			},
 			"yColumns": map[string]interface{}{
 				"title": "Y Columns (Series)",
@@ -58,7 +68,7 @@ func NewCsvDialog(app *application.App, file string, headers []string) *CsvDialo
 					"type":  "string",
 					"oneOf": yOptions,
 				},
-				"default": headers[1:],
+				"default": defaultY,
 			},
 		},
 	}
@@ -87,7 +97,11 @@ func NewCsvDialog(app *application.App, file string, headers []string) *CsvDialo
 	// Listen for the ready event to send data
 	app.Event.On(fmt.Sprintf("ipc-form-ready-%s", requestID), func(e *application.CustomEvent) {
 		app.Event.Emit(fmt.Sprintf("ipc-form-init-%s", requestID), map[string]interface{}{
-			"schema":           schema,
+			"schema": schema,
+			"data": map[string]interface{}{
+				"xColumn":  defaultX,
+				"yColumns": defaultY,
+			},
 			"handleFormChange": false,
 		})
 	})

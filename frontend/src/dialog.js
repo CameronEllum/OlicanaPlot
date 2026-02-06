@@ -40,6 +40,7 @@ Events.On(`ipc-form-init-${requestID}`, (e) => {
     const data = e.data || e;
     const schema = data.schema || {};
     const uiSchema = data.uiSchema || {};
+    const initialData = data.data || {};
     const handleFormChange = data.handleFormChange || false;
 
     if (app) return; // Only mount once
@@ -49,6 +50,7 @@ Events.On(`ipc-form-init-${requestID}`, (e) => {
         props: {
             schema,
             uiSchema,
+            initialData,
             title,
             requestID,
             handleFormChange,

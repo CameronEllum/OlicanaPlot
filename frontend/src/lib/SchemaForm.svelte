@@ -4,6 +4,7 @@
     let {
         schema = $bindable({}),
         uiSchema = $bindable({}),
+        initialData = {},
         title = "Configuration",
         requestID = "",
         handleFormChange = false,
@@ -15,13 +16,14 @@
     let loading = $state(false);
     let loadingTimer = null;
 
-    // Initialize formData with defaults from schema
-    $effect(() => {
+    // Initialize formData from initialData and defaults
+    onMount(() => {
+        const newData = { ...initialData };
         if (schema && schema.properties) {
             Object.keys(schema.properties).forEach((key) => {
                 const prop = schema.properties[key];
-                if (formData[key] === undefined) {
-                    formData[key] =
+                if (newData[key] === undefined) {
+                    newData[key] =
                         prop.default !== undefined
                             ? prop.default
                             : prop.type === "integer" || prop.type === "number"
@@ -32,6 +34,7 @@
                 }
             });
         }
+        formData = newData;
     });
 
     // Handle external data updates from plugin
