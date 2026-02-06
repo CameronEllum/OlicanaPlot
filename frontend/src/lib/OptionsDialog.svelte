@@ -24,11 +24,21 @@
             await ConfigService.SetLogPath(logPath);
             await ConfigService.SetLogLevel(logLevel);
             const oldLibrary = await ConfigService.GetChartLibrary();
-            await ConfigService.SetChartLibrary(chartLibrary);
-
             // Emit event if chart library changed
             if (oldLibrary !== chartLibrary) {
+                const confirmed = confirm(
+                    "Changing the chart engine will reset the current plot. Continue?",
+                );
+                if (!confirmed) {
+                    chartLibrary = oldLibrary; // Revert local state
+                    return;
+                }
+                await ConfigService.SetChartLibrary(chartLibrary);
                 Events.Emit("chartLibraryChanged", chartLibrary);
+            } else {
+                // If the chart library didn't change, we still need to save its current state
+                // to ensure consistency, even if it's the same as the old one.
+                await ConfigService.SetChartLibrary(chartLibrary);
             }
 
             onClose();

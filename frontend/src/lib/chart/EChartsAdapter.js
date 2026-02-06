@@ -3,7 +3,7 @@ import { ChartAdapter } from "./ChartAdapter.js";
 
 /**
  * ECharts implementation of ChartAdapter.
- * Implements true facets (subplots) by using multiple grid objects.
+ * Implements true subplots by using multiple grid objects stacked vertically.
  */
 export class EChartsAdapter extends ChartAdapter {
     constructor() {
@@ -29,30 +29,30 @@ export class EChartsAdapter extends ChartAdapter {
         // Always expect an array of series
         const seriesArr = Array.isArray(seriesData) ? seriesData : [seriesData];
 
-        // Group series by facetIndex
-        const facetIndices = [...new Set(seriesArr.map((s) => s.facetIndex || 0))].sort((a, b) => a - b);
-        const numFacets = facetIndices.length;
+        // Group series by subplotIndex
+        const subplotIndices = [...new Set(seriesArr.map((s) => s.subplotIndex || 0))].sort((a, b) => a - b);
+        const numSubplots = subplotIndices.length;
 
-        console.log(`EChartsAdapter: Rendering ${numFacets} facets...`);
+        console.log(`[EChartsAdapter] Rendering subplots:`, subplotIndices);
 
-        // Map facetIndex to actual grid/axis index in ECharts
-        const facetToIndexMap = {};
-        facetIndices.forEach((fidx, i) => {
-            facetToIndexMap[fidx] = i;
+        // Map subplotIndex to actual grid/axis index in ECharts
+        const subplotToIndexMap = {};
+        subplotIndices.forEach((sidx, i) => {
+            subplotToIndexMap[sidx] = i;
         });
 
-        // Split the vertical space into N grids
+        // Split vertical space
         const totalHeight = 84;
-        const facetHeight = totalHeight / numFacets;
-        const gap = numFacets > 1 ? 5 : 0;
+        const subplotHeight = totalHeight / numSubplots;
+        const gap = numSubplots > 1 ? 5 : 0;
 
-        const grids = facetIndices.map((_, i) => {
-            const top = 10 + (i * facetHeight);
+        const grids = subplotIndices.map((_, i) => {
+            const top = 10 + (i * subplotHeight);
             return {
                 left: 80,
                 right: getGridRight(seriesArr),
                 top: `${top}%`,
-                height: `${facetHeight - gap}%`,
+                height: `${subplotHeight - gap}%`,
                 containLabel: true
             };
         });
@@ -62,20 +62,20 @@ export class EChartsAdapter extends ChartAdapter {
             dimensions: ["x", "y"],
         }));
 
-        const xAxes = facetIndices.map((_, i) => ({
+        const xAxes = subplotIndices.map((_, i) => ({
             type: "value",
-            name: i === numFacets - 1 ? "Time" : "",
+            name: i === numSubplots - 1 ? "Time" : "",
             nameLocation: "center",
             nameGap: 30,
             gridIndex: i,
-            axisLabel: { show: i === numFacets - 1 },
+            axisLabel: { show: i === numSubplots - 1 },
             axisLine: { lineStyle: { color: textColor } },
             splitLine: { lineStyle: { color: darkMode ? "#444" : "#e0e0e0" } },
         }));
 
-        const yAxes = facetIndices.map((fidx, i) => ({
+        const yAxes = subplotIndices.map((sidx, i) => ({
             type: "value",
-            name: `Facet ${fidx}`,
+            name: `Subplot ${sidx}`,
             nameLocation: "center",
             nameGap: 45,
             nameRotate: 90,
@@ -87,14 +87,14 @@ export class EChartsAdapter extends ChartAdapter {
         }));
 
         const series = seriesArr.map((s, i) => {
-            const facetIdx = facetToIndexMap[s.facetIndex || 0];
+            const subplotIdx = subplotToIndexMap[s.subplotIndex || 0];
             return {
                 name: s.name,
                 type: "line",
                 showSymbol: false,
                 datasetIndex: i,
-                xAxisIndex: facetIdx,
-                yAxisIndex: facetIdx,
+                xAxisIndex: subplotIdx,
+                yAxisIndex: subplotIdx,
                 encode: { x: "x", y: "y" },
                 large: true,
                 emphasis: { disabled: true },
@@ -115,7 +115,7 @@ export class EChartsAdapter extends ChartAdapter {
             tooltip: { trigger: "axis" },
             toolbox: {
                 feature: {
-                    dataZoom: { xAxisIndex: facetIndices.map((_, i) => i) },
+                    dataZoom: { xAxisIndex: subplotIndices.map((_, i) => i) },
                     restore: {},
                     saveAsImage: {},
                 },
@@ -123,8 +123,7 @@ export class EChartsAdapter extends ChartAdapter {
                 iconStyle: { borderColor: textColor },
             },
             dataZoom: [
-                { type: "inside", xAxisIndex: facetIndices.map((_, i) => i), filterMode: "none" },
-                { type: "slider", xAxisIndex: facetIndices.map((_, i) => i), bottom: 10, height: 20 },
+                { type: "inside", xAxisIndex: subplotIndices.map((_, i) => i), filterMode: "none" },
             ],
             legend: {
                 data: seriesArr.map((s) => s.name),
@@ -153,7 +152,6 @@ export class EChartsAdapter extends ChartAdapter {
 
     getDataAtPixel(x, y) {
         if (!this.instance) return null;
-        // In multi-grid, find coordinates for initial grid (usually where interaction happens)
         const coord = this.instance.convertFromPixel({ gridIndex: 0 }, [x, y]);
         return coord ? { x: coord[0], y: coord[1] } : null;
     }

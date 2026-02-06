@@ -64,8 +64,8 @@
     loading = false;
   }
 
-  // Add data to existing chart from a plugin (asFacets = CTRL held)
-  async function addDataToChart(pluginName, initStr = "", asFacets = false) {
+  // Add data to existing chart from a plugin (asSubplots = CTRL held)
+  async function addDataToChart(pluginName, initStr = "", asSubplots = false) {
     loading = true;
     try {
       await PluginService.ActivatePlugin(pluginName, initStr);
@@ -86,13 +86,17 @@
 
       const newSeriesData = await Promise.all(dataPromises);
 
-      if (asFacets) {
-        // Add as facets - assign a new facet index
-        const nextFacetIndex =
-          Math.max(0, ...currentSeriesData.map((s) => s.facetIndex || 0)) + 1;
+      if (asSubplots) {
+        // Add as subplots - assign a new subplot index
+        const maxSubplot = Math.max(
+          0,
+          ...currentSeriesData.map((s) => s.subplotIndex || 0),
+        );
+        const nextSubplotIndex = maxSubplot + 1;
+        console.log(`Assigning new subplot index: ${nextSubplotIndex}`);
         newSeriesData.forEach((s) => {
-          s.facetIndex = nextFacetIndex;
-          s.id = `facet_${Date.now()}_${s.id}`;
+          s.subplotIndex = nextSubplotIndex;
+          s.id = `subplot_${Date.now()}_${s.id}`;
         });
       } else {
         // Add as new series - assign new colors from the color palette
@@ -111,27 +115,36 @@
         newSeriesData.forEach((s, i) => {
           const colorIndex =
             currentSeriesData.reduce(
-              (count, ser) => ((ser.facetIndex || 0) === 0 ? count + 1 : count),
+              (count, ser) =>
+                (ser.subplotIndex || 0) === 0 ? count + 1 : count,
               0,
             ) + i;
           s.color = colors[colorIndex % colors.length];
           s.id = `added_${Date.now()}_${s.id}`;
-          s.facetIndex = 0; // Explicitly part of the main facet
+          s.subplotIndex = 0; // Explicitly part of the main subplot
         });
       }
 
       // Append to existing data
       currentSeriesData = [...currentSeriesData, ...newSeriesData];
-      const facetLabel = asFacets
-        ? "Facet " +
-          Math.max(0, ...currentSeriesData.map((s) => s.facetIndex || 0))
+
+      const subplotLabel = asSubplots
+        ? "Subplot " +
+          Math.max(0, ...currentSeriesData.map((s) => s.subplotIndex || 0))
         : "Series";
-      dataSource = `${dataSource} + [${facetLabel}] ${pluginName}`;
+      dataSource = `${dataSource} + [${subplotLabel}] ${pluginName}`;
+
+      if (asSubplots) {
+        currentTitle = `Multi-Subplot Analysis`;
+      } else {
+        currentTitle = `${currentTitle} + ${pluginName}`;
+      }
+
       updateChart();
 
       PluginService.LogDebug(
         "AddData",
-        `Added ${newSeriesData.length} series (asFacets=${asFacets})`,
+        `Added ${newSeriesData.length} series (asSubplots=${asSubplots})`,
         "",
       );
     } catch (e) {
@@ -175,11 +188,11 @@
 
   // Track pending add mode for plugin selection
   let pendingAddMode = $state(false);
-  let pendingAsFacets = $state(false);
+  let pendingAsSubplots = $state(false);
 
-  // Add file to existing chart (CTRL = facets, otherwise series)
+  // Add file to existing chart (CTRL = subplots, otherwise series)
   async function addFile(event) {
-    const asFacets = event.ctrlKey;
+    const asSubplots = event.ctrlKey;
     loading = true;
     try {
       const result = await PluginService.OpenFile();
@@ -191,12 +204,12 @@
       const { path, candidates } = result;
 
       if (candidates && candidates.length === 1) {
-        await addDataToChart(candidates[0], path, asFacets);
+        await addDataToChart(candidates[0], path, asSubplots);
       } else if (candidates && candidates.length > 1) {
         pluginSelectionCandidates = candidates;
         pendingFilePath = path;
         pendingAddMode = true;
-        pendingAsFacets = asFacets;
+        pendingAsSubplots = asSubplots;
         pluginSelectionVisible = true;
       } else {
         error = "No specific plugin found to handle this file extension.";
@@ -213,9 +226,9 @@
   async function handlePluginSelection(pluginName) {
     pluginSelectionVisible = false;
     if (pendingAddMode) {
-      await addDataToChart(pluginName, pendingFilePath, pendingAsFacets);
+      await addDataToChart(pluginName, pendingFilePath, pendingAsSubplots);
       pendingAddMode = false;
-      pendingAsFacets = false;
+      pendingAsSubplots = false;
     } else {
       await activatePlugin(pluginName, pendingFilePath);
     }
@@ -243,13 +256,13 @@
     menuX = event.clientX;
     menuY = event.clientY;
     menuItems = generators.map((p) => {
-      const modeLabel = isAddMode ? "Add as Facet" : "Replace with";
+      const modeLabel = isAddMode ? "Add as Subplot" : "Replace with";
       return {
         label: `${modeLabel} ${p.name}`,
         action: isAddMode
           ? () => {
-              console.log(`Adding facet data from ${p.name}`);
-              addDataToChart(p.name, "", true); // Set asFacets to true when CTRL is held
+              console.log(`Adding subplot data from ${p.name}`);
+              addDataToChart(p.name, "", true); // Set asSubplots to true when CTRL is held
             }
           : () => {
               console.log(`Activating plugin ${p.name}`);
@@ -309,7 +322,9 @@
 
       const seriesData = await Promise.all(dataPromises);
 
-      seriesData.forEach((s) => (s.facetIndex = 0));
+      // Initialize subplotIndex for all base series
+      seriesData.forEach((s) => (s.subplotIndex = 0));
+
       currentSeriesData = seriesData;
       currentTitle = `${source.charAt(0).toUpperCase() + source.slice(1)} Data`;
       dataSource = source;
@@ -649,16 +664,24 @@
   }
 
   // Handle chart library change from options dialog
-  function handleChartLibraryChange(newLibrary) {
+  async function handleChartLibraryChange(newLibrary) {
     if (chartLibrary !== newLibrary) {
-      chartLibrary = newLibrary;
-      // Re-fetch data for the new engine since storage format is different
       if (currentSeriesData.length > 0) {
-        // Use the base dataSource name if possible
-        const baseName = dataSource.split(" (")[0];
-        loadData(baseName.toLowerCase());
+        const confirmed = confirm(
+          "Changing the chart engine will reset the current plot. Any added subplots or series will be lost. Continue?",
+        );
+        if (!confirmed) {
+          // Note: The config is already saved in ConfigService by the dialog.
+          // We could revert it here, but a simple reset is usually the intended behavior for this constraint.
+          return;
+        }
       }
-      initChart();
+
+      chartLibrary = newLibrary;
+      currentSeriesData = []; // Reset plot data
+      dataSource = "none";
+
+      await initChart();
     }
   }
 
@@ -779,7 +802,7 @@
       </button>
       <button
         onclick={(e) => addFile(e)}
-        title="Add data to current chart (Ctrl = add as facets)"
+        title="Add data to current chart (Ctrl = add as subplots)"
       >
         <svg
           viewBox="0 0 24 24"
