@@ -10,16 +10,20 @@ import (
 	"sync"
 
 	"olicanaplot/internal/logging"
+
+	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
 // ConfigService handles application configuration and settings.
 type ConfigService struct {
-	mu           sync.RWMutex
-	configPath   string
-	logPath      string
-	chartLibrary string
-	theme        string
-	logLevel     string
+	mu            sync.RWMutex
+	app           *application.App
+	optionsWindow *application.WebviewWindow
+	configPath    string
+	logPath       string
+	chartLibrary  string
+	theme         string
+	logLevel      string
 }
 
 // configData is the structure we save to disk
@@ -53,6 +57,32 @@ func NewConfigService() *ConfigService {
 
 	s.loadConfig()
 	return s
+}
+
+func (s *ConfigService) SetApp(app *application.App) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.app = app
+}
+
+func (s *ConfigService) OpenOptions() {
+	s.mu.Lock()
+	app := s.app
+	s.mu.Unlock()
+
+	if app == nil {
+		return
+	}
+
+	// Create new frameless options window
+	app.Window.NewWithOptions(application.WebviewWindowOptions{
+		Name:      "options",
+		Title:     "Options",
+		Width:     800,
+		Height:    600,
+		Frameless: true,
+		URL:       "/options.html",
+	})
 }
 
 func (s *ConfigService) loadConfig() {

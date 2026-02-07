@@ -5,7 +5,6 @@
   import * as ConfigService from "../bindings/olicanaplot/internal/appconfig/configservice";
   import ContextMenu from "./lib/ContextMenu.svelte";
   import MeasurementResult from "./lib/MeasurementResult.svelte";
-  import OptionsDialog from "./lib/OptionsDialog.svelte";
   import { EChartsAdapter } from "./lib/chart/EChartsAdapter.js";
   import { PlotlyAdapter } from "./lib/chart/PlotlyAdapter.js";
 
@@ -35,7 +34,6 @@
   // Measurement State
   let measurementStart = $state(null);
   let measurementResult = $state(null);
-  let optionsVisible = $state(false);
 
   // Store current data to restore chart on theme change
   let currentSeriesData = $state([]);
@@ -834,7 +832,7 @@
         Generate
       </button>
       <button
-        onclick={() => (optionsVisible = true)}
+        onclick={() => ConfigService.OpenOptions()}
         title="Application Options"
       >
         <svg
@@ -882,13 +880,6 @@
     deltaY={measurementResult?.dy || 0}
     onClose={() => {
       measurementResult = null;
-    }}
-  />
-
-  <OptionsDialog
-    visible={optionsVisible}
-    onClose={() => {
-      optionsVisible = false;
     }}
   />
 

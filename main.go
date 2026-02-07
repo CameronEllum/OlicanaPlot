@@ -131,8 +131,9 @@ func main() {
 		URL:              "/",
 	})
 
-	// Provide application context to plugin service for dialog spawning
+	// Provide application context to services for dialog spawning
 	pluginService.SetApp(app)
+	configService.SetApp(app)
 
 	// Fetch IPC plugin file patterns in the background
 	go func() {

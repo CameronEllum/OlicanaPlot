@@ -10,6 +10,7 @@ export default defineConfig({
       input: {
         main: "index.html",
         dialog: "dialog.html",
+        options: "options.html",
       },
     },
   },
