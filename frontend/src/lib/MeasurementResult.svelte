@@ -1,7 +1,17 @@
-<script>
-    let { deltaX, deltaY, visible, onClose } = $props();
+<script lang="ts">
+    let {
+        deltaX,
+        deltaY,
+        visible,
+        onClose,
+    }: {
+        deltaX: number;
+        deltaY: number;
+        visible: boolean;
+        onClose: () => void;
+    } = $props();
 
-    function formatNumber(num) {
+    function formatNumber(num: number): string {
         if (Math.abs(num) < 0.0001 && num !== 0) return num.toExponential(4);
         return num.toLocaleString(undefined, {
             maximumFractionDigits: 4,

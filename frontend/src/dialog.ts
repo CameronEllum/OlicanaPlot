@@ -5,7 +5,7 @@ import { Events } from "@wailsio/runtime";
 import * as ConfigService from "../bindings/olicanaplot/internal/appconfig/configservice";
 
 // Apply initial theme
-ConfigService.GetTheme().then((theme) => {
+ConfigService.GetTheme().then((theme: string) => {
     if (theme === "dark") {
         document.documentElement.classList.add('dark-mode');
     } else {
@@ -14,29 +14,30 @@ ConfigService.GetTheme().then((theme) => {
 });
 
 const target = document.getElementById('app');
+if (!target) throw new Error("No target element found");
 
 const params = new URLSearchParams(window.location.search);
 const requestID = params.get('requestID');
 const title = params.get('title') || 'Plugin Configuration';
 
-function handleFormSubmit(data) {
+function handleFormSubmit(data: any) {
     Events.Emit(`ipc-form-result-${requestID}`, data);
     setTimeout(() => {
-        window.wails?.Window?.Close();
+        (window as any).wails?.Window?.Close();
     }, 100);
 }
 
 function handleFormCancel() {
     Events.Emit(`ipc-form-result-${requestID}`, "error:cancelled");
     setTimeout(() => {
-        window.wails?.Window?.Close();
+        (window as any).wails?.Window?.Close();
     }, 100);
 }
 
-let app;
+let app: any;
 
 // Listen for the initial data
-Events.On(`ipc-form-init-${requestID}`, (e) => {
+Events.On(`ipc-form-init-${requestID}`, (e: any) => {
     const data = e.data || e;
     const schema = data.schema || {};
     const uiSchema = data.uiSchema || {};
@@ -46,13 +47,13 @@ Events.On(`ipc-form-init-${requestID}`, (e) => {
     if (app) return; // Only mount once
 
     app = mount(SchemaForm, {
-        target: target,
+        target: target!,
         props: {
             schema,
             uiSchema,
             initialData,
             title,
-            requestID,
+            requestID: requestID || "",
             handleFormChange,
             onsubmit: handleFormSubmit,
             oncancel: handleFormCancel

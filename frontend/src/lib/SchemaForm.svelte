@@ -1,5 +1,38 @@
-<script>
+<script lang="ts">
     import { onMount } from "svelte";
+    import { Events } from "@wailsio/runtime";
+
+    interface SchemaProperty {
+        type?: string;
+        title?: string;
+        description?: string;
+        default?: any;
+        minimum?: number;
+        maximum?: number;
+        step?: number;
+        enum?: any[];
+        oneOf?: any[];
+        items?: {
+            type?: string;
+            enum?: any[];
+            oneOf?: any[];
+        };
+    }
+
+    interface Schema {
+        properties?: Record<string, SchemaProperty>;
+    }
+
+    interface UiSchemaOptions {
+        scale?: "log10";
+    }
+
+    interface UiSchemaEntry {
+        "ui:widget"?: string;
+        "ui:options"?: UiSchemaOptions;
+    }
+
+    type UiSchema = Record<string, UiSchemaEntry>;
 
     let {
         schema = $bindable({}),
@@ -10,18 +43,27 @@
         handleFormChange = false,
         onsubmit,
         oncancel,
+    }: {
+        schema?: Schema;
+        uiSchema?: UiSchema;
+        initialData?: any;
+        title?: string;
+        requestID?: string;
+        handleFormChange?: boolean;
+        onsubmit?: (data: any) => void;
+        oncancel?: () => void;
     } = $props();
 
-    let formData = $state({});
+    let formData = $state<any>({});
     let loading = $state(false);
-    let loadingTimer = null;
+    let loadingTimer: number | null = null;
 
     // Initialize formData from initialData and defaults
     onMount(() => {
         const newData = { ...initialData };
         if (schema && schema.properties) {
             Object.keys(schema.properties).forEach((key) => {
-                const prop = schema.properties[key];
+                const prop = schema.properties![key];
                 if (newData[key] === undefined) {
                     newData[key] =
                         prop.default !== undefined
@@ -37,13 +79,15 @@
         formData = newData;
     });
 
-    // Handle external data updates from plugin
-    import { Events } from "@wailsio/runtime";
     onMount(() => {
         if (!requestID) return;
 
         const unsub = Events.On(`ipc-form-update-${requestID}`, (e) => {
-            const update = e.data || e;
+            const update = (e.data || e) as {
+                schema?: Schema;
+                uiSchema?: UiSchema;
+                data?: any;
+            };
             if (update.schema) schema = update.schema;
             if (update.uiSchema) uiSchema = update.uiSchema;
             if (
@@ -75,7 +119,7 @@
     }
 
     // Debounce form changes to notify host
-    let changeTimer = null;
+    let changeTimer: number | null = null;
     let isFirstRun = true;
     $effect(() => {
         // Track formData changes and also isFirstRun
@@ -106,16 +150,16 @@
     }
 
     // Helper for log10 conversion if requested in uiSchema
-    function getSliderValue(key, val) {
-        const ui = uiSchema[key] || {};
+    function getSliderValue(key: string, val: number) {
+        const ui = (uiSchema || {})[key] || {};
         if (ui["ui:options"]?.scale === "log10") {
             return Math.log10(val || 1);
         }
         return val || 0;
     }
 
-    function setSliderValue(key, val) {
-        const ui = uiSchema[key] || {};
+    function setSliderValue(key: string, val: number) {
+        const ui = (uiSchema || {})[key] || {};
         if (ui["ui:options"]?.scale === "log10") {
             formData[key] = Math.pow(10, val);
         } else {
@@ -123,8 +167,8 @@
         }
     }
 
-    function formatValue(key, val) {
-        const ui = uiSchema[key] || {};
+    function formatValue(key: string, val: number) {
+        const ui = (uiSchema || {})[key] || {};
         if (ui["ui:options"]?.scale === "log10") {
             if (val >= 0.95 * 1000000) return (val / 1000000).toFixed(1) + "M";
             if (val >= 0.95 * 1000) return (val / 1000).toFixed(0) + "K";
@@ -133,7 +177,7 @@
         return val;
     }
 
-    let container = $state(null);
+    let container = $state<HTMLElement | null>(null);
     $effect(() => {
         if (!container || !requestID) return;
 
@@ -161,7 +205,7 @@
         {#if schema && schema.properties}
             {#each Object.keys(schema.properties) as key}
                 {@const prop = schema.properties[key]}
-                {@const ui = uiSchema[key] || {}}
+                {@const ui = (uiSchema || {})[key] || {}}
 
                 <div class="form-group">
                     <div class="label-row">
@@ -185,7 +229,7 @@
                                         {option.title || option}
                                     </option>
                                 {/each}
-                            {:else}
+                            {:else if prop.enum}
                                 {#each prop.enum as option}
                                     <option value={option}>{option}</option>
                                 {/each}
@@ -193,7 +237,7 @@
                         </select>
                     {:else if prop.type === "array" && (prop.items?.enum || prop.items?.oneOf)}
                         <div class="checkbox-group">
-                            {#each prop.items.oneOf || prop.items.enum.map( (v) => ({ const: v, title: v }), ) as option}
+                            {#each prop.items!.oneOf || prop.items!.enum!.map( (v) => ({ const: v, title: v }), ) as option}
                                 {@const val =
                                     option.const !== undefined
                                         ? option.const
@@ -206,14 +250,16 @@
                                         )}
                                         onchange={(e) => {
                                             const current = formData[key] || [];
-                                            if (e.target.checked) {
+                                            const target =
+                                                e.target as HTMLInputElement;
+                                            if (target.checked) {
                                                 formData[key] = [
                                                     ...current,
                                                     val,
                                                 ];
                                             } else {
                                                 formData[key] = current.filter(
-                                                    (v) => v !== val,
+                                                    (v: any) => v !== val,
                                                 );
                                             }
                                         }}
@@ -238,11 +284,14 @@
                                         ? 0.1
                                         : prop.step || 1}
                                     value={getSliderValue(key, formData[key])}
-                                    oninput={(e) =>
+                                    oninput={(e) => {
+                                        const target =
+                                            e.target as HTMLInputElement;
                                         setSliderValue(
                                             key,
-                                            parseFloat(e.target.value),
-                                        )}
+                                            parseFloat(target.value),
+                                        );
+                                    }}
                                 />
                             </div>
                         {:else}

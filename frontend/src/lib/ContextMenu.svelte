@@ -1,8 +1,26 @@
-<script>
+<script lang="ts">
     import { fade } from "svelte/transition";
-    let { x, y, visible, items, onClose } = $props();
 
-    let menuElement = $state();
+    interface MenuItem {
+        label: string;
+        action: () => void;
+    }
+
+    let {
+        x,
+        y,
+        visible,
+        items,
+        onClose,
+    }: {
+        x: number;
+        y: number;
+        visible: boolean;
+        items: MenuItem[];
+        onClose: () => void;
+    } = $props();
+
+    let menuElement = $state<HTMLElement>();
     let adjustedX = $state(0);
     let adjustedY = $state(0);
 
@@ -26,14 +44,15 @@
         }
     });
 
-    function handleItemClick(action) {
+    function handleItemClick(action: () => void) {
         action();
         onClose();
     }
 
     // Close menu when clicking outside
-    function handleWindowClick(e) {
-        if (visible && !e.target.closest(".context-menu")) {
+    function handleWindowClick(e: MouseEvent) {
+        const target = e.target as HTMLElement;
+        if (visible && !target.closest(".context-menu")) {
             onClose();
         }
     }
@@ -48,6 +67,8 @@
         style="left: {adjustedX}px; top: {adjustedY}px;"
         oncontextmenu={(e) => e.preventDefault()}
         transition:fade={{ duration: 100 }}
+        role="menu"
+        tabindex="-1"
     >
         <ul>
             {#each items as item}

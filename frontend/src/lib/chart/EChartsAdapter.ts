@@ -1,26 +1,27 @@
 import * as echarts from "echarts";
-import { ChartAdapter } from "./ChartAdapter.js";
+import { ChartAdapter, type SeriesConfig } from "./ChartAdapter.ts";
 
 /**
  * ECharts implementation of ChartAdapter.
  * Implements true subplots by using multiple grid objects stacked vertically.
  */
 export class EChartsAdapter extends ChartAdapter {
+    public instance: echarts.ECharts | null = null;
+    public container: HTMLElement | null = null;
+
     constructor() {
         super();
-        this.instance = null;
-        this.container = null;
     }
 
-    init(container, darkMode) {
+    init(container: HTMLElement, darkMode: boolean) {
         this.container = container;
         if (this.instance) {
             this.instance.dispose();
         }
-        this.instance = echarts.init(container, darkMode ? "dark" : null);
+        this.instance = echarts.init(container, darkMode ? "dark" : undefined);
     }
 
-    setData(seriesData, title, darkMode, getGridRight) {
+    setData(seriesData: SeriesConfig[], title: string, darkMode: boolean, getGridRight: (data: SeriesConfig[]) => number) {
         if (!this.instance) return;
 
         const textColor = darkMode ? "#ccc" : "#333";
@@ -36,7 +37,7 @@ export class EChartsAdapter extends ChartAdapter {
         console.log(`[EChartsAdapter] Rendering subplots:`, subplotIndices);
 
         // Map subplotIndex to actual grid/axis index in ECharts
-        const subplotToIndexMap = {};
+        const subplotToIndexMap: Record<number, number> = {};
         subplotIndices.forEach((sidx, i) => {
             subplotToIndexMap[sidx] = i;
         });
@@ -63,9 +64,9 @@ export class EChartsAdapter extends ChartAdapter {
         }));
 
         const xAxes = subplotIndices.map((_, i) => ({
-            type: "value",
+            type: "value" as const,
             name: i === numSubplots - 1 ? "Time" : "",
-            nameLocation: "center",
+            nameLocation: "center" as const,
             nameGap: 30,
             gridIndex: i,
             axisLabel: { show: i === numSubplots - 1 },
@@ -74,9 +75,9 @@ export class EChartsAdapter extends ChartAdapter {
         }));
 
         const yAxes = subplotIndices.map((sidx, i) => ({
-            type: "value",
+            type: "value" as const,
             name: `Subplot ${sidx}`,
-            nameLocation: "center",
+            nameLocation: "center" as const,
             nameGap: 45,
             nameRotate: 90,
             gridIndex: i,
@@ -90,7 +91,7 @@ export class EChartsAdapter extends ChartAdapter {
             const subplotIdx = subplotToIndexMap[s.subplotIndex || 0];
             return {
                 name: s.name,
-                type: "line",
+                type: "line" as const,
                 showSymbol: false,
                 datasetIndex: i,
                 xAxisIndex: subplotIdx,
@@ -100,7 +101,7 @@ export class EChartsAdapter extends ChartAdapter {
                 emphasis: { disabled: true },
                 color: s.color,
                 lineStyle: { width: 2 },
-                sampling: "lttb",
+                sampling: "lttb" as const,
             };
         });
 
@@ -112,7 +113,7 @@ export class EChartsAdapter extends ChartAdapter {
                 left: "center",
                 textStyle: { color: textColor },
             },
-            tooltip: { trigger: "axis" },
+            tooltip: { trigger: "axis" as const },
             toolbox: {
                 feature: {
                     dataZoom: { xAxisIndex: subplotIndices.map((_, i) => i) },
@@ -123,15 +124,15 @@ export class EChartsAdapter extends ChartAdapter {
                 iconStyle: { borderColor: textColor },
             },
             dataZoom: [
-                { type: "inside", xAxisIndex: subplotIndices.map((_, i) => i), filterMode: "none" },
+                { type: "inside" as const, xAxisIndex: subplotIndices.map((_, i) => i), filterMode: "none" as const },
             ],
             legend: {
                 data: seriesArr.map((s) => s.name),
-                orient: "vertical",
+                orient: "vertical" as const,
                 right: 10,
                 top: 60,
                 textStyle: { color: textColor },
-                type: "scroll",
+                type: "scroll" as const,
                 triggerEvent: true,
             },
             dataset: datasets,
@@ -150,15 +151,15 @@ export class EChartsAdapter extends ChartAdapter {
         }
     }
 
-    getDataAtPixel(x, y) {
+    getDataAtPixel(x: number, y: number) {
         if (!this.instance) return null;
-        const coord = this.instance.convertFromPixel({ gridIndex: 0 }, [x, y]);
+        const coord = this.instance.convertFromPixel({ gridIndex: 0 }, [x, y]) as number[];
         return coord ? { x: coord[0], y: coord[1] } : null;
     }
 
-    getPixelFromData(x, y) {
+    getPixelFromData(x: number, y: number) {
         if (!this.instance) return null;
-        const pixel = this.instance.convertToPixel({ gridIndex: 0 }, [x, y]);
+        const pixel = this.instance.convertToPixel({ gridIndex: 0 }, [x, y]) as number[];
         return pixel ? { x: pixel[0], y: pixel[1] } : null;
     }
 
@@ -169,18 +170,18 @@ export class EChartsAdapter extends ChartAdapter {
         }
     }
 
-    onLegendClick(handler) {
+    onLegendClick(handler: (seriesName: string, event: any) => void) {
         if (!this.instance) return;
-        this.instance.on("legendselectchanged", (params) => {
-            const option = this.instance.getOption();
+        this.instance.on("legendselectchanged", (params: any) => {
+            const option = this.instance!.getOption() as any;
             const selected = option.legend[0].selected || {};
             Object.keys(selected).forEach((name) => (selected[name] = true));
-            this.instance.setOption({ legend: { selected } });
+            this.instance!.setOption({ legend: { selected } });
             handler(params.name, params);
         });
     }
 
-    onContextMenu(handler) {
+    onContextMenu(handler: (event: any) => void) {
         if (this.instance) {
             this.instance.getZr().on("contextmenu", handler);
         }

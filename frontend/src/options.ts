@@ -4,7 +4,7 @@ import OptionsWindow from './OptionsWindow.svelte'
 import * as ConfigService from "../bindings/olicanaplot/internal/appconfig/configservice";
 
 // Apply initial theme
-ConfigService.GetTheme().then((theme) => {
+ConfigService.GetTheme().then((theme: string) => {
     if (theme === "dark") {
         document.documentElement.classList.add('dark-mode');
     } else {
@@ -12,8 +12,11 @@ ConfigService.GetTheme().then((theme) => {
     }
 });
 
+const target = document.getElementById('app');
+if (!target) throw new Error("No target element found");
+
 const app = mount(OptionsWindow, {
-    target: document.getElementById('app'),
+    target,
 })
 
 export default app

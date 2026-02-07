@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
     import { onMount } from "svelte";
     import { Events, Window } from "@wailsio/runtime";
     import * as ConfigService from "../bindings/olicanaplot/internal/appconfig/configservice";
@@ -50,7 +50,7 @@
             }
 
             Window.Close();
-        } catch (e) {
+        } catch (e: any) {
             console.error("Failed to save config:", e);
             alert("Failed to save settings: " + e.message);
         }
@@ -59,7 +59,7 @@
     async function handleOpenLog() {
         try {
             await ConfigService.OpenLogFile();
-        } catch (e) {
+        } catch (e: any) {
             console.error("Failed to open log file:", e);
             alert("Failed to open log file: " + e.message);
         }

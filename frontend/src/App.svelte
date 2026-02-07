@@ -1,19 +1,30 @@
-<script>
+<script lang="ts">
   import { onMount, onDestroy } from "svelte";
   import { Events } from "@wailsio/runtime";
   import * as PluginService from "../bindings/olicanaplot/internal/plugins/service";
   import * as ConfigService from "../bindings/olicanaplot/internal/appconfig/configservice";
   import ContextMenu from "./lib/ContextMenu.svelte";
   import MeasurementResult from "./lib/MeasurementResult.svelte";
-  import { EChartsAdapter } from "./lib/chart/EChartsAdapter.js";
-  import { PlotlyAdapter } from "./lib/chart/PlotlyAdapter.js";
+  import { EChartsAdapter } from "./lib/chart/EChartsAdapter.ts";
+  import { PlotlyAdapter } from "./lib/chart/PlotlyAdapter.ts";
+  import type { ChartAdapter, SeriesConfig } from "./lib/chart/ChartAdapter.ts";
 
-  let chartContainer;
-  let chartAdapter = null;
-  let chartLibrary = $state("echarts");
-  let resizeObserver;
+  interface AppPlugin {
+    name: string;
+    patterns: any[];
+  }
+
+  interface Point {
+    x: number;
+    y: number;
+  }
+
+  let chartContainer = $state<HTMLElement>();
+  let chartAdapter = $state<ChartAdapter | null>(null);
+  let chartLibrary = $state<string>("echarts");
+  let resizeObserver: ResizeObserver | null = null;
   let loading = $state(true);
-  let error = $state(null);
+  let error = $state<string | null>(null);
   let dataSource = $state("sine");
   let isDarkMode = $state(false);
 
@@ -29,24 +40,29 @@
   let menuVisible = $state(false);
   let menuX = $state(0);
   let menuY = $state(0);
-  let menuItems = $state([]);
+  let menuItems = $state<{ label: string; action: () => void }[]>([]);
 
   // Measurement State
-  let measurementStart = $state(null);
-  let measurementResult = $state(null);
+  let measurementStart = $state<Point | null>(null);
+  let measurementResult = $state<{ dx: number; dy: number } | null>(null);
 
   // Store current data to restore chart on theme change
-  let currentSeriesData = $state([]);
-  let currentTitle = "";
-  let allPlugins = $state([]);
+  let currentSeriesData = $state<SeriesConfig[]>([]);
+  let currentTitle = $state("");
+  let allPlugins = $state<AppPlugin[]>([]);
+  let unsubChartLibrary: (() => void) | null = null;
 
   // Plugin Selection State (for ambiguous file matches)
   let pluginSelectionVisible = $state(false);
-  let pluginSelectionCandidates = $state([]);
+  let pluginSelectionCandidates = $state<string[]>([]);
   let pendingFilePath = $state("");
 
   // Activate a plugin generically
-  async function activatePlugin(pluginName, initStr = "", sourceLabel = "") {
+  async function activatePlugin(
+    pluginName: string,
+    initStr = "",
+    sourceLabel = "",
+  ) {
     loading = true;
     try {
       // Call the plugin service to activate the plugin
@@ -55,7 +71,7 @@
 
       // Load data from the now-active and configured plugin
       await loadData(sourceLabel || pluginName);
-    } catch (e) {
+    } catch (e: any) {
       console.error("Failed to activate plugin:", e);
       error = e.message;
     }
@@ -63,7 +79,11 @@
   }
 
   // Add data to existing chart from a plugin (asSubplots = CTRL held)
-  async function addDataToChart(pluginName, initStr = "", asSubplots = false) {
+  async function addDataToChart(
+    pluginName: string,
+    initStr = "",
+    asSubplots = false,
+  ) {
     loading = true;
     try {
       await PluginService.ActivatePlugin(pluginName, initStr);
@@ -73,7 +93,7 @@
       const seriesConfig = await seriesResponse.json();
       const storage = chartLibrary === "plotly" ? "arrays" : "interleaved";
 
-      const dataPromises = seriesConfig.map(async (series) => {
+      const dataPromises = seriesConfig.map(async (series: any) => {
         const res = await fetch(
           `/api/series_data?series=${series.id}&storage=${storage}`,
         );
@@ -82,7 +102,7 @@
         return { ...series, data };
       });
 
-      const newSeriesData = await Promise.all(dataPromises);
+      const newSeriesData: SeriesConfig[] = await Promise.all(dataPromises);
 
       if (asSubplots) {
         // Add as subplots - assign a new subplot index
@@ -145,7 +165,7 @@
         `Added ${newSeriesData.length} series (asSubplots=${asSubplots})`,
         "",
       );
-    } catch (e) {
+    } catch (e: any) {
       console.error("Failed to add data:", e);
       error = e.message;
     }
@@ -162,7 +182,10 @@
         return;
       }
 
-      const { path, candidates } = result;
+      const { path, candidates } = result as {
+        path: string;
+        candidates: string[];
+      };
 
       if (candidates && candidates.length === 1) {
         await activatePlugin(candidates[0], path);
@@ -175,7 +198,7 @@
         // Try a generic CSV fallback or show error
         error = "No specific plugin found to handle this file extension.";
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error("Failed to load file:", e);
       if (e.message !== "cancelled") {
         error = e.message;
@@ -189,7 +212,7 @@
   let pendingAsSubplots = $state(false);
 
   // Add file to existing chart (CTRL = subplots, otherwise series)
-  async function addFile(event) {
+  async function addFile(event: MouseEvent) {
     const asSubplots = event.ctrlKey;
     loading = true;
     try {
@@ -199,7 +222,10 @@
         return;
       }
 
-      const { path, candidates } = result;
+      const { path, candidates } = result as {
+        path: string;
+        candidates: string[];
+      };
 
       if (candidates && candidates.length === 1) {
         await addDataToChart(candidates[0], path, asSubplots);
@@ -212,7 +238,7 @@
       } else {
         error = "No specific plugin found to handle this file extension.";
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error("Failed to add file:", e);
       if (e.message !== "cancelled") {
         error = e.message;
@@ -221,7 +247,7 @@
     loading = false;
   }
 
-  async function handlePluginSelection(pluginName) {
+  async function handlePluginSelection(pluginName: string) {
     pluginSelectionVisible = false;
     if (pendingAddMode) {
       await addDataToChart(pluginName, pendingFilePath, pendingAsSubplots);
@@ -235,7 +261,7 @@
   }
 
   // Show menu for generator plugins (CTRL = add to existing chart)
-  function showGenerateMenu(event) {
+  function showGenerateMenu(event: MouseEvent) {
     event.stopPropagation();
     const isAddMode = event.ctrlKey;
     const generators = allPlugins.filter(
@@ -285,16 +311,16 @@
   }
 
   // Calculate grid right margin based on series names longuest length
-  function getGridRight(seriesData) {
+  function getGridRight(seriesData: SeriesConfig[]) {
     const names = Array.isArray(seriesData)
       ? seriesData.map((s) => s.name)
-      : [seriesData.name];
+      : [(seriesData as any).name];
     const maxLen = Math.max(...names.map((n) => (n || "").length), 0);
     // Rough estimate: icon(25px) + gap(10px) + text(len * 8px) + padding
     return Math.max(120, maxLen * 8 + 60);
   }
 
-  async function loadData(source) {
+  async function loadData(source: string) {
     loading = true;
     try {
       // Fetch series configuration
@@ -305,7 +331,7 @@
       const storage = chartLibrary === "plotly" ? "arrays" : "interleaved";
 
       // Fetch data for each series in parallel
-      const dataPromises = seriesConfig.map(async (series) => {
+      const dataPromises = seriesConfig.map(async (series: any) => {
         const res = await fetch(
           `/api/series_data?series=${series.id}&storage=${storage}`,
         );
@@ -318,7 +344,7 @@
         };
       });
 
-      const seriesData = await Promise.all(dataPromises);
+      const seriesData: SeriesConfig[] = await Promise.all(dataPromises);
 
       // Initialize subplotIndex for all base series
       seriesData.forEach((s) => (s.subplotIndex = 0));
@@ -327,7 +353,7 @@
       currentTitle = `${source.charAt(0).toUpperCase() + source.slice(1)} Data`;
       dataSource = source;
       updateChart();
-    } catch (e) {
+    } catch (e: any) {
       console.error("Failed to fetch data:", e);
       error = e.message;
     }
@@ -347,7 +373,7 @@
 
   // --- Context Menu & Measurement Logic ---
 
-  function getNearestPoint(pixelPtr) {
+  function getNearestPoint(pixelPtr: [number, number]): Point | null {
     if (!chartAdapter || !currentSeriesData) return null;
 
     const [px, py] = pixelPtr;
@@ -357,7 +383,7 @@
     const targetX = dataCoord.x;
 
     // Check all visible series
-    let closestPoint = null;
+    let closestPoint: Point | null = null;
     let minDistanceSq = Infinity;
     const SNAP_RADIUS = 20; // pixels
 
@@ -384,7 +410,7 @@
             Math.abs(
               (isArrays
                 ? series.data[closestIdx]
-                : series.data[closestIdx * 2]) - targetX,
+                : series.data[closestIdx * 2]!) - targetX,
             )
         ) {
           closestIdx = mid;
@@ -402,16 +428,19 @@
         const y = isArrays
           ? series.data[numPoints + closestIdx]
           : series.data[closestIdx * 2 + 1];
-        const pointPixel = chartAdapter.getPixelFromData(x, y);
 
-        if (pointPixel) {
-          const dx = pointPixel.x - px;
-          const dy = pointPixel.y - py;
-          const distSq = dx * dx + dy * dy;
+        if (x !== undefined && y !== undefined) {
+          const pointPixel = chartAdapter.getPixelFromData(x, y);
 
-          if (distSq < SNAP_RADIUS * SNAP_RADIUS && distSq < minDistanceSq) {
-            minDistanceSq = distSq;
-            closestPoint = { x, y };
+          if (pointPixel) {
+            const dx = pointPixel.x - px;
+            const dy = pointPixel.y - py;
+            const distSq = dx * dx + dy * dy;
+
+            if (distSq < SNAP_RADIUS * SNAP_RADIUS && distSq < minDistanceSq) {
+              minDistanceSq = distSq;
+              closestPoint = { x, y };
+            }
           }
         }
       }
@@ -420,7 +449,7 @@
     return closestPoint;
   }
 
-  function handleContextMenu(e) {
+  function handleContextMenu(e: any) {
     // Handle both ECharts zrender events and native DOM events
     const event = e.event || e;
     if (!event || !event.preventDefault) return;
@@ -432,6 +461,8 @@
     menuX = event.clientX;
     menuY = event.clientY;
     menuItems = [];
+
+    if (!chartContainer) return;
 
     // Get offset relative to container
     const rect = chartContainer.getBoundingClientRect();
@@ -451,13 +482,16 @@
       }
     }
 
-    if (e.plotlyLegendName || (legendIndex !== -1 && chartAdapter.instance)) {
-      let componentName;
+    if (
+      e.plotlyLegendName ||
+      (legendIndex !== -1 && (chartAdapter as any).instance)
+    ) {
+      let componentName: string | undefined;
       if (e.plotlyLegendName) {
         componentName = e.plotlyLegendName;
       } else {
         // ECharts-specific legend handling
-        const option = chartAdapter.instance.getOption();
+        const option = (chartAdapter as any).instance.getOption();
         const legendData = option?.legend?.[0]?.data || [];
         const item = legendData[legendIndex];
         componentName = typeof item === "string" ? item : item?.name;
@@ -472,14 +506,14 @@
 
         menuItems.push({
           label: `Rename "${componentName}"`,
-          action: () => renameSeries(componentName),
+          action: () => renameSeries(componentName!),
         });
         menuItems.push({
           label: `Differentiate "${componentName}"`,
-          action: () => differentiateSeries(componentName),
+          action: () => differentiateSeries(componentName!),
         });
       }
-    } else {
+    } else if (chartAdapter) {
       // Check if we are in the grid area for measurement
       const dataPoint = chartAdapter.getDataAtPixel(offX, offY);
       if (dataPoint) {
@@ -499,8 +533,8 @@
               const end = snap || dataPoint;
 
               measurementResult = {
-                dx: end.x - measurementStart.x,
-                dy: end.y - measurementStart.y,
+                dx: end.x - measurementStart!.x,
+                dy: end.y - measurementStart!.y,
               };
               measurementStart = null;
             },
@@ -519,28 +553,21 @@
     menuVisible = menuItems.length > 0;
   }
 
-  function renameSeries(oldName) {
+  function renameSeries(oldName: string) {
     const newName = prompt(`Enter new name for series "${oldName}":`, oldName);
     if (!newName || newName === oldName) return;
 
-    if (currentMode === "single") {
-      if (currentSeriesData.name === oldName) {
-        currentSeriesData.name = newName;
-      }
-    } else {
-      const series = currentSeriesData.find((s) => s.name === oldName);
-      if (series) {
-        series.name = newName;
-      }
+    const series = currentSeriesData.find((s) => s.name === oldName);
+    if (series) {
+      series.name = newName;
     }
 
     updateChart();
   }
 
-  function differentiateSeries(seriesName) {
+  function differentiateSeries(seriesName: string) {
     // Find the source series
-    let sourceSeries;
-    sourceSeries = currentSeriesData.find((s) => s.name === seriesName);
+    let sourceSeries = currentSeriesData.find((s) => s.name === seriesName);
 
     if (!sourceSeries || !sourceSeries.data || sourceSeries.data.length < 4) {
       console.error("Cannot differentiate: series not found or too few points");
@@ -550,7 +577,6 @@
     // Compute discrete derivative: dy/dx = (y[i+1] - y[i]) / (x[i+1] - x[i])
     // Data in memory always matches current engine because it's re-fetched or cleared on engine change
     const engineStorage = chartLibrary === "plotly" ? "arrays" : "interleaved";
-    const currentStorage = engineStorage;
     const sourceData = sourceSeries.data;
     const numPoints = sourceData.length / 2;
     const derivData = new Float64Array((numPoints - 1) * 2);
@@ -558,16 +584,16 @@
     const isArrays = engineStorage === "arrays";
     for (let i = 0; i < numPoints - 1; i++) {
       let x0, y0, x1, y1;
-      if (currentStorage === "arrays") {
-        x0 = sourceData[i];
-        y0 = sourceData[numPoints + i];
-        x1 = sourceData[i + 1];
-        y1 = sourceData[numPoints + i + 1];
+      if (isArrays) {
+        x0 = sourceData[i]!;
+        y0 = sourceData[numPoints + i]!;
+        x1 = sourceData[i + 1]!;
+        y1 = sourceData[numPoints + i + 1]!;
       } else {
-        x0 = sourceData[i * 2];
-        y0 = sourceData[i * 2 + 1];
-        x1 = sourceData[(i + 1) * 2];
-        y1 = sourceData[(i + 1) * 2 + 1];
+        x0 = sourceData[i * 2]!;
+        y0 = sourceData[i * 2 + 1]!;
+        x1 = sourceData[(i + 1) * 2]!;
+        y1 = sourceData[(i + 1) * 2 + 1]!;
       }
 
       const dx = x1 - x0;
@@ -584,8 +610,6 @@
       }
     }
 
-    const finalDerivData = derivData;
-
     // Create new series
     const newSeriesName = `d(${seriesName})/dt`;
     const colorIndex = currentSeriesData.length;
@@ -601,11 +625,11 @@
       "#FF97FF",
       "#FECB52",
     ];
-    const newSeries = {
+    const newSeries: SeriesConfig = {
       id: `deriv_${Date.now()}`,
       name: newSeriesName,
-      color: colors[colorIndex % colors.length],
-      data: finalDerivData,
+      color: colors[colorIndex % colors.length]!,
+      data: derivData,
     };
 
     // Log the added series
@@ -641,8 +665,8 @@
       chartAdapter = new EChartsAdapter();
     }
 
-    chartAdapter.init(chartContainer, isDarkMode);
-    chartAdapter.onContextMenu(handleContextMenu);
+    chartAdapter!.init(chartContainer, isDarkMode);
+    chartAdapter!.onContextMenu(handleContextMenu);
 
     // Initial load handled by calling loadData directly if not restored
     if (currentSeriesData.length === 0) {
@@ -654,7 +678,7 @@
 
     // Load available plugins
     try {
-      allPlugins = await PluginService.ListPlugins();
+      allPlugins = (await PluginService.ListPlugins()) as AppPlugin[];
       console.log("Loaded plugins:", allPlugins);
     } catch (e) {
       console.error("Failed to list plugins:", e);
@@ -662,7 +686,8 @@
   }
 
   // Handle chart library change from options dialog
-  async function handleChartLibraryChange(newLibrary) {
+  async function handleChartLibraryChange(ev: any) {
+    const newLibrary = ev.data as string;
     if (chartLibrary !== newLibrary) {
       if (currentSeriesData.length > 0) {
         const confirmed = confirm(
@@ -694,18 +719,21 @@
     }
 
     // Load initial theme
-    ConfigService.GetTheme().then((theme) => {
+    ConfigService.GetTheme().then((theme: string) => {
       isDarkMode = theme === "dark";
     });
 
     // Listen for chart library changes
-    Events.On("chartLibraryChanged", handleChartLibraryChange);
+    unsubChartLibrary = Events.On(
+      "chartLibraryChanged",
+      handleChartLibraryChange,
+    );
   });
 
   onDestroy(() => {
     resizeObserver?.disconnect();
     chartAdapter?.destroy();
-    Events.Off("chartLibraryChanged", handleChartLibraryChange);
+    unsubChartLibrary?.();
   });
 </script>
 
@@ -832,7 +860,7 @@
         Generate
       </button>
       <button
-        onclick={() => ConfigService.OpenOptions()}
+        onclick={() => (ConfigService as any).OpenOptions()}
         title="Application Options"
       >
         <svg

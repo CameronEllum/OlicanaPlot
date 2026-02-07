@@ -1,25 +1,27 @@
 import Plotly from "plotly.js-dist-min";
-import { ChartAdapter } from "./ChartAdapter.js";
+import { ChartAdapter, type SeriesConfig } from "./ChartAdapter.ts";
 
 /**
  * Plotly.js implementation of ChartAdapter using WebGL (scattergl).
  * Implements true subplots by dynamically partitioning the Y domain.
  */
 export class PlotlyAdapter extends ChartAdapter {
+    public container: any = null;
+    public darkMode: boolean = false;
+    public currentData: SeriesConfig[] | null = null;
+    public lastSubplotCount: number = 0;
+    private contextMenuHandler: ((event: any) => void) | null = null;
+
     constructor() {
         super();
-        this.container = null;
-        this.darkMode = false;
-        this.currentData = null;
-        this.lastSubplotCount = 0;
     }
 
-    init(container, darkMode) {
+    init(container: HTMLElement, darkMode: boolean) {
         this.container = container;
         this.darkMode = darkMode;
     }
 
-    setData(seriesData, title, darkMode, getGridRight) {
+    setData(seriesData: SeriesConfig[], title: string, darkMode: boolean, getGridRight: (data: SeriesConfig[]) => number) {
         if (!this.container) return;
 
         this.darkMode = darkMode;
@@ -35,7 +37,7 @@ export class PlotlyAdapter extends ChartAdapter {
         console.log(`[PlotlyAdapter] Rendering subplots:`, subplotIndices);
 
         // Map subplotIndex to Plotly axis labels
-        const subplotToAxisMap = {};
+        const subplotToAxisMap: Record<number, any> = {};
         subplotIndices.forEach((sidx, i) => {
             const axisNum = i === 0 ? "" : (i + 1).toString();
             subplotToAxisMap[sidx] = {
@@ -58,8 +60,8 @@ export class PlotlyAdapter extends ChartAdapter {
                 xaxis: axes.x,
                 yaxis: axes.y,
                 name: s.name,
-                type: "scattergl",
-                mode: "lines",
+                type: "scattergl" as const,
+                mode: "lines" as const,
                 line: {
                     color: s.color,
                     width: 2,
@@ -72,19 +74,19 @@ export class PlotlyAdapter extends ChartAdapter {
         const bgColor = darkMode ? "#2b2b2b" : "#ffffff";
         const gridColor = darkMode ? "#444" : "#e0e0e0";
 
-        const layout = {
+        const layout: any = {
             title: {
                 text: title,
                 font: { color: textColor },
                 x: 0.5,
-                xanchor: "center",
+                xanchor: "center" as const,
             },
             paper_bgcolor: bgColor,
             plot_bgcolor: bgColor,
             font: { color: textColor },
             showlegend: true,
             legend: {
-                orientation: "v",
+                orientation: "v" as const,
                 x: 1.05,
                 y: 1,
                 font: { color: textColor },
@@ -95,7 +97,7 @@ export class PlotlyAdapter extends ChartAdapter {
                 t: 60,
                 b: 70,
             },
-            dragmode: "pan",
+            dragmode: "pan" as const,
         };
 
         // Calculate vertical domains
@@ -148,14 +150,14 @@ export class PlotlyAdapter extends ChartAdapter {
         this.container.removeAllListeners("plotly_afterplot");
         this.container.on("plotly_afterplot", () => {
             const legendItems = this.container.querySelectorAll(".legendtext, .legendtoggle");
-            legendItems.forEach((el) => {
-                el.oncontextmenu = (e) => {
+            legendItems.forEach((el: any) => {
+                el.oncontextmenu = (e: MouseEvent) => {
                     e.preventDefault();
                     e.stopPropagation();
 
-                    const traceGroup = el.closest(".traces");
+                    const traceGroup = el.closest(".traces") as HTMLElement;
                     const textEl = traceGroup ? traceGroup.querySelector(".legendtext") : null;
-                    const traceName = textEl ? textEl.textContent.trim() : null;
+                    const traceName = textEl ? textEl.textContent?.trim() : null;
 
                     if (traceName && this.contextMenuHandler) {
                         this.contextMenuHandler({
@@ -174,7 +176,7 @@ export class PlotlyAdapter extends ChartAdapter {
         }
     }
 
-    getDataAtPixel(x, y) {
+    getDataAtPixel(x: number, y: number) {
         if (!this.container || !this.container._fullLayout) return null;
         const layout = this.container._fullLayout;
         const xaxis = layout.xaxis;
@@ -191,7 +193,7 @@ export class PlotlyAdapter extends ChartAdapter {
         return { x: dataX, y: dataY };
     }
 
-    getPixelFromData(x, y) {
+    getPixelFromData(x: number, y: number) {
         if (!this.container || !this.container._fullLayout) return null;
         const layout = this.container._fullLayout;
         const xaxis = layout.xaxis;
@@ -208,15 +210,15 @@ export class PlotlyAdapter extends ChartAdapter {
         }
     }
 
-    onLegendClick(handler) {
+    onLegendClick(handler: (seriesName: string, event: any) => void) {
         if (!this.container) return;
-        this.container.on("plotly_legendclick", (event) => {
+        this.container.on("plotly_legendclick", (event: any) => {
             handler(event.data[event.curveNumber].name, event);
             return false;
         });
     }
 
-    onContextMenu(handler) {
+    onContextMenu(handler: (event: any) => void) {
         this.contextMenuHandler = handler;
         if (this.container) {
             this.container.addEventListener("contextmenu", handler);
