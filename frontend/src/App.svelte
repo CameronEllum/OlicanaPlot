@@ -5,6 +5,7 @@
   import * as ConfigService from "../bindings/olicanaplot/internal/appconfig/configservice";
   import ContextMenu from "./lib/ContextMenu.svelte";
   import MeasurementResult from "./lib/MeasurementResult.svelte";
+  import RenameDialog from "./lib/RenameDialog.svelte";
   import { EChartsAdapter } from "./lib/chart/EChartsAdapter.ts";
   import { PlotlyAdapter } from "./lib/chart/PlotlyAdapter.ts";
   import type { ChartAdapter, SeriesConfig } from "./lib/chart/ChartAdapter.ts";
@@ -59,6 +60,13 @@
   let pluginSelectionVisible = $state(false);
   let pluginSelectionCandidates = $state<string[]>([]);
   let pendingFilePath = $state("");
+
+  // Rename Dialog State
+  let renameVisible = $state(false);
+  let renameModalTitle = $state("");
+  let renameModalLabel = $state("");
+  let renameModalValue = $state("");
+  let renameModalCallback = $state<(val: string) => void>(() => {});
 
   // Invoke the plugin service to activate a specific plugin and load its
   // resulting data into the chart.
@@ -449,6 +457,14 @@
     const event = e.event || e;
     if (!event || !event.preventDefault) return;
 
+    if (event.target) {
+      PluginService.LogDebug(
+        "ContextMenu",
+        `Target: ${event.target.tagName}`,
+        `Classes: ${event.target.className}`,
+      );
+    }
+
     event.preventDefault();
     event.stopPropagation();
 
@@ -478,6 +494,11 @@
       e.plotlyLegendName ||
       (legendIndex !== -1 && (chartAdapter as any).instance)
     ) {
+      PluginService.LogDebug(
+        "ContextMenu",
+        "Legend path taken",
+        e.plotlyLegendName || "ECharts",
+      );
       let componentName: string | undefined;
       if (e.plotlyLegendName) {
         componentName = e.plotlyLegendName;
@@ -505,7 +526,26 @@
           action: () => differentiateSeries(componentName!),
         });
       }
+    } else if (
+      e.plotlyTitleClicked ||
+      (chartAdapter instanceof EChartsAdapter &&
+        chartAdapter.instance?.containPixel({ componentType: "title" } as any, [
+          offX,
+          offY,
+        ]))
+    ) {
+      PluginService.LogDebug(
+        "ContextMenu",
+        "Title path taken",
+        e.plotlyTitleClicked ? "Plotly" : "ECharts",
+      );
+      // Handle context menu for the plot title.
+      menuItems.push({
+        label: "Rename Plot Title",
+        action: () => renameTitle(),
+      });
     } else if (chartAdapter) {
+      PluginService.LogDebug("ContextMenu", "Grid/Other path taken", "");
       // Handle grid measurement start/end.
       const dataPoint = chartAdapter.getDataAtPixel(offX, offY);
       if (dataPoint) {
@@ -544,17 +584,47 @@
     menuVisible = menuItems.length > 0;
   }
 
+  // Display a reusable rename dialog for various plot elements.
+  function openRenameDialog(
+    title: string,
+    label: string,
+    initialValue: string,
+    callback: (val: string) => void,
+  ) {
+    renameModalTitle = title;
+    renameModalLabel = label;
+    renameModalValue = initialValue;
+    renameModalCallback = callback;
+    renameVisible = true;
+  }
+
+  // Update the plot title and refresh the chart display.
+  function renameTitle() {
+    openRenameDialog(
+      "Rename Plot",
+      "New Title:",
+      currentTitle,
+      (newName: string) => {
+        currentTitle = newName;
+        updateChart();
+      },
+    );
+  }
+
   // Update the display name of a series and refresh the chart.
   function renameSeries(oldName: string) {
-    const newName = prompt(`Enter new name for series "${oldName}":`, oldName);
-    if (!newName || newName === oldName) return;
-
-    const series = currentSeriesData.find((s) => s.name === oldName);
-    if (series) {
-      series.name = newName;
-    }
-
-    updateChart();
+    openRenameDialog(
+      "Rename Series",
+      "New Series Name:",
+      oldName,
+      (newName: string) => {
+        const series = currentSeriesData.find((s) => s.name === oldName);
+        if (series) {
+          series.name = newName;
+        }
+        updateChart();
+      },
+    );
   }
 
   // Compute and add a numerical derivative series based on an existing series.
@@ -714,6 +784,18 @@
     unsubChartLibrary?.();
   });
 </script>
+
+<RenameDialog
+  visible={renameVisible}
+  title={renameModalTitle}
+  label={renameModalLabel}
+  value={renameModalValue}
+  onConfirm={(val) => {
+    renameVisible = false;
+    renameModalCallback(val);
+  }}
+  onCancel={() => (renameVisible = false)}
+/>
 
 <div class="app-container" class:dark-mode={isDarkMode}>
   <header class="main-header">

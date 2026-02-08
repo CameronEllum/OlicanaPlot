@@ -1,5 +1,6 @@
 import Plotly from "plotly.js-dist-min";
 import { ChartAdapter, type SeriesConfig } from "./ChartAdapter.ts";
+import * as PluginService from "../../../bindings/olicanaplot/internal/plugins/service";
 
 // Plotly.js implementation of ChartAdapter using WebGL (scattergl).
 // Implements true subplots by dynamically partitioning the Y domain.
@@ -35,7 +36,7 @@ export class PlotlyAdapter extends ChartAdapter {
         const subplotIndices = [...new Set(seriesArr.map((s) => s.subplotIndex || 0))].sort((a, b) => a - b);
         const numSubplots = subplotIndices.length;
 
-        console.log(`[PlotlyAdapter] Rendering subplots:`, subplotIndices);
+        PluginService.LogDebug("PlotlyAdapter", "Rendering subplots", subplotIndices.join(", "));
 
         // Map subplotIndex to Plotly axis labels
         const subplotToAxisMap: Record<number, any> = {};
@@ -140,7 +141,7 @@ export class PlotlyAdapter extends ChartAdapter {
 
         // If the number of subplots changed, purge the plot to ensure a clean layout update
         if (numSubplots !== this.lastSubplotCount) {
-            console.log(`[PlotlyAdapter] Subplot count changed from ${this.lastSubplotCount} to ${numSubplots}. Purging plot.`);
+            PluginService.LogDebug("PlotlyAdapter", "Purging plot due to subplot count change", `from ${this.lastSubplotCount} to ${numSubplots}`);
             Plotly.purge(this.container);
             this.lastSubplotCount = numSubplots;
         }
@@ -150,6 +151,7 @@ export class PlotlyAdapter extends ChartAdapter {
         // Legend context menu logic
         this.container.removeAllListeners("plotly_afterplot");
         this.container.on("plotly_afterplot", () => {
+            // Legend context menu
             const legendItems = this.container.querySelectorAll(".legendtext, .legendtoggle");
             legendItems.forEach((el: any) => {
                 el.oncontextmenu = (e: MouseEvent) => {
@@ -168,6 +170,15 @@ export class PlotlyAdapter extends ChartAdapter {
                     }
                 };
             });
+
+            // Title context menu discovery
+            const titleEl = this.container.querySelector(".gtitle, .g-title, .titletext, .main-title");
+            if (titleEl) {
+                PluginService.LogDebug("PlotlyAdapter", "Title element found, storing reference", "");
+                (this as any).titleElement = titleEl;
+            } else {
+                PluginService.LogDebug("PlotlyAdapter", "Title element NOT found", "");
+            }
         });
     }
 
@@ -232,7 +243,24 @@ export class PlotlyAdapter extends ChartAdapter {
     onContextMenu(handler: (event: any) => void) {
         this.contextMenuHandler = handler;
         if (this.container) {
-            this.container.addEventListener("contextmenu", handler);
+            this.container.addEventListener("contextmenu", (e: MouseEvent) => {
+                PluginService.LogDebug("PlotlyAdapter", "Container context menu event", "");
+
+                // Fallback: Check if the click falls within the title's bounding box
+                // if the direct handler on the title element was blocked by an overlay.
+                const titleEl = (this as any).titleElement as HTMLElement;
+                if (titleEl) {
+                    const rect = titleEl.getBoundingClientRect();
+                    if (e.clientX >= rect.left && e.clientX <= rect.right &&
+                        e.clientY >= rect.top && e.clientY <= rect.bottom) {
+                        PluginService.LogDebug("PlotlyAdapter", "Title detected via bounding box fallback", "");
+                        handler({ event: e, plotlyTitleClicked: true });
+                        return;
+                    }
+                }
+
+                handler(e);
+            });
         }
     }
 }

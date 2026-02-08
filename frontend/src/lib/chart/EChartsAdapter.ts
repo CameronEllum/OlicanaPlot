@@ -1,5 +1,6 @@
 import * as echarts from "echarts";
 import { ChartAdapter, type SeriesConfig } from "./ChartAdapter.ts";
+import * as PluginService from "../../../bindings/olicanaplot/internal/plugins/service";
 
 // ECharts implementation of ChartAdapter. Implements true subplots by using
 // multiple grid objects stacked vertically.
@@ -36,7 +37,7 @@ export class EChartsAdapter extends ChartAdapter {
         const subplotIndices = [...new Set(seriesArr.map((s) => s.subplotIndex || 0))].sort((a, b) => a - b);
         const numSubplots = subplotIndices.length;
 
-        console.log(`[EChartsAdapter] Rendering subplots:`, subplotIndices);
+        PluginService.LogDebug("EChartsAdapter", "Rendering subplots", subplotIndices.join(", "));
 
         // Map subplotIndex to actual grid/axis index in ECharts
         const subplotToIndexMap: Record<number, number> = {};
@@ -114,6 +115,7 @@ export class EChartsAdapter extends ChartAdapter {
                 text: title,
                 left: "center",
                 textStyle: { color: textColor },
+                triggerEvent: true,
             },
             tooltip: { trigger: "axis" as const },
             toolbox: {
