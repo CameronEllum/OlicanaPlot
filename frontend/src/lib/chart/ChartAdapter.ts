@@ -31,6 +31,7 @@ export abstract class ChartAdapter {
     title: string,
     darkMode: boolean,
     getGridRight: (data: SeriesConfig[]) => number,
+    lineWidth: number,
   ): void;
 
   // Trigger the chart to update its dimensions to fit its container.

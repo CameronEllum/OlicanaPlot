@@ -30,6 +30,7 @@ export class PlotlyAdapter extends ChartAdapter {
     title: string,
     darkMode: boolean,
     getGridRight: (data: SeriesConfig[]) => number,
+    lineWidth: number,
   ) {
     if (!this.container) return;
 
@@ -79,7 +80,7 @@ export class PlotlyAdapter extends ChartAdapter {
         mode: "lines" as const,
         line: {
           color: s.color,
-          width: 2,
+          width: lineWidth || 2,
         },
         hoverinfo: "x+y+name",
       };

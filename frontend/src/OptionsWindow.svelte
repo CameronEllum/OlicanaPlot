@@ -11,6 +11,7 @@
     let chartLibrary = $state("echarts");
     let plugins = $state<any[]>([]);
     let showGeneratorsMenu = $state(true);
+    let defaultLineWidth = $state(2.0);
     let activeTab = $state("general");
     let isMaximised = $state(false);
 
@@ -30,6 +31,7 @@
             chartLibrary = await ConfigService.GetChartLibrary();
             plugins = await PluginService.ListPlugins();
             showGeneratorsMenu = await ConfigService.GetShowGeneratorsMenu();
+            defaultLineWidth = await ConfigService.GetDefaultLineWidth();
             isMaximised = await Window.IsMaximised();
         } catch (e) {
             console.error("Failed to get config:", e);
@@ -111,6 +113,7 @@
             }
 
             await ConfigService.SetShowGeneratorsMenu(showGeneratorsMenu);
+            await ConfigService.SetDefaultLineWidth(defaultLineWidth);
             Window.Close();
         } catch (e: any) {
             console.error("Failed to save config:", e);
@@ -226,6 +229,24 @@
                     <span>General</span>
                 </button>
                 <button
+                    class="tab-btn {activeTab === 'plotting' ? 'active' : ''}"
+                    onclick={() => (activeTab = "plotting")}
+                    title="Plotting Defaults"
+                >
+                    <svg
+                        viewBox="0 0 24 24"
+                        width="20"
+                        height="20"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        fill="none"
+                    >
+                        <path d="M3 3v18h18" />
+                        <path d="M19 9l-5 5-4-4-3 3" />
+                    </svg>
+                    <span>Plotting</span>
+                </button>
+                <button
                     class="tab-btn {activeTab === 'plugins' ? 'active' : ''}"
                     onclick={() => (activeTab = "plugins")}
                     title="Plugin Configuration"
@@ -306,6 +327,24 @@
                             </div>
                         </label>
                     </div>
+                {:else if activeTab === "plotting"}
+                    <section class="form-section">
+                        <h3>Defaults</h3>
+                        <div class="form-group">
+                            <label for="defaultLineWidth">Line Width</label>
+                            <input
+                                type="number"
+                                id="defaultLineWidth"
+                                bind:value={defaultLineWidth}
+                                step="0.1"
+                                min="0.1"
+                                max="10"
+                            />
+                            <p class="help-text">
+                                Default line width for all chart series.
+                            </p>
+                        </div>
+                    </section>
                 {:else if activeTab === "plugins"}
                     <section class="plugin-section">
                         <h3>External Plugins</h3>

@@ -30,6 +30,7 @@ export class EChartsAdapter extends ChartAdapter {
     title: string,
     darkMode: boolean,
     getGridRight: (data: SeriesConfig[]) => number,
+    lineWidth: number,
   ) {
     if (!this.instance) return;
 
@@ -115,7 +116,7 @@ export class EChartsAdapter extends ChartAdapter {
         large: true,
         emphasis: { disabled: true },
         color: s.color,
-        lineStyle: { width: 2 },
+        lineStyle: { width: lineWidth || 2 },
         sampling: "lttb" as const,
       };
     });

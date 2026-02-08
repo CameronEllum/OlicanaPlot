@@ -26,6 +26,7 @@ type ConfigService struct {
 	logLevel           string
 	disabledPlugins    []string
 	showGeneratorsMenu bool
+	defaultLineWidth   float64
 }
 
 // configData is the structure we save to disk
@@ -36,6 +37,7 @@ type configData struct {
 	LogLevel           string   `json:"logLevel"`
 	DisabledPlugins    []string `json:"disabledPlugins"`
 	ShowGeneratorsMenu bool     `json:"showGeneratorsMenu"`
+	DefaultLineWidth   float64  `json:"defaultLineWidth"`
 }
 
 // NewConfigService creates a new config service with default values.
@@ -58,6 +60,7 @@ func NewConfigService() *ConfigService {
 		theme:              "light",   // Default to light
 		logLevel:           "info",    // Default to info
 		showGeneratorsMenu: true,      // Default to true
+		defaultLineWidth:   2.0,       // Default to 2.0
 	}
 
 	s.loadConfig()
@@ -115,6 +118,11 @@ func (s *ConfigService) loadConfig() {
 	}
 	s.disabledPlugins = cfg.DisabledPlugins
 	s.showGeneratorsMenu = cfg.ShowGeneratorsMenu
+	if cfg.DefaultLineWidth > 0 {
+		s.defaultLineWidth = cfg.DefaultLineWidth
+	} else {
+		s.defaultLineWidth = 2.0
+	}
 
 	// Apply log level
 	logging.SetLevel(s.logLevel)
@@ -129,6 +137,7 @@ func (s *ConfigService) saveConfig() {
 		LogLevel:           s.logLevel,
 		DisabledPlugins:    s.disabledPlugins,
 		ShowGeneratorsMenu: s.showGeneratorsMenu,
+		DefaultLineWidth:   s.defaultLineWidth,
 	}
 	s.mu.RUnlock()
 
@@ -234,6 +243,26 @@ func (s *ConfigService) SetShowGeneratorsMenu(show bool) {
 
 	if app != nil {
 		app.Event.Emit("showGeneratorsMenuChanged", show)
+	}
+}
+
+// GetDefaultLineWidth returns the default line width for charts.
+func (s *ConfigService) GetDefaultLineWidth() float64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.defaultLineWidth
+}
+
+// SetDefaultLineWidth updates the default line width and notifies listeners.
+func (s *ConfigService) SetDefaultLineWidth(width float64) {
+	s.mu.Lock()
+	s.defaultLineWidth = width
+	app := s.app
+	s.mu.Unlock()
+	s.saveConfig()
+
+	if app != nil {
+		app.Event.Emit("defaultLineWidthChanged", width)
 	}
 }
 

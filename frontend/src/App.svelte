@@ -62,8 +62,10 @@
   let xAxisName = $state("Time");
   let allPlugins = $state<AppPlugin[]>([]);
   let showGeneratorsMenu = $state(true);
+  let defaultLineWidth = $state(2.0);
   let unsubChartLibrary: (() => void) | null = null;
   let unsubShowGeneratorsMenu: (() => void) | null = null;
+  let unsubDefaultLineWidth: (() => void) | null = null;
 
   // Plugin Selection State (for ambiguous file matches)
   let pluginSelectionVisible = $state(false);
@@ -382,6 +384,7 @@
       currentTitle,
       isDarkMode,
       getGridRight,
+      defaultLineWidth,
     );
   }
 
@@ -727,6 +730,7 @@
 
     // Initial config
     showGeneratorsMenu = await ConfigService.GetShowGeneratorsMenu();
+    defaultLineWidth = await ConfigService.GetDefaultLineWidth();
 
     // Setup event listeners
     unsubChartLibrary = Events.On(
@@ -739,6 +743,10 @@
         showGeneratorsMenu = val.data as boolean;
       },
     );
+    unsubDefaultLineWidth = Events.On("defaultLineWidthChanged", (val: any) => {
+      defaultLineWidth = val.data as number;
+      updateChart();
+    });
   }
 
   // Respond to global chart library preference changes.
@@ -784,6 +792,7 @@
     if (resizeObserver) resizeObserver.disconnect();
     if (unsubChartLibrary) unsubChartLibrary();
     if (unsubShowGeneratorsMenu) unsubShowGeneratorsMenu();
+    if (unsubDefaultLineWidth) unsubDefaultLineWidth();
   });
 </script>
 
