@@ -1,10 +1,12 @@
+// Imports for application components, Svelte mounting, and backend bindings.
 import './theme.css';
 import { mount } from 'svelte'
 import SchemaForm from './lib/SchemaForm.svelte'
 import { Events } from "@wailsio/runtime";
 import * as ConfigService from "../bindings/olicanaplot/internal/appconfig/configservice";
 
-// Apply initial theme
+// Retrieve and apply the user's preferred theme (light/dark) from the
+// configuration service on application startup.
 ConfigService.GetTheme().then((theme: string) => {
     if (theme === "dark") {
         document.documentElement.classList.add('dark-mode');
@@ -13,6 +15,7 @@ ConfigService.GetTheme().then((theme: string) => {
     }
 });
 
+// Setup target element and parse configuration from URL query parameters.
 const target = document.getElementById('app');
 if (!target) throw new Error("No target element found");
 
@@ -20,6 +23,8 @@ const params = new URLSearchParams(window.location.search);
 const requestID = params.get('requestID');
 const title = params.get('title') || 'Plugin Configuration';
 
+// Emit the form data result back to the main process via an event and close
+// the window.
 function handleFormSubmit(data: any) {
     Events.Emit(`ipc-form-result-${requestID}`, data);
     setTimeout(() => {
@@ -27,6 +32,8 @@ function handleFormSubmit(data: any) {
     }, 100);
 }
 
+// Emit a cancellation error message back to the main process and close the
+// window.
 function handleFormCancel() {
     Events.Emit(`ipc-form-result-${requestID}`, "error:cancelled");
     setTimeout(() => {
@@ -36,7 +43,7 @@ function handleFormCancel() {
 
 let app: any;
 
-// Listen for the initial data
+// Listen for the initial data transmission to initialize the dynamic form.
 Events.On(`ipc-form-init-${requestID}`, (e: any) => {
     const data = e.data || e;
     const schema = data.schema || {};
@@ -61,7 +68,8 @@ Events.On(`ipc-form-init-${requestID}`, (e: any) => {
     })
 });
 
-// Signal that we are ready to receive data
+// Signal that the dialog is ready to receive the initialization payload
+// from the backend.
 Events.Emit(`ipc-form-ready-${requestID}`);
 
 export default app

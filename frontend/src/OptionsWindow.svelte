@@ -3,12 +3,14 @@
     import { Events, Window } from "@wailsio/runtime";
     import * as ConfigService from "../bindings/olicanaplot/internal/appconfig/configservice";
 
+    // Application state for logging and chart preferences.
     let logPath = $state("");
     let logLevel = $state("info");
     let chartLibrary = $state("echarts");
-    let activeTab = $state("logging"); // "logging" or "chart"
+    let activeTab = $state("logging");
     let isMaximised = $state(false);
 
+    // Initialize configuration settings and window state on component mount.
     onMount(async () => {
         try {
             logPath = await ConfigService.GetLogPath();
@@ -20,6 +22,7 @@
         }
     });
 
+    // Toggle the window between maximised and restored states.
     async function handleToggleMaximise() {
         if (isMaximised) {
             await Window.UnMaximise();
@@ -29,6 +32,8 @@
         isMaximised = await Window.IsMaximised();
     }
 
+    // Persist all configuration changes to the backend and manage chart library
+    // reset confirmation.
     async function handleSave() {
         try {
             await ConfigService.SetLogPath(logPath);
@@ -40,7 +45,7 @@
                     "Changing the chart engine will reset the current plot. Continue?",
                 );
                 if (!confirmed) {
-                    chartLibrary = oldLibrary; // Revert local state
+                    chartLibrary = oldLibrary;
                     return;
                 }
                 await ConfigService.SetChartLibrary(chartLibrary);
@@ -56,6 +61,8 @@
         }
     }
 
+    // Command the backend service to open the active log file in the system
+    // default editor.
     async function handleOpenLog() {
         try {
             await ConfigService.OpenLogFile();

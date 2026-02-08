@@ -2,6 +2,7 @@
     import { onMount } from "svelte";
     import { Events } from "@wailsio/runtime";
 
+    // Define structural interfaces for JSON schema and UI schema mapping.
     interface SchemaProperty {
         type?: string;
         title?: string;
@@ -34,6 +35,7 @@
 
     type UiSchema = Record<string, UiSchemaEntry>;
 
+    // Receive schema, initial data, and callback handlers via props.
     let {
         schema = $bindable({}),
         uiSchema = $bindable({}),
@@ -58,7 +60,8 @@
     let loading = $state(false);
     let loadingTimer: number | null = null;
 
-    // Initialize formData from initialData and defaults
+    // Synchronize form data with initial values and schema defaults upon component
+    // mounting.
     onMount(() => {
         const newData = { ...initialData };
         if (schema && schema.properties) {
@@ -79,6 +82,7 @@
         formData = newData;
     });
 
+    // Register an event listener for remote form updates from the host.
     onMount(() => {
         if (!requestID) return;
 
@@ -97,12 +101,12 @@
             ) {
                 Object.assign(formData, update.data);
             }
-            // Stop loading state when update received
             stopLoading();
         });
         return unsub;
     });
 
+    // Activate the loading spinner after a short delay.
     function startLoading() {
         if (loadingTimer) clearTimeout(loadingTimer);
         loadingTimer = setTimeout(() => {
@@ -110,6 +114,7 @@
         }, 250);
     }
 
+    // Cancel any pending loading timer and hide the spinner.
     function stopLoading() {
         if (loadingTimer) {
             clearTimeout(loadingTimer);
@@ -118,11 +123,11 @@
         loading = false;
     }
 
-    // Debounce form changes to notify host
+    // Capture form state changes and emit update events to the host with
+    // debouncing.
     let changeTimer: number | null = null;
     let isFirstRun = true;
     $effect(() => {
-        // Track formData changes and also isFirstRun
         JSON.stringify(formData);
 
         if (changeTimer) clearTimeout(changeTimer);
@@ -141,15 +146,18 @@
         }, 100);
     });
 
+    // Invoke the submission callback with the current form data.
     function handleSubmit() {
         if (onsubmit) onsubmit(formData);
     }
 
+    // Signal the cancellation handler.
     function handleCancel() {
         if (oncancel) oncancel();
     }
 
-    // Helper for log10 conversion if requested in uiSchema
+    // Map a literal value to its corresponding position on a logarithmic or linear
+    // slider.
     function getSliderValue(key: string, val: number) {
         const ui = (uiSchema || {})[key] || {};
         if (ui["ui:options"]?.scale === "log10") {
@@ -158,6 +166,8 @@
         return val || 0;
     }
 
+    // Convert a slider position back to its literal numerical value based on the
+    // configured scale.
     function setSliderValue(key: string, val: number) {
         const ui = (uiSchema || {})[key] || {};
         if (ui["ui:options"]?.scale === "log10") {
@@ -167,6 +177,8 @@
         }
     }
 
+    // Format a numerical value for display, applying unit suffixes for large
+    // logarithmic values.
     function formatValue(key: string, val: number) {
         const ui = (uiSchema || {})[key] || {};
         if (ui["ui:options"]?.scale === "log10") {
@@ -177,6 +189,7 @@
         return val;
     }
 
+    // Inform the host of form container height changes via a resize observer.
     let container = $state<HTMLElement | null>(null);
     $effect(() => {
         if (!container || !requestID) return;

@@ -1,4 +1,5 @@
 <script lang="ts">
+    // Receive measurement deltas and visibility state via props.
     let {
         deltaX,
         deltaY,
@@ -11,6 +12,8 @@
         onClose: () => void;
     } = $props();
 
+    // Convert a number into a human-readable string using localization or
+    // exponential notation for very small values.
     function formatNumber(num: number): string {
         if (Math.abs(num) < 0.0001 && num !== 0) return num.toExponential(4);
         return num.toLocaleString(undefined, {

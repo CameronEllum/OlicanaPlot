@@ -1,10 +1,8 @@
 import Plotly from "plotly.js-dist-min";
 import { ChartAdapter, type SeriesConfig } from "./ChartAdapter.ts";
 
-/**
- * Plotly.js implementation of ChartAdapter using WebGL (scattergl).
- * Implements true subplots by dynamically partitioning the Y domain.
- */
+// Plotly.js implementation of ChartAdapter using WebGL (scattergl).
+// Implements true subplots by dynamically partitioning the Y domain.
 export class PlotlyAdapter extends ChartAdapter {
     public container: any = null;
     public darkMode: boolean = false;
@@ -16,11 +14,14 @@ export class PlotlyAdapter extends ChartAdapter {
         super();
     }
 
+    // Store the target container and initial theme for the Plotly instance.
     init(container: HTMLElement, darkMode: boolean) {
         this.container = container;
         this.darkMode = darkMode;
     }
 
+    // Prepare the data traces and layout configuration, then render or update the
+    // Plotly chart including subplot partitioning.
     setData(seriesData: SeriesConfig[], title: string, darkMode: boolean, getGridRight: (data: SeriesConfig[]) => number) {
         if (!this.container) return;
 
@@ -170,12 +171,15 @@ export class PlotlyAdapter extends ChartAdapter {
         });
     }
 
+    // Trigger Plotly's internal resizing logic to fit the container.
     resize() {
         if (this.container) {
             Plotly.Plots.resize(this.container);
         }
     }
 
+    // Calculate data-space coordinates from screen pixel values by using Plotly's
+    // axis scaling functions.
     getDataAtPixel(x: number, y: number) {
         if (!this.container || !this.container._fullLayout) return null;
         const layout = this.container._fullLayout;
@@ -193,6 +197,8 @@ export class PlotlyAdapter extends ChartAdapter {
         return { x: dataX, y: dataY };
     }
 
+    // Convert data coordinates into screen pixel coordinates for use by external
+    // UI overlays.
     getPixelFromData(x: number, y: number) {
         if (!this.container || !this.container._fullLayout) return null;
         const layout = this.container._fullLayout;
@@ -204,12 +210,15 @@ export class PlotlyAdapter extends ChartAdapter {
         return { x: pixelX, y: pixelY };
     }
 
+    // Release all Plotly resources and clear the container.
     destroy() {
         if (this.container) {
             Plotly.purge(this.container);
         }
     }
 
+    // Attach a handler for legend click events and return false to prevent
+    // Plotly's default toggling behavior.
     onLegendClick(handler: (seriesName: string, event: any) => void) {
         if (!this.container) return;
         this.container.on("plotly_legendclick", (event: any) => {
@@ -218,6 +227,8 @@ export class PlotlyAdapter extends ChartAdapter {
         });
     }
 
+    // Register a handler for the browser's context menu event on the Plotly
+    // container.
     onContextMenu(handler: (event: any) => void) {
         this.contextMenuHandler = handler;
         if (this.container) {

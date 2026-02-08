@@ -9,6 +9,7 @@
   import { PlotlyAdapter } from "./lib/chart/PlotlyAdapter.ts";
   import type { ChartAdapter, SeriesConfig } from "./lib/chart/ChartAdapter.ts";
 
+  // Define plugin and coordinate structures.
   interface AppPlugin {
     name: string;
     patterns: any[];
@@ -19,6 +20,7 @@
     y: number;
   }
 
+  // Reactive application state including chart adapter, UI visibility, and data.
   let chartContainer = $state<HTMLElement>();
   let chartAdapter = $state<ChartAdapter | null>(null);
   let chartLibrary = $state<string>("echarts");
@@ -28,6 +30,7 @@
   let dataSource = $state("sine");
   let isDarkMode = $state(false);
 
+  // Synchronize the root document class with the dark mode state.
   $effect(() => {
     if (isDarkMode) {
       document.documentElement.classList.add("dark-mode");
@@ -46,7 +49,7 @@
   let measurementStart = $state<Point | null>(null);
   let measurementResult = $state<{ dx: number; dy: number } | null>(null);
 
-  // Store current data to restore chart on theme change
+  // Store current data and plugin information.
   let currentSeriesData = $state<SeriesConfig[]>([]);
   let currentTitle = $state("");
   let allPlugins = $state<AppPlugin[]>([]);
@@ -57,7 +60,8 @@
   let pluginSelectionCandidates = $state<string[]>([]);
   let pendingFilePath = $state("");
 
-  // Activate a plugin generically
+  // Invoke the plugin service to activate a specific plugin and load its
+  // resulting data into the chart.
   async function activatePlugin(
     pluginName: string,
     initStr = "",
@@ -65,11 +69,7 @@
   ) {
     loading = true;
     try {
-      // Call the plugin service to activate the plugin
-      // The plugin will spawn its own dialog if needed and block until finished
       await PluginService.ActivatePlugin(pluginName, initStr);
-
-      // Load data from the now-active and configured plugin
       await loadData(sourceLabel || pluginName);
     } catch (e: any) {
       console.error("Failed to activate plugin:", e);
@@ -78,7 +78,7 @@
     loading = false;
   }
 
-  // Add data to existing chart from a plugin (asSubplots = CTRL held)
+  // Append data from a plugin to the existing chart, optionally as new subplots.
   async function addDataToChart(
     pluginName: string,
     initStr = "",
@@ -88,7 +88,6 @@
     try {
       await PluginService.ActivatePlugin(pluginName, initStr);
 
-      // Fetch the new series config and data
       const seriesResponse = await fetch("/api/series_config");
       const seriesConfig = await seriesResponse.json();
       const storage = chartLibrary === "plotly" ? "arrays" : "interleaved";
@@ -105,7 +104,7 @@
       const newSeriesData: SeriesConfig[] = await Promise.all(dataPromises);
 
       if (asSubplots) {
-        // Add as subplots - assign a new subplot index
+        // Assign a new subplot index to the added series.
         const maxSubplot = Math.max(
           0,
           ...currentSeriesData.map((s) => s.subplotIndex || 0),
@@ -117,7 +116,7 @@
           s.id = `subplot_${Date.now()}_${s.id}`;
         });
       } else {
-        // Add as new series - assign new colors from the color palette
+        // Assign new colors from the palette for the main subplot.
         const colors = [
           "#636EFA",
           "#EF553B",
@@ -139,11 +138,10 @@
             ) + i;
           s.color = colors[colorIndex % colors.length];
           s.id = `added_${Date.now()}_${s.id}`;
-          s.subplotIndex = 0; // Explicitly part of the main subplot
+          s.subplotIndex = 0;
         });
       }
 
-      // Append to existing data
       currentSeriesData = [...currentSeriesData, ...newSeriesData];
 
       const subplotLabel = asSubplots
@@ -172,7 +170,8 @@
     loading = false;
   }
 
-  // Open unified file loader
+  // Open the file selection dialog and activate or prompt for the appropriate
+  // plugin based on candidates.
   async function loadFile() {
     loading = true;
     try {
@@ -194,8 +193,6 @@
         pendingFilePath = path;
         pluginSelectionVisible = true;
       } else {
-        // No matching plugin found (maybe selected via "All Files")
-        // Try a generic CSV fallback or show error
         error = "No specific plugin found to handle this file extension.";
       }
     } catch (e: any) {
@@ -207,11 +204,12 @@
     loading = false;
   }
 
-  // Track pending add mode for plugin selection
+  // Pending add mode state for disambiguation.
   let pendingAddMode = $state(false);
   let pendingAsSubplots = $state(false);
 
-  // Add file to existing chart (CTRL = subplots, otherwise series)
+  // Open the file selection dialog specifically for adding data to the current
+  // chart.
   async function addFile(event: MouseEvent) {
     const asSubplots = event.ctrlKey;
     loading = true;
@@ -247,6 +245,7 @@
     loading = false;
   }
 
+  // Process the user's choice from a plugin disambiguation dialog.
   async function handlePluginSelection(pluginName: string) {
     pluginSelectionVisible = false;
     if (pendingAddMode) {
@@ -260,7 +259,8 @@
     pendingFilePath = "";
   }
 
-  // Show menu for generator plugins (CTRL = add to existing chart)
+  // Display a context menu for generator plugins with either replace or add
+  // actions.
   function showGenerateMenu(event: MouseEvent) {
     event.stopPropagation();
     const isAddMode = event.ctrlKey;
@@ -270,7 +270,6 @@
         !p.name.includes("Template"),
     );
 
-    // Sort to keep "Sine Wave" at top or use a specific order if desired
     generators.sort((a, b) => {
       if (a.name === "Sine Wave") return -1;
       if (b.name === "Sine Wave") return 1;
@@ -286,7 +285,7 @@
         action: isAddMode
           ? () => {
               console.log(`Adding subplot data from ${p.name}`);
-              addDataToChart(p.name, "", true); // Set asSubplots to true when CTRL is held
+              addDataToChart(p.name, "", true);
             }
           : () => {
               console.log(`Activating plugin ${p.name}`);
@@ -297,7 +296,8 @@
     menuVisible = true;
   }
 
-  // Toggle chart theme
+  // Switch between light and dark themes and persist the preference in the
+  // backend.
   async function toggleTheme() {
     isDarkMode = !isDarkMode;
     const newTheme = isDarkMode ? "dark" : "light";
@@ -310,27 +310,25 @@
     });
   }
 
-  // Calculate grid right margin based on series names longuest length
+  // Calculate the appropriate right margin for the chart based on the longest
+  // series name.
   function getGridRight(seriesData: SeriesConfig[]) {
     const names = Array.isArray(seriesData)
       ? seriesData.map((s) => s.name)
       : [(seriesData as any).name];
     const maxLen = Math.max(...names.map((n) => (n || "").length), 0);
-    // Rough estimate: icon(25px) + gap(10px) + text(len * 8px) + padding
     return Math.max(120, maxLen * 8 + 60);
   }
 
+  // Fetch series configuration and corresponding data from the backend.
   async function loadData(source: string) {
     loading = true;
     try {
-      // Fetch series configuration
       const seriesResponse = await fetch("/api/series_config");
       const seriesConfig = await seriesResponse.json();
 
-      // Determine requested storage format
       const storage = chartLibrary === "plotly" ? "arrays" : "interleaved";
 
-      // Fetch data for each series in parallel
       const dataPromises = seriesConfig.map(async (series: any) => {
         const res = await fetch(
           `/api/series_data?series=${series.id}&storage=${storage}`,
@@ -346,7 +344,6 @@
 
       const seriesData: SeriesConfig[] = await Promise.all(dataPromises);
 
-      // Initialize subplotIndex for all base series
       seriesData.forEach((s) => (s.subplotIndex = 0));
 
       currentSeriesData = seriesData;
@@ -360,7 +357,7 @@
     loading = false;
   }
 
-  // Unified chart update function using adapter
+  // Push current data and layout state to the active chart adapter.
   function updateChart() {
     if (!chartAdapter || !currentSeriesData) return;
     chartAdapter.setData(
@@ -371,8 +368,7 @@
     );
   }
 
-  // --- Context Menu & Measurement Logic ---
-
+  // Find the closest data point to the provided screen space coordinates.
   function getNearestPoint(pixelPtr: [number, number]): Point | null {
     if (!chartAdapter || !currentSeriesData) return null;
 
@@ -382,17 +378,15 @@
 
     const targetX = dataCoord.x;
 
-    // Check all visible series
     let closestPoint: Point | null = null;
     let minDistanceSq = Infinity;
-    const SNAP_RADIUS = 20; // pixels
+    const SNAP_RADIUS = 20;
 
     const seriesToSearch = currentSeriesData;
 
     for (const series of seriesToSearch) {
       if (!series.data || series.data.length === 0) continue;
 
-      // Binary search for closest X (assuming sorted)
       let low = 0;
       let high = series.data.length / 2 - 1;
       let closestIdx = -1;
@@ -449,12 +443,12 @@
     return closestPoint;
   }
 
+  // Handle right-click events to display context menus for legend items or grid
+  // measurements.
   function handleContextMenu(e: any) {
-    // Handle both ECharts zrender events and native DOM events
     const event = e.event || e;
     if (!event || !event.preventDefault) return;
 
-    // Prevent default browser menu
     event.preventDefault();
     event.stopPropagation();
 
@@ -464,12 +458,10 @@
 
     if (!chartContainer) return;
 
-    // Get offset relative to container
     const rect = chartContainer.getBoundingClientRect();
     const offX = event.clientX - rect.left;
     const offY = event.clientY - rect.top;
 
-    // For ECharts adapter, try to detect legend item
     let legendIndex = -1;
     if (e.target) {
       let target = e.target;
@@ -490,7 +482,7 @@
       if (e.plotlyLegendName) {
         componentName = e.plotlyLegendName;
       } else {
-        // ECharts-specific legend handling
+        // Handle ECharts legend item detection.
         const option = (chartAdapter as any).instance.getOption();
         const legendData = option?.legend?.[0]?.data || [];
         const item = legendData[legendIndex];
@@ -514,7 +506,7 @@
         });
       }
     } else if (chartAdapter) {
-      // Check if we are in the grid area for measurement
+      // Handle grid measurement start/end.
       const dataPoint = chartAdapter.getDataAtPixel(offX, offY);
       if (dataPoint) {
         if (measurementStart === null) {
@@ -549,10 +541,10 @@
       }
     }
 
-    // Final visibility sync
     menuVisible = menuItems.length > 0;
   }
 
+  // Update the display name of a series and refresh the chart.
   function renameSeries(oldName: string) {
     const newName = prompt(`Enter new name for series "${oldName}":`, oldName);
     if (!newName || newName === oldName) return;
@@ -565,8 +557,8 @@
     updateChart();
   }
 
+  // Compute and add a numerical derivative series based on an existing series.
   function differentiateSeries(seriesName: string) {
-    // Find the source series
     let sourceSeries = currentSeriesData.find((s) => s.name === seriesName);
 
     if (!sourceSeries || !sourceSeries.data || sourceSeries.data.length < 4) {
@@ -574,8 +566,6 @@
       return;
     }
 
-    // Compute discrete derivative: dy/dx = (y[i+1] - y[i]) / (x[i+1] - x[i])
-    // Data in memory always matches current engine because it's re-fetched or cleared on engine change
     const engineStorage = chartLibrary === "plotly" ? "arrays" : "interleaved";
     const sourceData = sourceSeries.data;
     const numPoints = sourceData.length / 2;
@@ -610,7 +600,6 @@
       }
     }
 
-    // Create new series
     const newSeriesName = `d(${seriesName})/dt`;
     const colorIndex = currentSeriesData.length;
     const colors = [
@@ -632,25 +621,19 @@
       data: derivData,
     };
 
-    // Log the added series
     PluginService.LogSeriesAdded(newSeriesName, numPoints - 1);
-
-    // Add to current data
     currentSeriesData.push(newSeries);
-
-    // Refresh chart
     updateChart();
   }
 
+  // Initialize the chart adapter and load plugin configurations.
   async function initChart() {
-    // Destroy existing adapter
     if (chartAdapter) {
       chartAdapter.destroy();
       chartAdapter = null;
     }
     if (!chartContainer) return;
 
-    // Load chart library preference
     try {
       chartLibrary = await ConfigService.GetChartLibrary();
     } catch (e) {
@@ -658,7 +641,6 @@
       chartLibrary = "echarts";
     }
 
-    // Create appropriate adapter
     if (chartLibrary === "plotly") {
       chartAdapter = new PlotlyAdapter();
     } else {
@@ -668,15 +650,12 @@
     chartAdapter!.init(chartContainer, isDarkMode);
     chartAdapter!.onContextMenu(handleContextMenu);
 
-    // Initial load handled by calling loadData directly if not restored
     if (currentSeriesData.length === 0) {
       await loadData("sine");
     } else {
-      // Restore existing data
       updateChart();
     }
 
-    // Load available plugins
     try {
       allPlugins = (await PluginService.ListPlugins()) as AppPlugin[];
       console.log("Loaded plugins:", allPlugins);
@@ -685,7 +664,7 @@
     }
   }
 
-  // Handle chart library change from options dialog
+  // Respond to global chart library preference changes.
   async function handleChartLibraryChange(ev: any) {
     const newLibrary = ev.data as string;
     if (chartLibrary !== newLibrary) {
@@ -694,20 +673,20 @@
           "Changing the chart engine will reset the current plot. Any added subplots or series will be lost. Continue?",
         );
         if (!confirmed) {
-          // Note: The config is already saved in ConfigService by the dialog.
-          // We could revert it here, but a simple reset is usually the intended behavior for this constraint.
           return;
         }
       }
 
       chartLibrary = newLibrary;
-      currentSeriesData = []; // Reset plot data
+      currentSeriesData = [];
       dataSource = "none";
 
       await initChart();
     }
   }
 
+  // Conduct application startup logic including theme loading and event
+  // registration.
   onMount(() => {
     if (chartContainer) {
       initChart();
@@ -718,18 +697,17 @@
       resizeObserver.observe(chartContainer);
     }
 
-    // Load initial theme
     ConfigService.GetTheme().then((theme: string) => {
       isDarkMode = theme === "dark";
     });
 
-    // Listen for chart library changes
     unsubChartLibrary = Events.On(
       "chartLibraryChanged",
       handleChartLibraryChange,
     );
   });
 
+  // Release subscriptions and resources on component destruction.
   onDestroy(() => {
     resizeObserver?.disconnect();
     chartAdapter?.destroy();

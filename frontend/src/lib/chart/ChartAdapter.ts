@@ -1,7 +1,5 @@
-/**
- * ChartAdapter interface for abstracting chart libraries.
- * Each implementation must provide these methods.
- */
+// Define the structure for a single data series to be plotted, including its
+// identity, display name, color, and raw data.
 export interface SeriesConfig {
     id: string;
     name: string;
@@ -10,58 +8,35 @@ export interface SeriesConfig {
     subplotIndex?: number;
 }
 
+// Define the interface for different chart library implementations (e.g.,
+// ECharts, Plotly).
 export abstract class ChartAdapter {
-    /**
-     * Initialize the chart in a container.
-     * @param container - DOM element to render into
-     * @param darkMode - Whether dark theme is active
-     */
+    // Initialize the chart within the specified DOM container and set the
+    // initial theme mode.
     abstract init(container: HTMLElement, darkMode: boolean): void;
 
-    /**
-     * Render series data on the chart.
-     * @param seriesData - Series data with Float64Array x/y values
-     * @param title - Chart title
-     * @param darkMode - Whether dark theme is active
-     * @param getGridRight - Function to calculate right margin
-     */
+    // Render the provided series data on the chart with a title, theme
+    // configuration, and dynamic grid calculation.
     abstract setData(seriesData: SeriesConfig[], title: string, darkMode: boolean, getGridRight: (data: SeriesConfig[]) => number): void;
 
-    /**
-     * Handle container resize.
-     */
+    // Trigger the chart to update its dimensions to fit its container.
     abstract resize(): void;
 
-    /**
-     * Convert pixel coordinates to data coordinates.
-     * @param x - Pixel X
-     * @param y - Pixel Y
-     * @returns {{x: number, y: number}|null}
-     */
+    // Convert screen pixel coordinates to the corresponding data values in the
+    // chart's coordinate system.
     abstract getDataAtPixel(x: number, y: number): { x: number, y: number } | null;
 
-    /**
-     * Get pixel coordinates from data values.
-     * @param x - Data X
-     * @param y - Data Y
-     * @returns {{x: number, y: number}|null}
-     */
+    // Translate data values into screen pixel coordinates.
     abstract getPixelFromData(x: number, y: number): { x: number, y: number } | null;
 
-    /**
-     * Clean up resources.
-     */
+    // Clean up any resources, event listeners, or DOM elements created by the
+    // chart instance.
     abstract destroy(): void;
 
-    /**
-     * Register a legend click handler.
-     * @param handler - Callback with (seriesName, event)
-     */
+    // Register a callback to be executed when a legend item is clicked.
     abstract onLegendClick(handler: (seriesName: string, event: any) => void): void;
 
-    /**
-     * Register a context menu handler.
-     * @param handler - Callback with (event)
-     */
+    // Register a callback for handling right-click context menu events on the
+    // chart.
     abstract onContextMenu(handler: (event: any) => void): void;
 }

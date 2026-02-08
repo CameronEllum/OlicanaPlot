@@ -1,10 +1,8 @@
 import * as echarts from "echarts";
 import { ChartAdapter, type SeriesConfig } from "./ChartAdapter.ts";
 
-/**
- * ECharts implementation of ChartAdapter.
- * Implements true subplots by using multiple grid objects stacked vertically.
- */
+// ECharts implementation of ChartAdapter. Implements true subplots by using
+// multiple grid objects stacked vertically.
 export class EChartsAdapter extends ChartAdapter {
     public instance: echarts.ECharts | null = null;
     public container: HTMLElement | null = null;
@@ -13,6 +11,8 @@ export class EChartsAdapter extends ChartAdapter {
         super();
     }
 
+    // Create a new ECharts instance within the provided container and apply the
+    // appropriate theme.
     init(container: HTMLElement, darkMode: boolean) {
         this.container = container;
         if (this.instance) {
@@ -21,6 +21,8 @@ export class EChartsAdapter extends ChartAdapter {
         this.instance = echarts.init(container, darkMode ? "dark" : undefined);
     }
 
+    // Configure and render the ECharts visualization, including subplots, axes,
+    // data mapping, and stylized components.
     setData(seriesData: SeriesConfig[], title: string, darkMode: boolean, getGridRight: (data: SeriesConfig[]) => number) {
         if (!this.instance) return;
 
@@ -145,24 +147,32 @@ export class EChartsAdapter extends ChartAdapter {
         this.instance.setOption(option, { notMerge: true });
     }
 
+    // Inform ECharts that the container size has changed and update the layout
+    // accordingly.
     resize() {
         if (this.instance) {
             this.instance.resize();
         }
     }
 
+    // Convert screen space pixel coordinates into data coordinate space based
+    // on the first grid's scale.
     getDataAtPixel(x: number, y: number) {
         if (!this.instance) return null;
         const coord = this.instance.convertFromPixel({ gridIndex: 0 }, [x, y]) as number[];
         return coord ? { x: coord[0], y: coord[1] } : null;
     }
 
+    // Convert data values into screen space pixel coordinates for use in 
+    // overlaying external elements.
     getPixelFromData(x: number, y: number) {
         if (!this.instance) return null;
         const pixel = this.instance.convertToPixel({ gridIndex: 0 }, [x, y]) as number[];
         return pixel ? { x: pixel[0], y: pixel[1] } : null;
     }
 
+    // Release all resources held by the ECharts instance and disconnect from 
+    // the DOM.
     destroy() {
         if (this.instance) {
             this.instance.dispose();
@@ -170,17 +180,22 @@ export class EChartsAdapter extends ChartAdapter {
         }
     }
 
+    // Attach a listener for legend selection changes and force selected items 
+    // to remain visible while triggering the handler.
     onLegendClick(handler: (seriesName: string, event: any) => void) {
         if (!this.instance) return;
         this.instance.on("legendselectchanged", (params: any) => {
             const option = this.instance!.getOption() as any;
             const selected = option.legend[0].selected || {};
+            // Maintain visibility by overriding the automatic hide behavior
             Object.keys(selected).forEach((name) => (selected[name] = true));
             this.instance!.setOption({ legend: { selected } });
             handler(params.name, params);
         });
     }
 
+    // Attach a right-click listener to the ECharts ZRender surface for custom 
+    // interaction menus.
     onContextMenu(handler: (event: any) => void) {
         if (this.instance) {
             this.instance.getZr().on("contextmenu", handler);

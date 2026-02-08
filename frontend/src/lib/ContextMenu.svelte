@@ -1,11 +1,14 @@
 <script lang="ts">
     import { fade } from "svelte/transition";
 
+    // Define the structure for individual context menu items.
     interface MenuItem {
         label: string;
         action: () => void;
     }
 
+    // Receive configuration for positioning, visibility, and interaction handlers
+    // via props.
     let {
         x,
         y,
@@ -24,6 +27,8 @@
     let adjustedX = $state(0);
     let adjustedY = $state(0);
 
+    // Calculate and adjust the menu position to ensure it remains within the
+    // viewport boundaries.
     $effect(() => {
         if (visible && menuElement) {
             const rect = menuElement.getBoundingClientRect();
@@ -44,12 +49,13 @@
         }
     });
 
+    // Execute the associated action and close the menu when an item is selected.
     function handleItemClick(action: () => void) {
         action();
         onClose();
     }
 
-    // Close menu when clicking outside
+    // Dismiss the menu when the user clicks outside of the menu container.
     function handleWindowClick(e: MouseEvent) {
         const target = e.target as HTMLElement;
         if (visible && !target.closest(".context-menu")) {
