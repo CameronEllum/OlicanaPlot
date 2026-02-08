@@ -41,6 +41,10 @@ type Plugin interface {
 	// Version returns the API version the plugin implements.
 	Version() uint32
 
+	// Path returns the path to the plugin executable if it's an external plugin.
+	// Returns an empty string for internal plugins.
+	Path() string
+
 	// GetFilePatterns returns the list of file patterns supported by the plugin.
 	// Returns nil if the plugin is not a file loader.
 	GetFilePatterns() []FilePattern

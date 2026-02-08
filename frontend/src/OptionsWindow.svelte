@@ -2,13 +2,24 @@
     import { onMount } from "svelte";
     import { Events, Window } from "@wailsio/runtime";
     import * as ConfigService from "../bindings/olicanaplot/internal/appconfig/configservice";
+    import * as PluginService from "../bindings/olicanaplot/internal/plugins/service";
+    import ContextMenu from "./lib/ContextMenu.svelte";
 
-    // Application state for logging and chart preferences.
+    // Application state for logging, chart, and plugin preferences.
     let logPath = $state("");
     let logLevel = $state("info");
     let chartLibrary = $state("echarts");
+    let plugins = $state<any[]>([]);
     let activeTab = $state("logging");
     let isMaximised = $state(false);
+
+    // Context Menu State
+    let menuVisible = $state(false);
+    let menuX = $state(0);
+    let menuY = $state(0);
+    let menuItems = $state<
+        { label: string; action?: () => void; header?: boolean }[]
+    >([]);
 
     // Initialize configuration settings and window state on component mount.
     onMount(async () => {
@@ -16,11 +27,54 @@
             logPath = await ConfigService.GetLogPath();
             logLevel = await ConfigService.GetLogLevel();
             chartLibrary = await ConfigService.GetChartLibrary();
+            plugins = await PluginService.ListPlugins();
             isMaximised = await Window.IsMaximised();
         } catch (e) {
             console.error("Failed to get config:", e);
         }
     });
+
+    async function togglePlugin(name: string, enabled: boolean) {
+        try {
+            await PluginService.SetPluginEnabled(name, enabled);
+            plugins = await PluginService.ListPlugins();
+        } catch (e) {
+            console.error("Failed to toggle plugin:", e);
+        }
+    }
+
+    function handlePluginContextMenu(event: MouseEvent, plugin: any) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        menuX = event.clientX;
+        menuY = event.clientY;
+        menuItems = [
+            { label: plugin.name, header: true },
+            {
+                label: plugin.enabled ? "Disable Plugin" : "Enable Plugin",
+                action: () => togglePlugin(plugin.name, !plugin.enabled),
+            },
+        ];
+
+        if (plugin.path) {
+            menuItems.push({
+                label: "Show in File Explorer",
+                action: () => PluginService.ShowInExplorer(plugin.path),
+            });
+        }
+
+        if (plugin.patterns && plugin.patterns.length > 0) {
+            menuItems.push({ label: "Supported Files:", header: true });
+            for (const pattern of plugin.patterns) {
+                menuItems.push({
+                    label: `• ${pattern.description} (${pattern.patterns.join(", ")})`,
+                });
+            }
+        }
+
+        menuVisible = true;
+    }
 
     // Toggle the window between maximised and restored states.
     async function handleToggleMaximise() {
@@ -188,6 +242,28 @@
                     </svg>
                     <span>Chart</span>
                 </button>
+                <button
+                    class="tab-btn {activeTab === 'plugins' ? 'active' : ''}"
+                    onclick={() => (activeTab = "plugins")}
+                    title="Plugin Configuration"
+                >
+                    <svg
+                        viewBox="0 0 24 24"
+                        width="20"
+                        height="20"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        fill="none"
+                    >
+                        <path
+                            d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"
+                        ></path>
+                        <polyline points="3.27 6.96 12 12.01 20.73 6.96"
+                        ></polyline>
+                        <line x1="12" y1="22.08" x2="12" y2="12"></line>
+                    </svg>
+                    <span>Plugins</span>
+                </button>
             </aside>
 
             <main class="options-body">
@@ -229,6 +305,111 @@
                             large datasets.
                         </p>
                     </div>
+                {:else if activeTab === "plugins"}
+                    <section class="plugin-section">
+                        <h3>External Plugins</h3>
+                        <div class="plugin-list">
+                            {#each plugins.filter((p: any) => !p.is_internal) as plugin}
+                                <div
+                                    class="plugin-item"
+                                    oncontextmenu={(e) =>
+                                        handlePluginContextMenu(e, plugin)}
+                                    role="listitem"
+                                >
+                                    <input
+                                        type="checkbox"
+                                        id="plugin-ext-{plugin.name}"
+                                        checked={plugin.enabled}
+                                        onchange={(e) =>
+                                            togglePlugin(
+                                                plugin.name,
+                                                (e.target as HTMLInputElement)
+                                                    .checked,
+                                            )}
+                                    />
+                                    <label
+                                        for="plugin-ext-{plugin.name}"
+                                        class="plugin-info"
+                                    >
+                                        <span class="plugin-name"
+                                            >{plugin.name}</span
+                                        >
+                                        <span class="plugin-meta">
+                                            {#if plugin.patterns && plugin.patterns.length > 0}
+                                                SUPPORT: {plugin.patterns
+                                                    .map(
+                                                        (p: any) =>
+                                                            `${p.description} (${p.patterns.join(", ")})`,
+                                                    )
+                                                    .join(", ")}
+                                            {:else}
+                                                GENERATOR
+                                            {/if}
+                                        </span>
+                                        {#if plugin.path}
+                                            <span class="plugin-meta path"
+                                                >{plugin.path.length > 50
+                                                    ? "..." +
+                                                      plugin.path.slice(-47)
+                                                    : plugin.path}</span
+                                            >
+                                        {/if}
+                                    </label>
+                                </div>
+                            {/each}
+                            {#if plugins.filter((p: any) => !p.is_internal).length === 0}
+                                <p class="help-text">
+                                    No external plugins detected.
+                                </p>
+                            {/if}
+                        </div>
+                    </section>
+
+                    <section class="plugin-section">
+                        <h3>Internal Plugins</h3>
+                        <div class="plugin-list">
+                            {#each plugins.filter((p: any) => p.is_internal) as plugin}
+                                <div
+                                    class="plugin-item"
+                                    oncontextmenu={(e) =>
+                                        handlePluginContextMenu(e, plugin)}
+                                    role="listitem"
+                                >
+                                    <input
+                                        type="checkbox"
+                                        id="plugin-int-{plugin.name}"
+                                        checked={plugin.enabled}
+                                        onchange={(e) =>
+                                            togglePlugin(
+                                                plugin.name,
+                                                (e.target as HTMLInputElement)
+                                                    .checked,
+                                            )}
+                                    />
+                                    <label
+                                        for="plugin-int-{plugin.name}"
+                                        class="plugin-info"
+                                    >
+                                        <span class="plugin-name"
+                                            >{plugin.name}</span
+                                        >
+                                        <span class="plugin-meta">
+                                            {#if plugin.patterns && plugin.patterns.length > 0}
+                                                SUPPORT: {plugin.patterns
+                                                    .map(
+                                                        (p: any) =>
+                                                            `${p.description} (${p.patterns.join(", ")})`,
+                                                    )
+                                                    .join(", ")}
+                                            {:else}
+                                                GENERATOR
+                                            {/if}
+                                        </span>
+                                    </label>
+                                </div>
+                            {/each}
+                        </div>
+                    </section>
                 {/if}
             </main>
         </div>
@@ -243,6 +424,14 @@
         </footer>
     </div>
 </div>
+
+<ContextMenu
+    x={menuX}
+    y={menuY}
+    visible={menuVisible}
+    items={menuItems}
+    onClose={() => (menuVisible = false)}
+/>
 
 <style>
     :global(body) {
@@ -446,5 +635,73 @@
 
     .btn-secondary:hover {
         background: var(--bg-tertiary);
+    }
+
+    .plugin-section {
+        margin-bottom: 32px;
+    }
+
+    .plugin-section h3 {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--text-secondary);
+        margin-bottom: 16px;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    .plugin-list {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .plugin-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 16px;
+        padding: 12px 16px;
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .plugin-item:hover {
+        border-color: var(--accent);
+        background: var(--bg-tertiary);
+    }
+
+    .plugin-item input[type="checkbox"] {
+        margin-top: 4px;
+        width: 16px;
+        height: 16px;
+        cursor: pointer;
+    }
+
+    .plugin-info {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .plugin-name {
+        font-size: 14px;
+        font-weight: 500;
+        color: var(--text-primary);
+    }
+
+    .plugin-meta {
+        font-size: 12px;
+        color: var(--text-secondary);
+    }
+
+    .plugin-meta.path {
+        font-family: var(--font-mono, monospace);
+        opacity: 0.7;
+        font-size: 11px;
+        margin-top: 4px;
+        word-break: break-all;
     }
 </style>

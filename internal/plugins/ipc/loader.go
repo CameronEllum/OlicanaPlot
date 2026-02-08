@@ -526,6 +526,11 @@ func (p *Plugin) Version() uint32 {
 	return p.version
 }
 
+// Path returns the executable path.
+func (p *Plugin) Path() string {
+	return p.execPath
+}
+
 // GetFilePatterns returns the list of file patterns supported by the plugin.
 func (p *Plugin) GetFilePatterns() []plugins.FilePattern {
 	p.mu.Lock()

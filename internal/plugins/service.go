@@ -3,9 +3,12 @@ package plugins
 
 import (
 	"fmt"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 
+	"olicanaplot/internal/appconfig"
 	"olicanaplot/internal/logging"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
@@ -14,14 +17,16 @@ import (
 // Service provides methods for the frontend to interact with plugins.
 type Service struct {
 	manager *Manager
+	config  *appconfig.ConfigService
 	app     interface{}    // Application context for plugins
 	logger  logging.Logger // Structured logger
 }
 
 // NewService creates a new plugin service.
-func NewService(manager *Manager, logger logging.Logger) *Service {
+func NewService(manager *Manager, config *appconfig.ConfigService, logger logging.Logger) *Service {
 	return &Service{
 		manager: manager,
+		config:  config,
 		logger:  logger,
 	}
 }
@@ -68,7 +73,10 @@ func (s *Service) ActivatePlugin(name string, initStr string) error {
 // PluginMetadata contains basic information about a plugin.
 type PluginMetadata struct {
 	Name         string        `json:"name"`
+	Path         string        `json:"path"`
 	FilePatterns []FilePattern `json:"patterns"`
+	IsInternal   bool          `json:"is_internal"`
+	Enabled      bool          `json:"enabled"`
 }
 
 // OpenFileResult contains the result of a file open operation.
@@ -87,6 +95,25 @@ func (s *Service) GetActivePlugin() string {
 	return s.manager.ActiveName()
 }
 
+// SetPluginEnabled enables or disables a plugin.
+func (s *Service) SetPluginEnabled(name string, enabled bool) error {
+	s.logger.Info("Setting plugin enabled status", "name", name, "enabled", enabled)
+	if err := s.manager.SetEnabled(name, enabled); err != nil {
+		return err
+	}
+
+	// Persist state
+	metadata := s.manager.ListMetadata()
+	disabled := []string{}
+	for _, m := range metadata {
+		if !m.Enabled {
+			disabled = append(disabled, m.Name)
+		}
+	}
+	s.config.SetDisabledPlugins(disabled)
+	return nil
+}
+
 // LogSeriesAdded logs when a new series is added (e.g., from the frontend).
 func (s *Service) LogSeriesAdded(name string, points int) {
 	s.logger.Info("Series added", "name", name, "points", points)
@@ -95,6 +122,37 @@ func (s *Service) LogSeriesAdded(name string, points int) {
 // LogDebug logs a debug message from the frontend.
 func (s *Service) LogDebug(component string, message string, details string) {
 	s.logger.Debug(message, "component", component, "details", details)
+}
+
+// ShowInExplorer opens the file explorer with the specified path selected or opened.
+func (s *Service) ShowInExplorer(path string) error {
+	s.logger.Info("Showing in explorer", "path", path)
+	if path == "" {
+		return fmt.Errorf("empty path")
+	}
+
+	app, ok := s.app.(*application.App)
+	if !ok {
+		return fmt.Errorf("invalid application context")
+	}
+
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "windows":
+		// /select,path opens explorer and selects the file
+		cmd = exec.Command("explorer", "/select,", filepath.Clean(path))
+	case "darwin":
+		cmd = exec.Command("open", "-R", path)
+	default: // linux
+		cmd = exec.Command("xdg-open", filepath.Dir(path))
+	}
+
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("failed to start explorer: %w", err)
+	}
+
+	_ = app // Keeping reference just in case
+	return nil
 }
 
 // GetFilePatterns returns all file patterns supported by all plugins.

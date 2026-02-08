@@ -65,13 +65,13 @@ func main() {
 	// Create plugin manager and register plugins
 	pluginManager := plugins.NewManager(logger)
 
-	if err := pluginManager.Register(sine.New()); err != nil {
+	if err := pluginManager.Register(sine.New(), true); err != nil {
 		logger.Warn("Failed to register sine plugin", "error", err)
 	}
-	if err := pluginManager.Register(synthetic.New()); err != nil {
+	if err := pluginManager.Register(synthetic.New(), true); err != nil {
 		logger.Warn("Failed to register synthetic plugin", "error", err)
 	}
-	if err := pluginManager.Register(csv.New()); err != nil {
+	if err := pluginManager.Register(csv.New(), true); err != nil {
 		logger.Warn("Failed to register CSV plugin", "error", err)
 	}
 
@@ -83,13 +83,19 @@ func main() {
 		logger.Warn("Failed to discover IPC plugins", "error", err)
 	}
 	for _, p := range ipcPlugins {
-		if err := pluginManager.Register(p); err != nil {
+		if err := pluginManager.Register(p, false); err != nil {
 			logger.Warn("Failed to register IPC plugin", "name", p.Name(), "error", err)
 		}
 	}
 
 	// Create plugin service for frontend communication
-	pluginService := plugins.NewService(pluginManager, logger)
+	pluginService := plugins.NewService(pluginManager, configService, logger)
+
+	// Apply saved disabled status
+	disabledList := configService.GetDisabledPlugins()
+	for _, name := range disabledList {
+		pluginManager.SetEnabled(name, false)
+	}
 
 	// Set sine as the default active plugin
 	pluginManager.SetActive("Sine Wave")

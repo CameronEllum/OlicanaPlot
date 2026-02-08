@@ -8,10 +8,17 @@ import (
 	"olicanaplot/internal/logging"
 )
 
+// pluginEntry wraps a plugin with its metadata and state.
+type pluginEntry struct {
+	plugin   Plugin
+	internal bool
+	enabled  bool
+}
+
 // Manager handles registration and lookup of plugins.
 type Manager struct {
 	mu           sync.RWMutex
-	plugins      map[string]Plugin
+	plugins      map[string]pluginEntry
 	activePlugin string         // Currently active plugin name
 	logger       logging.Logger // Structured logger
 }
@@ -19,14 +26,14 @@ type Manager struct {
 // NewManager creates a new plugin manager.
 func NewManager(logger logging.Logger) *Manager {
 	return &Manager{
-		plugins: make(map[string]Plugin),
+		plugins: make(map[string]pluginEntry),
 		logger:  logger,
 	}
 }
 
 // Register adds a plugin to the manager.
 // Returns an error if a plugin with the same name already exists.
-func (m *Manager) Register(p Plugin) error {
+func (m *Manager) Register(p Plugin, isInternal bool) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -41,8 +48,12 @@ func (m *Manager) Register(p Plugin) error {
 			name, p.Version(), PluginAPIVersion)
 	}
 
-	m.plugins[name] = p
-	m.logger.Info("Registered plugin", "name", name, "version", p.Version())
+	m.plugins[name] = pluginEntry{
+		plugin:   p,
+		internal: isInternal,
+		enabled:  true, // Default to enabled
+	}
+	m.logger.Info("Registered plugin", "name", name, "version", p.Version(), "internal", isInternal)
 
 	// Set as active if it's the first plugin
 	if m.activePlugin == "" {
@@ -56,14 +67,20 @@ func (m *Manager) Register(p Plugin) error {
 func (m *Manager) Get(name string) Plugin {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	return m.plugins[name]
+	if entry, ok := m.plugins[name]; ok {
+		return entry.plugin
+	}
+	return nil
 }
 
 // GetActive returns the currently active plugin.
 func (m *Manager) GetActive() Plugin {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	return m.plugins[m.activePlugin]
+	if entry, ok := m.plugins[m.activePlugin]; ok {
+		return entry.plugin
+	}
+	return nil
 }
 
 // SetActive sets the active plugin by name.
@@ -91,10 +108,13 @@ func (m *Manager) ListMetadata() []PluginMetadata {
 	defer m.mu.RUnlock()
 
 	result := make([]PluginMetadata, 0, len(m.plugins))
-	for name, p := range m.plugins {
+	for name, entry := range m.plugins {
 		result = append(result, PluginMetadata{
 			Name:         name,
-			FilePatterns: p.GetFilePatterns(),
+			Path:         entry.plugin.Path(),
+			FilePatterns: entry.plugin.GetFilePatterns(),
+			IsInternal:   entry.internal,
+			Enabled:      entry.enabled,
 		})
 	}
 	return result
@@ -112,6 +132,30 @@ func (m *Manager) List() []string {
 	return names
 }
 
+// SetEnabled sets the enabled status of a plugin.
+func (m *Manager) SetEnabled(name string, enabled bool) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	entry, exists := m.plugins[name]
+	if !exists {
+		return fmt.Errorf("plugin not found: %s", name)
+	}
+	entry.enabled = enabled
+	m.plugins[name] = entry
+	return nil
+}
+
+// IsEnabled returns true if the plugin is enabled.
+func (m *Manager) IsEnabled(name string) bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if entry, ok := m.plugins[name]; ok {
+		return entry.enabled
+	}
+	return false
+}
+
 // FilePatternWithPlugin extends FilePattern with the plugin name.
 type FilePatternWithPlugin struct {
 	FilePattern
@@ -124,8 +168,11 @@ func (m *Manager) GetAllFilePatterns() []FilePatternWithPlugin {
 	defer m.mu.RUnlock()
 
 	var allPatterns []FilePatternWithPlugin
-	for name, p := range m.plugins {
-		patterns := p.GetFilePatterns()
+	for name, entry := range m.plugins {
+		if !entry.enabled {
+			continue
+		}
+		patterns := entry.plugin.GetFilePatterns()
 		for _, fp := range patterns {
 			allPatterns = append(allPatterns, FilePatternWithPlugin{
 				FilePattern: fp,
@@ -142,9 +189,9 @@ func (m *Manager) Close() error {
 	defer m.mu.Unlock()
 
 	var firstErr error
-	for name, p := range m.plugins {
-		if err := p.Close(); err != nil && firstErr == nil {
-			firstErr = fmt.Errorf("error closing plugin %s: %w", name, err)
+	for _, entry := range m.plugins {
+		if err := entry.plugin.Close(); err != nil && firstErr == nil {
+			firstErr = fmt.Errorf("error closing plugin: %w", err)
 		}
 	}
 	return firstErr

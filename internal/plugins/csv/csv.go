@@ -45,6 +45,11 @@ func (p *Plugin) Version() uint32 {
 	return plugins.PluginAPIVersion
 }
 
+// Path returns an empty string for internal plugins.
+func (p *Plugin) Path() string {
+	return ""
+}
+
 // GetFilePatterns returns the list of file patterns supported by the plugin.
 func (p *Plugin) GetFilePatterns() []plugins.FilePattern {
 	return []plugins.FilePattern{

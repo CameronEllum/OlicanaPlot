@@ -16,22 +16,24 @@ import (
 
 // ConfigService handles application configuration and settings.
 type ConfigService struct {
-	mu            sync.RWMutex
-	app           *application.App
-	optionsWindow *application.WebviewWindow
-	configPath    string
-	logPath       string
-	chartLibrary  string
-	theme         string
-	logLevel      string
+	mu              sync.RWMutex
+	app             *application.App
+	optionsWindow   *application.WebviewWindow
+	configPath      string
+	logPath         string
+	chartLibrary    string
+	theme           string
+	logLevel        string
+	disabledPlugins []string
 }
 
 // configData is the structure we save to disk
 type configData struct {
-	LogPath      string `json:"logPath"`
-	ChartLibrary string `json:"chartLibrary"`
-	Theme        string `json:"theme"`
-	LogLevel     string `json:"logLevel"`
+	LogPath         string   `json:"logPath"`
+	ChartLibrary    string   `json:"chartLibrary"`
+	Theme           string   `json:"theme"`
+	LogLevel        string   `json:"logLevel"`
+	DisabledPlugins []string `json:"disabledPlugins"`
 }
 
 // NewConfigService creates a new config service with default values.
@@ -108,6 +110,7 @@ func (s *ConfigService) loadConfig() {
 	if cfg.LogLevel != "" {
 		s.logLevel = cfg.LogLevel
 	}
+	s.disabledPlugins = cfg.DisabledPlugins
 
 	// Apply log level
 	logging.SetLevel(s.logLevel)
@@ -116,10 +119,11 @@ func (s *ConfigService) loadConfig() {
 func (s *ConfigService) saveConfig() {
 	s.mu.RLock()
 	cfg := configData{
-		LogPath:      s.logPath,
-		ChartLibrary: s.chartLibrary,
-		Theme:        s.theme,
-		LogLevel:     s.logLevel,
+		LogPath:         s.logPath,
+		ChartLibrary:    s.chartLibrary,
+		Theme:           s.theme,
+		LogLevel:        s.logLevel,
+		DisabledPlugins: s.disabledPlugins,
 	}
 	s.mu.RUnlock()
 
@@ -190,6 +194,21 @@ func (s *ConfigService) SetLogLevel(level string) {
 	s.mu.Unlock()
 
 	logging.SetLevel(level)
+	s.saveConfig()
+}
+
+// GetDisabledPlugins returns the list of disabled plugin names.
+func (s *ConfigService) GetDisabledPlugins() []string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.disabledPlugins
+}
+
+// SetDisabledPlugins updates the list of disabled plugins.
+func (s *ConfigService) SetDisabledPlugins(plugins []string) {
+	s.mu.Lock()
+	s.disabledPlugins = plugins
+	s.mu.Unlock()
 	s.saveConfig()
 }
 
