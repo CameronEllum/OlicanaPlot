@@ -4,7 +4,8 @@
     // Define the structure for individual context menu items.
     interface MenuItem {
         label: string;
-        action: () => void;
+        action?: () => void; // Make action optional for headers
+        header?: boolean;
     }
 
     // Receive configuration for positioning, visibility, and interaction handlers
@@ -78,16 +79,24 @@
     >
         <ul>
             {#each items as item}
-                <li
-                    onclick={() => handleItemClick(item.action)}
-                    onkeydown={(e) =>
-                        (e.key === "Enter" || e.key === " ") &&
-                        handleItemClick(item.action)}
-                    role="menuitem"
-                    tabindex="0"
-                >
-                    {item.label}
-                </li>
+                {#if item.header}
+                    <li class="header">
+                        {item.label}
+                    </li>
+                {:else}
+                    <li
+                        onclick={() =>
+                            item.action && handleItemClick(item.action)}
+                        onkeydown={(e) =>
+                            (e.key === "Enter" || e.key === " ") &&
+                            item.action &&
+                            handleItemClick(item.action)}
+                        role="menuitem"
+                        tabindex="0"
+                    >
+                        {item.label}
+                    </li>
+                {/if}
             {/each}
         </ul>
     </div>
@@ -124,6 +133,22 @@
         cursor: pointer;
         font-size: 14px;
         transition: background 0.2s;
+    }
+
+    li.header {
+        cursor: default;
+        font-weight: bold;
+        border-bottom: 1px solid #eee;
+        margin-bottom: 4px;
+        padding-bottom: 6px;
+        font-size: 12px;
+        text-transform: uppercase;
+        color: #666;
+    }
+
+    :global(.dark-mode) li.header {
+        border-bottom-color: #444;
+        color: #aaa;
     }
 
     li:hover {

@@ -48,7 +48,9 @@
   let menuVisible = $state(false);
   let menuX = $state(0);
   let menuY = $state(0);
-  let menuItems = $state<{ label: string; action: () => void }[]>([]);
+  let menuItems = $state<
+    { label: string; action?: () => void; header?: boolean }[]
+  >([]);
 
   // Measurement State
   let measurementStart = $state<Point | null>(null);
@@ -57,6 +59,7 @@
   // Store current data and plugin information.
   let currentSeriesData = $state<SeriesConfig[]>([]);
   let currentTitle = $state("");
+  let xAxisName = $state("Time");
   let allPlugins = $state<AppPlugin[]>([]);
   let unsubChartLibrary: (() => void) | null = null;
 
@@ -498,11 +501,15 @@
       );
 
       menuItems.push({
-        label: `Rename "${e.seriesName}"`,
+        label: e.seriesName,
+        header: true,
+      });
+      menuItems.push({
+        label: "Rename",
         action: () => renameSeries(e.seriesName!),
       });
       menuItems.push({
-        label: `Differentiate "${e.seriesName}"`,
+        label: "Differentiate",
         action: () => differentiateSeries(e.seriesName!),
       });
     } else if (e.type === "title") {
@@ -652,7 +659,7 @@
       }
     }
 
-    const newSeriesName = `d(${seriesName})/dt`;
+    const newSeriesName = `d(${seriesName})/d(${xAxisName})`;
     const colorIndex = currentSeriesData.length;
     const colors = [
       "#636EFA",
