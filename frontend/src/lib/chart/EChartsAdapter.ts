@@ -116,6 +116,8 @@ export class EChartsAdapter extends ChartAdapter {
                 left: "center",
                 textStyle: { color: textColor },
                 triggerEvent: true,
+                backgroundColor: "transparent",
+                padding: [5, 20],
             },
             tooltip: { trigger: "axis" as const },
             toolbox: {
@@ -200,7 +202,34 @@ export class EChartsAdapter extends ChartAdapter {
     // interaction menus.
     onContextMenu(handler: (event: any) => void) {
         if (this.instance) {
-            this.instance.getZr().on("contextmenu", handler);
+            // Internal ECharts component events (Title, Legend, etc)
+            this.instance.on("contextmenu", (params: any) => {
+                const keys = Object.keys(params).join(", ");
+                PluginService.LogDebug("EChartsAdapter", `High-level contextmenu [${params.componentType}]`, `Keys: ${keys}`);
+
+                const rawEvent = params.event?.event || params.event;
+                if (params.componentType === "title") {
+                    handler({ ...params, event: rawEvent, echartsTitleClicked: true });
+                } else if (params.componentType === "legend") {
+                    // Log specific legend-related fields
+                    PluginService.LogDebug("EChartsAdapter", "Legend params detail", `name=${params.name}, target=${params.target}, dataIndex=${params.dataIndex}`);
+                    handler({ ...params, event: rawEvent });
+                } else {
+                    handler({ ...params, event: rawEvent });
+                }
+            });
+
+            // Global ZRender surface events
+            this.instance.getZr().on("contextmenu", (e: any) => {
+                if (e.target) {
+                    PluginService.LogDebug("EChartsAdapter", "ZRender hit component, skipping global event", "");
+                    return;
+                }
+                // For ZRender events, the raw DOM event is in 'event'
+                const rawEvent = e.event || e;
+                PluginService.LogDebug("EChartsAdapter", "ZRender surface contextmenu (empty background)", "");
+                handler({ event: rawEvent });
+            });
         }
     }
 }

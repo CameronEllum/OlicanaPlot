@@ -454,8 +454,21 @@
   // Handle right-click events to display context menus for legend items or grid
   // measurements.
   function handleContextMenu(e: any) {
+    PluginService.LogDebug(
+      "ContextMenu",
+      "handleContextMenu called",
+      `e.componentType=${e.componentType}, e.echartsTitleClicked=${e.echartsTitleClicked}`,
+    );
+
     const event = e.event || e;
-    if (!event || !event.preventDefault) return;
+    if (!event || !event.preventDefault) {
+      PluginService.LogDebug(
+        "ContextMenu",
+        "Invalid event object or missing preventDefault",
+        "",
+      );
+      return;
+    }
 
     if (event.target) {
       PluginService.LogDebug(
@@ -492,18 +505,33 @@
 
     if (
       e.plotlyLegendName ||
+      e.componentType === "legend" ||
       (legendIndex !== -1 && (chartAdapter as any).instance)
     ) {
       PluginService.LogDebug(
         "ContextMenu",
         "Legend path taken",
-        e.plotlyLegendName || "ECharts",
+        e.plotlyLegendName ||
+          (e.componentType === "legend"
+            ? "ECharts (Direct)"
+            : "ECharts (Pixel)"),
       );
       let componentName: string | undefined;
       if (e.plotlyLegendName) {
         componentName = e.plotlyLegendName;
+      } else if (e.componentType === "legend") {
+        const index = e.dataIndex;
+        const option = (chartAdapter as any).instance.getOption();
+        const legendData = option?.legend?.[0]?.data || [];
+        const item = legendData[index];
+        componentName = typeof item === "string" ? item : item?.name;
+        PluginService.LogDebug(
+          "ContextMenu",
+          "ECharts legend name resolved",
+          `name=${componentName}, index=${index}`,
+        );
       } else {
-        // Handle ECharts legend item detection.
+        // Handle ECharts legend item detection via pixel index.
         const option = (chartAdapter as any).instance.getOption();
         const legendData = option?.legend?.[0]?.data || [];
         const item = legendData[legendIndex];
@@ -528,16 +556,32 @@
       }
     } else if (
       e.plotlyTitleClicked ||
-      (chartAdapter instanceof EChartsAdapter &&
-        chartAdapter.instance?.containPixel({ componentType: "title" } as any, [
-          offX,
-          offY,
-        ]))
+      e.echartsTitleClicked ||
+      e.componentType === "title" ||
+      (() => {
+        if (chartAdapter instanceof EChartsAdapter && chartAdapter.instance) {
+          const isOverTitle = chartAdapter.instance.containPixel(
+            { componentType: "title" } as any,
+            [offX, offY],
+          );
+          PluginService.LogDebug(
+            "ContextMenu",
+            "ECharts title check",
+            `overTitle=${isOverTitle}, x=${offX}, y=${offY}`,
+          );
+          return isOverTitle;
+        }
+        return false;
+      })()
     ) {
       PluginService.LogDebug(
         "ContextMenu",
         "Title path taken",
-        e.plotlyTitleClicked ? "Plotly" : "ECharts",
+        e.plotlyTitleClicked
+          ? "Plotly"
+          : e.echartsTitleClicked
+            ? "ECharts (Direct)"
+            : "ECharts (Pixel)",
       );
       // Handle context menu for the plot title.
       menuItems.push({
