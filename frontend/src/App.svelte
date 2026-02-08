@@ -315,6 +315,22 @@
     menuVisible = true;
   }
 
+  function handleLogoContextMenu(event: MouseEvent) {
+    event.preventDefault();
+    event.stopPropagation();
+    menuX = event.clientX;
+    menuY = event.clientY;
+    menuItems = [
+      { label: "OlicanaPlot", header: true },
+      {
+        label: "Go to homepage",
+        action: () =>
+          ConfigService.OpenURL("https://github.com/CameronEllum/OlicanaPlot"),
+      },
+    ];
+    menuVisible = true;
+  }
+
   // Switch between light and dark themes and persist the preference in the
   // backend.
   async function toggleTheme() {
@@ -817,6 +833,7 @@
       tabindex="0"
       onkeydown={(e) =>
         e.key === "Enter" && activatePlugin("Sine Wave", "Sine")}
+      oncontextmenu={handleLogoContextMenu}
       style="cursor: pointer;"
     >
       <svg

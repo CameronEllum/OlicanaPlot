@@ -293,3 +293,14 @@ func (s *ConfigService) OpenLogFile() error {
 	}
 	return nil
 }
+
+// OpenURL opens the specified URL in the system browser.
+func (s *ConfigService) OpenURL(url string) {
+	s.mu.RLock()
+	app := s.app
+	s.mu.RUnlock()
+
+	if app != nil {
+		app.Browser.OpenURL(url)
+	}
+}
