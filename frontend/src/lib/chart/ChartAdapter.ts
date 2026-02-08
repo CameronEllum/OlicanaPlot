@@ -8,6 +8,15 @@ export interface SeriesConfig {
     subplotIndex?: number;
 }
 
+// Define the standardized structure for context menu events across chart
+// adapters.
+export interface ContextMenuEvent {
+    type: "title" | "legend" | "grid" | "other";
+    rawEvent: MouseEvent;
+    seriesName?: string; // For legend items
+    dataPoint?: { x: number; y: number }; // For grid clicks
+}
+
 // Define the interface for different chart library implementations (e.g.,
 // ECharts, Plotly).
 export abstract class ChartAdapter {
@@ -38,5 +47,5 @@ export abstract class ChartAdapter {
 
     // Register a callback for handling right-click context menu events on the
     // chart.
-    abstract onContextMenu(handler: (event: any) => void): void;
+    abstract onContextMenu(handler: (event: ContextMenuEvent) => void): void;
 }

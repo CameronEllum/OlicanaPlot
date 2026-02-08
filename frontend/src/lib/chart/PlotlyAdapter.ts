@@ -1,5 +1,5 @@
 import Plotly from "plotly.js-dist-min";
-import { ChartAdapter, type SeriesConfig } from "./ChartAdapter.ts";
+import { ChartAdapter, type SeriesConfig, type ContextMenuEvent } from "./ChartAdapter.ts";
 import * as PluginService from "../../../bindings/olicanaplot/internal/plugins/service";
 
 // Plotly.js implementation of ChartAdapter using WebGL (scattergl).
@@ -163,9 +163,11 @@ export class PlotlyAdapter extends ChartAdapter {
                     const traceName = textEl ? textEl.textContent?.trim() : null;
 
                     if (traceName && this.contextMenuHandler) {
+                        PluginService.LogDebug("PlotlyAdapter", "Standardized legend context menu", traceName);
                         this.contextMenuHandler({
-                            event: e,
-                            plotlyLegendName: traceName,
+                            type: "legend",
+                            rawEvent: e,
+                            seriesName: traceName,
                         });
                     }
                 };
@@ -238,28 +240,39 @@ export class PlotlyAdapter extends ChartAdapter {
         });
     }
 
-    // Register a handler for the browser's context menu event on the Plotly
-    // container.
-    onContextMenu(handler: (event: any) => void) {
+    // Register a callback for handling right-click context menu events on the
+    // chart.
+    onContextMenu(handler: (event: ContextMenuEvent) => void) {
         this.contextMenuHandler = handler;
         if (this.container) {
             this.container.addEventListener("contextmenu", (e: MouseEvent) => {
                 PluginService.LogDebug("PlotlyAdapter", "Container context menu event", "");
 
-                // Fallback: Check if the click falls within the title's bounding box
-                // if the direct handler on the title element was blocked by an overlay.
+                // Check for title hit via bounding box
                 const titleEl = (this as any).titleElement as HTMLElement;
                 if (titleEl) {
                     const rect = titleEl.getBoundingClientRect();
                     if (e.clientX >= rect.left && e.clientX <= rect.right &&
                         e.clientY >= rect.top && e.clientY <= rect.bottom) {
                         PluginService.LogDebug("PlotlyAdapter", "Title detected via bounding box fallback", "");
-                        handler({ event: e, plotlyTitleClicked: true });
+                        handler({ type: "title", rawEvent: e });
                         return;
                     }
                 }
 
-                handler(e);
+                // Check for grid hit
+                const rect = this.container.getBoundingClientRect();
+                const offX = e.clientX - rect.left;
+                const offY = e.clientY - rect.top;
+                const dataPoint = this.getDataAtPixel(offX, offY);
+
+                if (dataPoint) {
+                    PluginService.LogDebug("PlotlyAdapter", "Grid detected", "");
+                    handler({ type: "grid", rawEvent: e, dataPoint });
+                } else {
+                    PluginService.LogDebug("PlotlyAdapter", "Other area detected", "");
+                    handler({ type: "other", rawEvent: e });
+                }
             });
         }
     }

@@ -8,7 +8,11 @@
   import RenameDialog from "./lib/RenameDialog.svelte";
   import { EChartsAdapter } from "./lib/chart/EChartsAdapter.ts";
   import { PlotlyAdapter } from "./lib/chart/PlotlyAdapter.ts";
-  import type { ChartAdapter, SeriesConfig } from "./lib/chart/ChartAdapter.ts";
+  import {
+    type ChartAdapter,
+    type SeriesConfig,
+    type ContextMenuEvent,
+  } from "./lib/chart/ChartAdapter.ts";
 
   // Define plugin and coordinate structures.
   interface AppPlugin {
@@ -453,14 +457,14 @@
 
   // Handle right-click events to display context menus for legend items or grid
   // measurements.
-  function handleContextMenu(e: any) {
+  function handleContextMenu(e: ContextMenuEvent) {
     PluginService.LogDebug(
       "ContextMenu",
       "handleContextMenu called",
-      `e.componentType=${e.componentType}, e.echartsTitleClicked=${e.echartsTitleClicked}`,
+      `e.type=${e.type}`,
     );
 
-    const event = e.event || e;
+    const event = e.rawEvent || (e as any).event || e;
     if (!event || !event.preventDefault) {
       PluginService.LogDebug(
         "ContextMenu",
@@ -471,10 +475,11 @@
     }
 
     if (event.target) {
+      const target = event.target as any;
       PluginService.LogDebug(
         "ContextMenu",
-        `Target: ${event.target.tagName}`,
-        `Classes: ${event.target.className}`,
+        `Target: ${target.tagName}`,
+        `Classes: ${target.className}`,
       );
     }
 
@@ -485,144 +490,77 @@
     menuY = event.clientY;
     menuItems = [];
 
-    if (!chartContainer) return;
-
-    const rect = chartContainer.getBoundingClientRect();
-    const offX = event.clientX - rect.left;
-    const offY = event.clientY - rect.top;
-
-    let legendIndex = -1;
-    if (e.target) {
-      let target = e.target;
-      while (target) {
-        if (target.__legendDataIndex !== undefined) {
-          legendIndex = target.__legendDataIndex;
-          break;
-        }
-        target = target.parent;
-      }
-    }
-
-    if (
-      e.plotlyLegendName ||
-      e.componentType === "legend" ||
-      (legendIndex !== -1 && (chartAdapter as any).instance)
-    ) {
+    if (e.type === "legend" && e.seriesName) {
       PluginService.LogDebug(
         "ContextMenu",
-        "Legend path taken",
-        e.plotlyLegendName ||
-          (e.componentType === "legend"
-            ? "ECharts (Direct)"
-            : "ECharts (Pixel)"),
+        "Standardized legend path taken",
+        e.seriesName,
       );
-      let componentName: string | undefined;
-      if (e.plotlyLegendName) {
-        componentName = e.plotlyLegendName;
-      } else if (e.componentType === "legend") {
-        const index = e.dataIndex;
-        const option = (chartAdapter as any).instance.getOption();
-        const legendData = option?.legend?.[0]?.data || [];
-        const item = legendData[index];
-        componentName = typeof item === "string" ? item : item?.name;
-        PluginService.LogDebug(
-          "ContextMenu",
-          "ECharts legend name resolved",
-          `name=${componentName}, index=${index}`,
-        );
-      } else {
-        // Handle ECharts legend item detection via pixel index.
-        const option = (chartAdapter as any).instance.getOption();
-        const legendData = option?.legend?.[0]?.data || [];
-        const item = legendData[legendIndex];
-        componentName = typeof item === "string" ? item : item?.name;
-      }
 
-      if (componentName) {
-        PluginService.LogDebug(
-          "ContextMenu",
-          "Legend item detected",
-          componentName,
-        );
-
-        menuItems.push({
-          label: `Rename "${componentName}"`,
-          action: () => renameSeries(componentName!),
-        });
-        menuItems.push({
-          label: `Differentiate "${componentName}"`,
-          action: () => differentiateSeries(componentName!),
-        });
-      }
-    } else if (
-      e.plotlyTitleClicked ||
-      e.echartsTitleClicked ||
-      e.componentType === "title" ||
-      (() => {
-        if (chartAdapter instanceof EChartsAdapter && chartAdapter.instance) {
-          const isOverTitle = chartAdapter.instance.containPixel(
-            { componentType: "title" } as any,
-            [offX, offY],
-          );
-          PluginService.LogDebug(
-            "ContextMenu",
-            "ECharts title check",
-            `overTitle=${isOverTitle}, x=${offX}, y=${offY}`,
-          );
-          return isOverTitle;
-        }
-        return false;
-      })()
-    ) {
+      menuItems.push({
+        label: `Rename "${e.seriesName}"`,
+        action: () => renameSeries(e.seriesName!),
+      });
+      menuItems.push({
+        label: `Differentiate "${e.seriesName}"`,
+        action: () => differentiateSeries(e.seriesName!),
+      });
+    } else if (e.type === "title") {
       PluginService.LogDebug(
         "ContextMenu",
-        "Title path taken",
-        e.plotlyTitleClicked
-          ? "Plotly"
-          : e.echartsTitleClicked
-            ? "ECharts (Direct)"
-            : "ECharts (Pixel)",
+        "Standardized title path taken",
+        "",
       );
-      // Handle context menu for the plot title.
+
       menuItems.push({
         label: "Rename Plot Title",
         action: () => renameTitle(),
       });
-    } else if (chartAdapter) {
-      PluginService.LogDebug("ContextMenu", "Grid/Other path taken", "");
-      // Handle grid measurement start/end.
-      const dataPoint = chartAdapter.getDataAtPixel(offX, offY);
-      if (dataPoint) {
-        if (measurementStart === null) {
-          menuItems.push({
-            label: "Start Measurement Here",
-            action: () => {
-              const snap = getNearestPoint([offX, offY]);
-              measurementStart = snap || dataPoint;
-            },
-          });
-        } else {
-          menuItems.push({
-            label: "End Measurement Here",
-            action: () => {
-              const snap = getNearestPoint([offX, offY]);
-              const end = snap || dataPoint;
+    } else if (e.type === "grid" && e.dataPoint) {
+      PluginService.LogDebug("ContextMenu", "Standardized grid path taken", "");
 
-              measurementResult = {
-                dx: end.x - measurementStart!.x,
-                dy: end.y - measurementStart!.y,
-              };
-              measurementStart = null;
-            },
-          });
-          menuItems.push({
-            label: "Cancel Measurement",
-            action: () => {
-              measurementStart = null;
-            },
-          });
-        }
+      const dataPoint = e.dataPoint;
+      if (measurementStart === null) {
+        menuItems.push({
+          label: "Start Measurement Here",
+          action: () => {
+            const rect = chartContainer!.getBoundingClientRect();
+            const offX = event.clientX - rect.left;
+            const offY = event.clientY - rect.top;
+            const snap = getNearestPoint([offX, offY]);
+            measurementStart = snap || dataPoint;
+          },
+        });
+      } else {
+        menuItems.push({
+          label: "End Measurement Here",
+          action: () => {
+            const rect = chartContainer!.getBoundingClientRect();
+            const offX = event.clientX - rect.left;
+            const offY = event.clientY - rect.top;
+            const snap = getNearestPoint([offX, offY]);
+            const end = snap || dataPoint;
+
+            measurementResult = {
+              dx: end.x - measurementStart!.x,
+              dy: end.y - measurementStart!.y,
+            };
+            measurementStart = null;
+          },
+        });
+        menuItems.push({
+          label: "Cancel Measurement",
+          action: () => {
+            measurementStart = null;
+          },
+        });
       }
+    } else {
+      PluginService.LogDebug(
+        "ContextMenu",
+        "Standardized other path taken",
+        "",
+      );
     }
 
     menuVisible = menuItems.length > 0;

@@ -1,5 +1,5 @@
 import * as echarts from "echarts";
-import { ChartAdapter, type SeriesConfig } from "./ChartAdapter.ts";
+import { ChartAdapter, type SeriesConfig, type ContextMenuEvent } from "./ChartAdapter.ts";
 import * as PluginService from "../../../bindings/olicanaplot/internal/plugins/service";
 
 // ECharts implementation of ChartAdapter. Implements true subplots by using
@@ -198,38 +198,57 @@ export class EChartsAdapter extends ChartAdapter {
         });
     }
 
-    // Attach a right-click listener to the ECharts ZRender surface for custom 
-    // interaction menus.
-    onContextMenu(handler: (event: any) => void) {
-        if (this.instance) {
-            // Internal ECharts component events (Title, Legend, etc)
-            this.instance.on("contextmenu", (params: any) => {
-                const keys = Object.keys(params).join(", ");
-                PluginService.LogDebug("EChartsAdapter", `High-level contextmenu [${params.componentType}]`, `Keys: ${keys}`);
+    // Register a callback for handling right-click context menu events on the
+    // chart.
+    onContextMenu(handler: (event: ContextMenuEvent) => void) {
+        if (!this.instance) return;
 
-                const rawEvent = params.event?.event || params.event;
-                if (params.componentType === "title") {
-                    handler({ ...params, event: rawEvent, echartsTitleClicked: true });
-                } else if (params.componentType === "legend") {
-                    // Log specific legend-related fields
-                    PluginService.LogDebug("EChartsAdapter", "Legend params detail", `name=${params.name}, target=${params.target}, dataIndex=${params.dataIndex}`);
-                    handler({ ...params, event: rawEvent });
-                } else {
-                    handler({ ...params, event: rawEvent });
-                }
-            });
+        // Internal ECharts component events (Title, Legend, etc)
+        this.instance.on("contextmenu", (params: any) => {
+            const rawEvent = params.event?.event || params.event;
 
-            // Global ZRender surface events
-            this.instance.getZr().on("contextmenu", (e: any) => {
-                if (e.target) {
-                    PluginService.LogDebug("EChartsAdapter", "ZRender hit component, skipping global event", "");
-                    return;
+            if (params.componentType === "title") {
+                PluginService.LogDebug("EChartsAdapter", "Standardized title context menu", "");
+                handler({ type: "title", rawEvent });
+            } else if (params.componentType === "legend") {
+                // Resolve series name from dataIndex if name is missing
+                let seriesName = params.name;
+                if (!seriesName && params.dataIndex !== undefined) {
+                    const option = this.instance!.getOption() as any;
+                    const legendData = option.legend?.[0]?.data || [];
+                    const item = legendData[params.dataIndex];
+                    seriesName = typeof item === "string" ? item : item?.name;
                 }
-                // For ZRender events, the raw DOM event is in 'event'
-                const rawEvent = e.event || e;
-                PluginService.LogDebug("EChartsAdapter", "ZRender surface contextmenu (empty background)", "");
-                handler({ event: rawEvent });
-            });
-        }
+
+                PluginService.LogDebug("EChartsAdapter", "Standardized legend context menu", seriesName || "unknown");
+                handler({ type: "legend", rawEvent, seriesName });
+            } else {
+                PluginService.LogDebug("EChartsAdapter", `Standardized other component context menu: ${params.componentType}`, "");
+                handler({ type: "other", rawEvent });
+            }
+        });
+
+        // Global ZRender surface events
+        this.instance.getZr().on("contextmenu", (e: any) => {
+            // If e.target exists, it means ZRender hit an internal element 
+            // (handled by high-level 'contextmenu' event above).
+            if (e.target) return;
+
+            const rawEvent = e.event || e;
+            const x = e.offsetX;
+            const y = e.offsetY;
+
+            // Check if the click is over a grid area
+            const isOverGrid = this.instance!.containPixel({ componentType: "grid" } as any, [x, y]);
+
+            if (isOverGrid) {
+                const dataPoint = this.getDataAtPixel(x, y);
+                PluginService.LogDebug("EChartsAdapter", "Standardized grid context menu", "");
+                handler({ type: "grid", rawEvent, dataPoint: dataPoint || undefined });
+            } else {
+                PluginService.LogDebug("EChartsAdapter", "Standardized other surface context menu", "");
+                handler({ type: "other", rawEvent });
+            }
+        });
     }
 }
