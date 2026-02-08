@@ -31,6 +31,8 @@ export class PlotlyAdapter extends ChartAdapter {
     darkMode: boolean,
     getGridRight: (data: SeriesConfig[]) => number,
     lineWidth: number,
+    xAxisName: string,
+    yAxisNames: Record<number, string>,
   ) {
     if (!this.container) return;
 
@@ -129,7 +131,7 @@ export class PlotlyAdapter extends ChartAdapter {
       layout[axes.xaxisKey] = {
         title:
           i === numSubplots - 1
-            ? { text: "Time", font: { size: 16, color: textColor } }
+            ? { text: xAxisName, font: { size: 16, color: textColor } }
             : undefined,
         gridcolor: gridColor,
         zerolinecolor: gridColor,
@@ -140,7 +142,10 @@ export class PlotlyAdapter extends ChartAdapter {
       };
 
       layout[axes.yaxisKey] = {
-        title: { text: `Subplot ${sidx}`, font: { size: 14, color: textColor } },
+        title: {
+          text: yAxisNames[sidx] || `Subplot ${sidx}`,
+          font: { size: 14, color: textColor },
+        },
         gridcolor: gridColor,
         zerolinecolor: gridColor,
         tickfont: { color: textColor },
@@ -307,10 +312,44 @@ export class PlotlyAdapter extends ChartAdapter {
           }
         }
 
+        // Check for xAxis titles
+        const xTitles = this.container.querySelectorAll(".g-xtitle");
+        for (let i = 0; i < xTitles.length; i++) {
+          const el = xTitles[i] as HTMLElement;
+          const rect = el.getBoundingClientRect();
+          if (
+            e.clientX >= rect.left &&
+            e.clientX <= rect.right &&
+            e.clientY >= rect.top &&
+            e.clientY <= rect.bottom
+          ) {
+            const text = el.querySelector(".xtitle")?.textContent || "";
+            handler({ type: "xAxis", rawEvent: e, axisLabel: text, axisIndex: i });
+            return;
+          }
+        }
+
+        // Check for yAxis titles
+        const yTitles = this.container.querySelectorAll(".g-ytitle");
+        for (let i = 0; i < yTitles.length; i++) {
+          const el = yTitles[i] as HTMLElement;
+          const rect = el.getBoundingClientRect();
+          if (
+            e.clientX >= rect.left &&
+            e.clientX <= rect.right &&
+            e.clientY >= rect.top &&
+            e.clientY <= rect.bottom
+          ) {
+            const text = el.querySelector(".ytitle")?.textContent || "";
+            handler({ type: "yAxis", rawEvent: e, axisLabel: text, axisIndex: i });
+            return;
+          }
+        }
+
         // Check for grid hit
-        const rect = this.container.getBoundingClientRect();
-        const offX = e.clientX - rect.left;
-        const offY = e.clientY - rect.top;
+        const containerRect = this.container.getBoundingClientRect();
+        const offX = e.clientX - containerRect.left;
+        const offY = e.clientY - containerRect.top;
         const dataPoint = this.getDataAtPixel(offX, offY);
 
         if (dataPoint) {

@@ -31,6 +31,8 @@ export class EChartsAdapter extends ChartAdapter {
     darkMode: boolean,
     getGridRight: (data: SeriesConfig[]) => number,
     lineWidth: number,
+    xAxisName: string,
+    yAxisNames: Record<number, string>,
   ) {
     if (!this.instance) return;
 
@@ -81,18 +83,19 @@ export class EChartsAdapter extends ChartAdapter {
 
     const xAxes = subplotIndices.map((_, i) => ({
       type: "value" as const,
-      name: i === numSubplots - 1 ? "Time" : "",
+      name: i === numSubplots - 1 ? xAxisName : "",
       nameLocation: "center" as const,
       nameGap: 30,
       gridIndex: i,
       axisLabel: { show: i === numSubplots - 1 },
       axisLine: { lineStyle: { color: textColor } },
       splitLine: { lineStyle: { color: darkMode ? "#444" : "#e0e0e0" } },
+      triggerEvent: true,
     }));
 
     const yAxes = subplotIndices.map((sidx, i) => ({
       type: "value" as const,
-      name: `Subplot ${sidx}`,
+      name: yAxisNames[sidx] || `Subplot ${sidx}`,
       nameLocation: "center" as const,
       nameGap: 45,
       nameRotate: 90,
@@ -101,6 +104,7 @@ export class EChartsAdapter extends ChartAdapter {
       splitLine: { lineStyle: { color: darkMode ? "#444" : "#e0e0e0" } },
       nameTextStyle: { color: textColor, fontWeight: "bold" },
       axisTick: { show: true },
+      triggerEvent: true,
     }));
 
     const series = seriesArr.map((s, i) => {
@@ -255,6 +259,27 @@ export class EChartsAdapter extends ChartAdapter {
           seriesName || "unknown",
         );
         handler({ type: "legend", rawEvent, seriesName });
+      } else if (
+        params.componentType === "xAxis" ||
+        params.componentType === "yAxis"
+      ) {
+        const axisIndex = params.componentIndex;
+        // Search for the axis in the current options to get its name
+        const option = this.instance!.getOption() as any;
+        const axisConfig = option[params.componentType][axisIndex];
+        const axisLabel = axisConfig?.name || "";
+
+        PluginService.LogDebug(
+          "EChartsAdapter",
+          `Standardized ${params.componentType} context menu`,
+          `Index: ${axisIndex}, Name: ${axisLabel}`,
+        );
+        handler({
+          type: params.componentType === "xAxis" ? "xAxis" : "yAxis",
+          rawEvent,
+          axisLabel,
+          axisIndex,
+        });
       } else {
         PluginService.LogDebug(
           "EChartsAdapter",

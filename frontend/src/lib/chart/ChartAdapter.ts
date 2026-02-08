@@ -11,10 +11,12 @@ export interface SeriesConfig {
 // Define the standardized structure for context menu events across chart
 // adapters.
 export interface ContextMenuEvent {
-  type: "title" | "legend" | "grid" | "other";
+  type: "title" | "legend" | "grid" | "xAxis" | "yAxis" | "other";
   rawEvent: MouseEvent;
   seriesName?: string; // For legend items
   dataPoint?: { x: number; y: number }; // For grid clicks
+  axisLabel?: string; // For axis items
+  axisIndex?: number; // For identifying which axis
 }
 
 // Define the interface for different chart library implementations (e.g.,
@@ -32,6 +34,8 @@ export abstract class ChartAdapter {
     darkMode: boolean,
     getGridRight: (data: SeriesConfig[]) => number,
     lineWidth: number,
+    xAxisName: string,
+    yAxisNames: Record<number, string>,
   ): void;
 
   // Trigger the chart to update its dimensions to fit its container.

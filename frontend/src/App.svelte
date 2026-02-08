@@ -60,6 +60,7 @@
   let currentSeriesData = $state<SeriesConfig[]>([]);
   let currentTitle = $state("");
   let xAxisName = $state("Time");
+  let subplotNames = $state<Record<number, string>>({});
   let allPlugins = $state<AppPlugin[]>([]);
   let showGeneratorsMenu = $state(true);
   let defaultLineWidth = $state(2.0);
@@ -401,6 +402,8 @@
       isDarkMode,
       getGridRight,
       defaultLineWidth,
+      xAxisName,
+      subplotNames,
     );
   }
 
@@ -583,6 +586,34 @@
           },
         });
       }
+    } else if (e.type === "xAxis" || e.type === "yAxis") {
+      PluginService.LogDebug(
+        "ContextMenu",
+        `Standardized ${e.type} path taken`,
+        e.axisLabel || "unknown",
+      );
+
+      menuItems.push({
+        label: `${e.type === "xAxis" ? "X" : "Y"} Axis: ${e.axisLabel}`,
+        header: true,
+      });
+      menuItems.push({
+        label: "Rename",
+        action: () => {
+          renameModalTitle = `Rename ${e.type === "xAxis" ? "X" : "Y"} Axis`;
+          renameModalLabel = "New Name";
+          renameModalValue = e.axisLabel || "";
+          renameModalCallback = (val: string) => {
+            if (e.type === "xAxis") {
+              xAxisName = val;
+            } else {
+              subplotNames[e.axisIndex!] = val;
+            }
+            updateChart();
+          };
+          renameVisible = true;
+        },
+      });
     } else {
       PluginService.LogDebug(
         "ContextMenu",
