@@ -16,24 +16,26 @@ import (
 
 // ConfigService handles application configuration and settings.
 type ConfigService struct {
-	mu              sync.RWMutex
-	app             *application.App
-	optionsWindow   *application.WebviewWindow
-	configPath      string
-	logPath         string
-	chartLibrary    string
-	theme           string
-	logLevel        string
-	disabledPlugins []string
+	mu                 sync.RWMutex
+	app                *application.App
+	optionsWindow      *application.WebviewWindow
+	configPath         string
+	logPath            string
+	chartLibrary       string
+	theme              string
+	logLevel           string
+	disabledPlugins    []string
+	showGeneratorsMenu bool
 }
 
 // configData is the structure we save to disk
 type configData struct {
-	LogPath         string   `json:"logPath"`
-	ChartLibrary    string   `json:"chartLibrary"`
-	Theme           string   `json:"theme"`
-	LogLevel        string   `json:"logLevel"`
-	DisabledPlugins []string `json:"disabledPlugins"`
+	LogPath            string   `json:"logPath"`
+	ChartLibrary       string   `json:"chartLibrary"`
+	Theme              string   `json:"theme"`
+	LogLevel           string   `json:"logLevel"`
+	DisabledPlugins    []string `json:"disabledPlugins"`
+	ShowGeneratorsMenu bool     `json:"showGeneratorsMenu"`
 }
 
 // NewConfigService creates a new config service with default values.
@@ -50,11 +52,12 @@ func NewConfigService() *ConfigService {
 	os.MkdirAll(appDir, 0755)
 
 	s := &ConfigService{
-		configPath:   filepath.Join(appDir, "config.json"),
-		logPath:      filepath.Join(appDir, "olicana.log"),
-		chartLibrary: "echarts", // Default to ECharts
-		theme:        "light",   // Default to light
-		logLevel:     "info",    // Default to info
+		configPath:         filepath.Join(appDir, "config.json"),
+		logPath:            filepath.Join(appDir, "olicana.log"),
+		chartLibrary:       "echarts", // Default to ECharts
+		theme:              "light",   // Default to light
+		logLevel:           "info",    // Default to info
+		showGeneratorsMenu: true,      // Default to true
 	}
 
 	s.loadConfig()
@@ -111,6 +114,7 @@ func (s *ConfigService) loadConfig() {
 		s.logLevel = cfg.LogLevel
 	}
 	s.disabledPlugins = cfg.DisabledPlugins
+	s.showGeneratorsMenu = cfg.ShowGeneratorsMenu
 
 	// Apply log level
 	logging.SetLevel(s.logLevel)
@@ -119,11 +123,12 @@ func (s *ConfigService) loadConfig() {
 func (s *ConfigService) saveConfig() {
 	s.mu.RLock()
 	cfg := configData{
-		LogPath:         s.logPath,
-		ChartLibrary:    s.chartLibrary,
-		Theme:           s.theme,
-		LogLevel:        s.logLevel,
-		DisabledPlugins: s.disabledPlugins,
+		LogPath:            s.logPath,
+		ChartLibrary:       s.chartLibrary,
+		Theme:              s.theme,
+		LogLevel:           s.logLevel,
+		DisabledPlugins:    s.disabledPlugins,
+		ShowGeneratorsMenu: s.showGeneratorsMenu,
 	}
 	s.mu.RUnlock()
 
@@ -210,6 +215,26 @@ func (s *ConfigService) SetDisabledPlugins(plugins []string) {
 	s.disabledPlugins = plugins
 	s.mu.Unlock()
 	s.saveConfig()
+}
+
+// GetShowGeneratorsMenu returns if the generators menu should be shown.
+func (s *ConfigService) GetShowGeneratorsMenu() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.showGeneratorsMenu
+}
+
+// SetShowGeneratorsMenu updates the show generators menu setting.
+func (s *ConfigService) SetShowGeneratorsMenu(show bool) {
+	s.mu.Lock()
+	s.showGeneratorsMenu = show
+	app := s.app
+	s.mu.Unlock()
+	s.saveConfig()
+
+	if app != nil {
+		app.Event.Emit("showGeneratorsMenuChanged", show)
+	}
 }
 
 // OpenLogFile opens the current log file in the OS default text editor.

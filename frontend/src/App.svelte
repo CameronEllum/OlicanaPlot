@@ -61,7 +61,9 @@
   let currentTitle = $state("");
   let xAxisName = $state("Time");
   let allPlugins = $state<AppPlugin[]>([]);
+  let showGeneratorsMenu = $state(true);
   let unsubChartLibrary: (() => void) | null = null;
+  let unsubShowGeneratorsMenu: (() => void) | null = null;
 
   // Plugin Selection State (for ambiguous file matches)
   let pluginSelectionVisible = $state(false);
@@ -715,12 +717,28 @@
       updateChart();
     }
 
+    // Initial plugin list
     try {
       allPlugins = (await PluginService.ListPlugins()) as AppPlugin[];
       console.log("Loaded plugins:", allPlugins);
     } catch (e) {
       console.error("Failed to list plugins:", e);
     }
+
+    // Initial config
+    showGeneratorsMenu = await ConfigService.GetShowGeneratorsMenu();
+
+    // Setup event listeners
+    unsubChartLibrary = Events.On(
+      "chartLibraryChanged",
+      handleChartLibraryChange,
+    );
+    unsubShowGeneratorsMenu = Events.On(
+      "showGeneratorsMenuChanged",
+      (val: any) => {
+        showGeneratorsMenu = val.data as boolean;
+      },
+    );
   }
 
   // Respond to global chart library preference changes.
@@ -759,18 +777,13 @@
     ConfigService.GetTheme().then((theme: string) => {
       isDarkMode = theme === "dark";
     });
-
-    unsubChartLibrary = Events.On(
-      "chartLibraryChanged",
-      handleChartLibraryChange,
-    );
   });
 
   // Release subscriptions and resources on component destruction.
   onDestroy(() => {
-    resizeObserver?.disconnect();
-    chartAdapter?.destroy();
-    unsubChartLibrary?.();
+    if (resizeObserver) resizeObserver.disconnect();
+    if (unsubChartLibrary) unsubChartLibrary();
+    if (unsubShowGeneratorsMenu) unsubShowGeneratorsMenu();
   });
 </script>
 
@@ -897,17 +910,20 @@
         >
         Add File
       </button>
-      <button onclick={(e) => showGenerateMenu(e)}>
-        <svg
-          viewBox="0 0 24 24"
-          width="16"
-          height="16"
-          stroke="currentColor"
-          stroke-width="2"
-          fill="none"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" /></svg
-        >
-        Generate
-      </button>
+      {#if showGeneratorsMenu}
+        <button onclick={(e) => showGenerateMenu(e)}>
+          <svg
+            viewBox="0 0 24 24"
+            width="16"
+            height="16"
+            stroke="currentColor"
+            stroke-width="2"
+            fill="none"
+            ><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" /></svg
+          >
+          Generators
+        </button>
+      {/if}
       <button
         onclick={() => (ConfigService as any).OpenOptions()}
         title="Application Options"

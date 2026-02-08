@@ -10,7 +10,8 @@
     let logLevel = $state("info");
     let chartLibrary = $state("echarts");
     let plugins = $state<any[]>([]);
-    let activeTab = $state("logging");
+    let showGeneratorsMenu = $state(true);
+    let activeTab = $state("general");
     let isMaximised = $state(false);
 
     // Context Menu State
@@ -28,6 +29,7 @@
             logLevel = await ConfigService.GetLogLevel();
             chartLibrary = await ConfigService.GetChartLibrary();
             plugins = await PluginService.ListPlugins();
+            showGeneratorsMenu = await ConfigService.GetShowGeneratorsMenu();
             isMaximised = await Window.IsMaximised();
         } catch (e) {
             console.error("Failed to get config:", e);
@@ -108,6 +110,7 @@
                 await ConfigService.SetChartLibrary(chartLibrary);
             }
 
+            await ConfigService.SetShowGeneratorsMenu(showGeneratorsMenu);
             Window.Close();
         } catch (e: any) {
             console.error("Failed to save config:", e);
@@ -203,6 +206,48 @@
         <div class="options-layout">
             <aside class="sidebar">
                 <button
+                    class="tab-btn {activeTab === 'general' ? 'active' : ''}"
+                    onclick={() => (activeTab = "general")}
+                    title="General Application Settings"
+                >
+                    <svg
+                        viewBox="0 0 24 24"
+                        width="20"
+                        height="20"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        fill="none"
+                    >
+                        <circle cx="12" cy="12" r="3"></circle>
+                        <path
+                            d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"
+                        ></path>
+                    </svg>
+                    <span>General</span>
+                </button>
+                <button
+                    class="tab-btn {activeTab === 'plugins' ? 'active' : ''}"
+                    onclick={() => (activeTab = "plugins")}
+                    title="Plugin Configuration"
+                >
+                    <svg
+                        viewBox="0 0 24 24"
+                        width="20"
+                        height="20"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        fill="none"
+                    >
+                        <path
+                            d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"
+                        ></path>
+                        <polyline points="3.27 6.96 12 12.01 20.73 6.96"
+                        ></polyline>
+                        <line x1="12" y1="22.08" x2="12" y2="12"></line>
+                    </svg>
+                    <span>Plugins</span>
+                </button>
+                <button
                     class="tab-btn {activeTab === 'logging' ? 'active' : ''}"
                     onclick={() => (activeTab = "logging")}
                     title="Logging Configuration"
@@ -242,68 +287,24 @@
                     </svg>
                     <span>Chart</span>
                 </button>
-                <button
-                    class="tab-btn {activeTab === 'plugins' ? 'active' : ''}"
-                    onclick={() => (activeTab = "plugins")}
-                    title="Plugin Configuration"
-                >
-                    <svg
-                        viewBox="0 0 24 24"
-                        width="20"
-                        height="20"
-                        stroke="currentColor"
-                        stroke-width="2"
-                        fill="none"
-                    >
-                        <path
-                            d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"
-                        ></path>
-                        <polyline points="3.27 6.96 12 12.01 20.73 6.96"
-                        ></polyline>
-                        <line x1="12" y1="22.08" x2="12" y2="12"></line>
-                    </svg>
-                    <span>Plugins</span>
-                </button>
             </aside>
 
             <main class="options-body">
-                {#if activeTab === "logging"}
+                {#if activeTab === "general"}
                     <div class="form-group">
-                        <label for="logPath">Log File Path</label>
-                        <input type="text" id="logPath" bind:value={logPath} />
-                        <p class="help-text">
-                            The structured log data will be written to this
-                            file.
-                        </p>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="logLevel">Logging Level</label>
-                        <select id="logLevel" bind:value={logLevel}>
-                            <option value="debug">Debug</option>
-                            <option value="info">Info</option>
-                            <option value="warn">Warning</option>
-                            <option value="error">Error</option>
-                        </select>
-                        <p class="help-text">
-                            Controls the verbosity of application logs.
-                        </p>
-                    </div>
-
-                    <button class="btn btn-secondary" onclick={handleOpenLog}>
-                        Open Log File in Editor
-                    </button>
-                {:else if activeTab === "chart"}
-                    <div class="form-group">
-                        <label for="chartLibrary">Chart Library</label>
-                        <select id="chartLibrary" bind:value={chartLibrary}>
-                            <option value="echarts">Apache ECharts</option>
-                            <option value="plotly">Plotly.js (WebGL)</option>
-                        </select>
-                        <p class="help-text">
-                            Select the charting engine. Plotly uses WebGL for
-                            large datasets.
-                        </p>
+                        <label class="checkbox-item">
+                            <input
+                                type="checkbox"
+                                bind:checked={showGeneratorsMenu}
+                            />
+                            <div class="checkbox-info">
+                                <span>Show Generators Menu</span>
+                                <p class="help-text">
+                                    Display the "Generators" button in the main
+                                    application toolbar.
+                                </p>
+                            </div>
+                        </label>
                     </div>
                 {:else if activeTab === "plugins"}
                     <section class="plugin-section">
@@ -410,6 +411,44 @@
                             {/each}
                         </div>
                     </section>
+                {:else if activeTab === "logging"}
+                    <div class="form-group">
+                        <label for="logPath">Log File Path</label>
+                        <input type="text" id="logPath" bind:value={logPath} />
+                        <p class="help-text">
+                            The structured log data will be written to this
+                            file.
+                        </p>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="logLevel">Logging Level</label>
+                        <select id="logLevel" bind:value={logLevel}>
+                            <option value="debug">Debug</option>
+                            <option value="info">Info</option>
+                            <option value="warn">Warning</option>
+                            <option value="error">Error</option>
+                        </select>
+                        <p class="help-text">
+                            Controls the verbosity of application logs.
+                        </p>
+                    </div>
+
+                    <button class="btn btn-secondary" onclick={handleOpenLog}>
+                        Open Log File in Editor
+                    </button>
+                {:else if activeTab === "chart"}
+                    <div class="form-group">
+                        <label for="chartLibrary">Chart Library</label>
+                        <select id="chartLibrary" bind:value={chartLibrary}>
+                            <option value="echarts">Apache ECharts</option>
+                            <option value="plotly">Plotly.js (WebGL)</option>
+                        </select>
+                        <p class="help-text">
+                            Select the charting engine. Plotly uses WebGL for
+                            large datasets.
+                        </p>
+                    </div>
                 {/if}
             </main>
         </div>
@@ -673,11 +712,31 @@
         background: var(--bg-tertiary);
     }
 
-    .plugin-item input[type="checkbox"] {
+    .plugin-item input[type="checkbox"],
+    .checkbox-item input[type="checkbox"] {
         margin-top: 4px;
         width: 16px;
         height: 16px;
         cursor: pointer;
+    }
+
+    .checkbox-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 16px;
+        cursor: pointer;
+    }
+
+    .checkbox-info {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .checkbox-info span {
+        font-size: 14px;
+        font-weight: 500;
+        color: var(--text-primary);
     }
 
     .plugin-info {
