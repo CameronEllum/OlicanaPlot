@@ -257,6 +257,53 @@ export class PlotlyAdapter extends ChartAdapter {
     const dataY = yaxis.p2d(plotTop + plotHeight - y);
     return { x: dataX, y: dataY };
   }
+  // Map screen coordinates to chart regions (title, axes, grid).
+  private getClickTarget(e: MouseEvent): ContextMenuEvent {
+    if (!this.container || !this.container._fullLayout) {
+      return { type: "other", rawEvent: e };
+    }
+
+    const layout = this.container._fullLayout;
+    const rect = this.container.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    // 1. Check Main Title
+    if (y < layout.margin.t) {
+      // Precise check for centered title area if needed, but margin.t is usually safe
+      return { type: "title", rawEvent: e };
+    }
+
+    // 2. Check X Axes (Bottom margin)
+    // In our stacked layout, only the bottom-most axis has a title.
+    if (y > layout.height - layout.margin.b) {
+      // Find the primary x axis (highest index or simply xaxis)
+      return { type: "xAxis", rawEvent: e, axisLabel: layout.xaxis.title?.text || "", axisIndex: 0 };
+    }
+
+    // 3. Check Y Axes (Left margin)
+    if (x < layout.margin.l) {
+      // Iterate through all y-axes to see which one's vertical span matches y
+      const yAxisKeys = Object.keys(layout).filter(k => k.startsWith("yaxis"));
+      for (const key of yAxisKeys) {
+        const ax = layout[key];
+        if (ax && ax._offset !== undefined && ax._length !== undefined) {
+          if (y >= ax._offset && y <= ax._offset + ax._length) {
+            const index = key === "yaxis" ? 0 : parseInt(key.replace("yaxis", ""), 10) - 1;
+            return { type: "yAxis", rawEvent: e, axisLabel: ax.title?.text || "", axisIndex: index };
+          }
+        }
+      }
+    }
+
+    // 4. Check Grid Area
+    const dataPoint = this.getDataAtPixel(x, y);
+    if (dataPoint) {
+      return { type: "grid", rawEvent: e, dataPoint };
+    }
+
+    return { type: "other", rawEvent: e };
+  }
 
   // Convert data coordinates into screen pixel coordinates for use by external
   // UI overlays.
@@ -322,73 +369,8 @@ export class PlotlyAdapter extends ChartAdapter {
           "",
         );
 
-        // Check for title hit via bounding box
-        const titleEl = (this as any).titleElement as HTMLElement;
-        if (titleEl) {
-          const rect = titleEl.getBoundingClientRect();
-          if (
-            e.clientX >= rect.left &&
-            e.clientX <= rect.right &&
-            e.clientY >= rect.top &&
-            e.clientY <= rect.bottom
-          ) {
-            PluginService.LogDebug(
-              "PlotlyAdapter",
-              "Title detected via bounding box fallback",
-              "",
-            );
-            handler({ type: "title", rawEvent: e });
-            return;
-          }
-        }
-
-        // Check for xAxis titles
-        const xTitles = this.container.querySelectorAll(".g-xtitle");
-        for (let i = 0; i < xTitles.length; i++) {
-          const el = xTitles[i] as HTMLElement;
-          const rect = el.getBoundingClientRect();
-          if (
-            e.clientX >= rect.left &&
-            e.clientX <= rect.right &&
-            e.clientY >= rect.top &&
-            e.clientY <= rect.bottom
-          ) {
-            const text = el.querySelector(".xtitle")?.textContent || "";
-            handler({ type: "xAxis", rawEvent: e, axisLabel: text, axisIndex: i });
-            return;
-          }
-        }
-
-        // Check for yAxis titles
-        const yTitles = this.container.querySelectorAll(".g-ytitle");
-        for (let i = 0; i < yTitles.length; i++) {
-          const el = yTitles[i] as HTMLElement;
-          const rect = el.getBoundingClientRect();
-          if (
-            e.clientX >= rect.left &&
-            e.clientX <= rect.right &&
-            e.clientY >= rect.top &&
-            e.clientY <= rect.bottom
-          ) {
-            const text = el.querySelector(".ytitle")?.textContent || "";
-            handler({ type: "yAxis", rawEvent: e, axisLabel: text, axisIndex: i });
-            return;
-          }
-        }
-
-        // Check for grid hit
-        const containerRect = this.container.getBoundingClientRect();
-        const offX = e.clientX - containerRect.left;
-        const offY = e.clientY - containerRect.top;
-        const dataPoint = this.getDataAtPixel(offX, offY);
-
-        if (dataPoint) {
-          PluginService.LogDebug("PlotlyAdapter", "Grid detected", "");
-          handler({ type: "grid", rawEvent: e, dataPoint });
-        } else {
-          PluginService.LogDebug("PlotlyAdapter", "Other area detected", "");
-          handler({ type: "other", rawEvent: e });
-        }
+        const target = this.getClickTarget(e);
+        handler(target);
       });
     }
   }
