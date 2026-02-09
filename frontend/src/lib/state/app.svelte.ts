@@ -92,8 +92,9 @@ class AppState {
     setupEventListeners() {
         this.unsubs.push(Events.On("chartLibraryChanged", (val: any) => {
             this.chartLibrary = val.data as string;
-            // Convert current data if format changed
-            this.convertCurrentData();
+            // Clear current data and reset to Sine Wave as requested
+            this.currentSeriesData = [];
+            this.dataSource = "sine";
             this.initChart(this.chartContainer!);
         }));
 
@@ -302,32 +303,6 @@ class AppState {
         this.loading = false;
     }
 
-    convertCurrentData() {
-        if (this.currentSeriesData.length === 0) return;
-
-        // We assume the data format change matches the library default
-        const desiredFormat = this.chartLibrary === "plotly" ? "arrays" : "interleaved";
-
-        this.currentSeriesData = this.currentSeriesData.map(s => {
-            const numPoints = s.data.length / 2;
-            const newData = new Float64Array(s.data.length);
-
-            // If we are now in Plotly (arrays), data was likely interleaved
-            if (desiredFormat === "arrays") {
-                for (let i = 0; i < numPoints; i++) {
-                    newData[i] = s.data[i * 2];
-                    newData[numPoints + i] = s.data[i * 2 + 1];
-                }
-            } else {
-                // If we are now in ECharts (interleaved), data was likely separate arrays
-                for (let i = 0; i < numPoints; i++) {
-                    newData[i * 2] = s.data[i];
-                    newData[i * 2 + 1] = s.data[numPoints + i];
-                }
-            }
-            return { ...s, data: newData };
-        });
-    }
 
     updateChart() {
         if (!this.chartAdapter || !this.currentSeriesData) return;

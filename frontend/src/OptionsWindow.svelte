@@ -100,7 +100,7 @@
 
             if (oldLibrary !== chartLibrary) {
                 const confirmed = confirm(
-                    "Changing the chart engine will reset the current plot. Continue?",
+                    "Changing the chart engine will erase the current plot and reset to defaults. Continue?",
                 );
                 if (!confirmed) {
                     chartLibrary = oldLibrary;
