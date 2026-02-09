@@ -190,19 +190,23 @@ func (p *Plugin) showConfigDialog(app *application.App) ConfigResult {
 	}
 
 	// Handle form change for presets
+	lastPreset := enum[0]
 	app.Event.On(fmt.Sprintf("ipc-form-change-%s", requestID), func(e *application.CustomEvent) {
 		if data, ok := e.Data.(map[string]interface{}); ok {
 			if presetLabel, ok := data["presetFunction"].(string); ok {
-				if preset, ok := presetMap[presetLabel]; ok {
-					app.Event.Emit(fmt.Sprintf("ipc-form-update-%s", requestID), map[string]interface{}{
-						"data": map[string]interface{}{
-							"functionName": preset.Name,
-							"expression":   preset.Expression,
-							"xMin":         preset.XMin,
-							"xMax":         preset.XMax,
-							"numPoints":    preset.NumPoints,
-						},
-					})
+				if presetLabel != lastPreset {
+					lastPreset = presetLabel
+					if preset, ok := presetMap[presetLabel]; ok {
+						app.Event.Emit(fmt.Sprintf("ipc-form-update-%s", requestID), map[string]interface{}{
+							"data": map[string]interface{}{
+								"functionName": preset.Name,
+								"expression":   preset.Expression,
+								"xMin":         preset.XMin,
+								"xMax":         preset.XMax,
+								"numPoints":    preset.NumPoints,
+							},
+						})
+					}
 				}
 			}
 		}
