@@ -10,7 +10,9 @@ import (
 const pluginName = "Sine Wave"
 
 // Plugin implements the sine wave generator.
-type Plugin struct{}
+type Plugin struct {
+	logger logging.Logger
+}
 
 // New creates a new sine wave plugin.
 func New() *Plugin {
@@ -39,6 +41,7 @@ func (p *Plugin) GetFilePatterns() []plugins.FilePattern {
 
 // Initialize sets up the plugin. No configuration needed for sine wave.
 func (p *Plugin) Initialize(ctx interface{}, initStr string, logger logging.Logger) (string, error) {
+	p.logger = logger
 	logger.Debug("Sine wave plugin initialized")
 	return "{}", nil
 }
@@ -64,6 +67,9 @@ func (p *Plugin) GetSeriesConfig() ([]plugins.SeriesConfig, error) {
 
 // GetSeriesData generates and returns sine wave data.
 func (p *Plugin) GetSeriesData(seriesID string, preferredStorage string) ([]float64, string, error) {
+	if p.logger != nil {
+		p.logger.Info("Sine plugin data request", "seriesID", seriesID, "preferredStorage", preferredStorage)
+	}
 	if preferredStorage == "arrays" {
 		return getSeriesDataArrays(), "arrays", nil
 	}
