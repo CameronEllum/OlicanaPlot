@@ -2,7 +2,10 @@ module olicanaplot
 
 go 1.25
 
-require github.com/wailsapp/wails/v3 v3.0.0-alpha.61
+require (
+	github.com/expr-lang/expr v1.17.7
+	github.com/wailsapp/wails/v3 v3.0.0-alpha.61
+)
 
 require (
 	dario.cat/mergo v1.0.1 // indirect

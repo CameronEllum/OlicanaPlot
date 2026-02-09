@@ -15,6 +15,7 @@ import (
 	"olicanaplot/internal/logging"
 	"olicanaplot/internal/plugins"
 	"olicanaplot/internal/plugins/csv"
+	"olicanaplot/internal/plugins/funcplot"
 	"olicanaplot/internal/plugins/ipc"
 	"olicanaplot/internal/plugins/sine"
 	"olicanaplot/internal/plugins/synthetic"
@@ -68,6 +69,9 @@ func main() {
 	if err := pluginManager.Register(sine.New(), true); err != nil {
 		logger.Warn("Failed to register sine plugin", "error", err)
 	}
+	if err := pluginManager.Register(funcplot.New(configService), true); err != nil {
+		logger.Warn("Failed to register funcplot plugin", "error", err)
+	}
 	if err := pluginManager.Register(synthetic.New(), true); err != nil {
 		logger.Warn("Failed to register synthetic plugin", "error", err)
 	}
@@ -97,8 +101,8 @@ func main() {
 		pluginManager.SetEnabled(name, false)
 	}
 
-	// Set sine as the default active plugin
-	pluginManager.SetActive("Sine Wave")
+	// Set function plotter as the default active plugin
+	pluginManager.SetActive("Function Plotter")
 
 	// Create a new Wails application by providing the necessary options.
 	// Variables 'Name' and 'Description' are for application metadata.

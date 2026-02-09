@@ -22,7 +22,7 @@ class AppState {
     chartLibrary = $state<string>("echarts");
     loading = $state(true);
     error = $state<string | null>(null);
-    dataSource = $state("sine");
+    dataSource = $state("funcplot");
     isDarkMode = $state(false);
 
     // Data State
@@ -146,10 +146,17 @@ class AppState {
         if (this.currentSeriesData.length > 0) {
             PluginService.LogDebug("AppState", "initChart() updating existing data", "");
             this.updateChart();
-        } else if (this.dataSource && this.dataSource.toLowerCase() === "sine") {
-            // Restore auto-load of sine wave data on startup
-            PluginService.LogDebug("AppState", "Auto-loading Sine Wave on startup", "");
-            this.activatePlugin("Sine Wave", "Sine");
+        } else if (this.dataSource && (this.dataSource.toLowerCase() === "sine" || this.dataSource.toLowerCase() === "funcplot" || this.dataSource === "Function Plotter")) {
+            // Restore auto-load of default plot on startup
+            PluginService.LogDebug("AppState", "Auto-loading Function Plotter on startup", "");
+            const dampedSine = JSON.stringify({
+                functionName: "Damped Sine",
+                expression: "exp(-0.01*x) * sin(x * 0.1)",
+                xMin: 0,
+                xMax: 500,
+                numPoints: 1000
+            });
+            this.activatePlugin("Function Plotter", dampedSine);
         } else {
             PluginService.LogDebug("AppState", `initChart() no auto-load: dataSource=${this.dataSource}`, "");
         }

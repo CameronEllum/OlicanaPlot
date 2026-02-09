@@ -27,17 +27,28 @@ type ConfigService struct {
 	disabledPlugins    []string
 	showGeneratorsMenu bool
 	defaultLineWidth   float64
+	functionPresets    []FunctionPreset
+}
+
+// FunctionPreset represents a user-saved function configuration
+type FunctionPreset struct {
+	Name       string  `json:"name"`
+	Expression string  `json:"expression"`
+	XMin       float64 `json:"xMin"`
+	XMax       float64 `json:"xMax"`
+	NumPoints  int     `json:"numPoints"`
 }
 
 // configData is the structure we save to disk
 type configData struct {
-	LogPath            string   `json:"logPath"`
-	ChartLibrary       string   `json:"chartLibrary"`
-	Theme              string   `json:"theme"`
-	LogLevel           string   `json:"logLevel"`
-	DisabledPlugins    []string `json:"disabledPlugins"`
-	ShowGeneratorsMenu bool     `json:"showGeneratorsMenu"`
-	DefaultLineWidth   float64  `json:"defaultLineWidth"`
+	LogPath            string           `json:"logPath"`
+	ChartLibrary       string           `json:"chartLibrary"`
+	Theme              string           `json:"theme"`
+	LogLevel           string           `json:"logLevel"`
+	DisabledPlugins    []string         `json:"disabledPlugins"`
+	ShowGeneratorsMenu bool             `json:"showGeneratorsMenu"`
+	DefaultLineWidth   float64          `json:"defaultLineWidth"`
+	FunctionPresets    []FunctionPreset `json:"functionPresets"`
 }
 
 // NewConfigService creates a new config service with default values.
@@ -126,6 +137,7 @@ func (s *ConfigService) loadConfig() {
 
 	// Apply log level
 	logging.SetLevel(s.logLevel)
+	s.functionPresets = cfg.FunctionPresets
 }
 
 func (s *ConfigService) saveConfig() {
@@ -138,6 +150,7 @@ func (s *ConfigService) saveConfig() {
 		DisabledPlugins:    s.disabledPlugins,
 		ShowGeneratorsMenu: s.showGeneratorsMenu,
 		DefaultLineWidth:   s.defaultLineWidth,
+		FunctionPresets:    s.functionPresets,
 	}
 	s.mu.RUnlock()
 
@@ -274,6 +287,53 @@ func (s *ConfigService) SetDefaultLineWidth(width float64) {
 	if app != nil {
 		app.Event.Emit("defaultLineWidthChanged", width)
 	}
+}
+
+// GetFunctionPresets returns the list of saved function presets.
+func (s *ConfigService) GetFunctionPresets() []FunctionPreset {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	// Return a copy to avoid mutation outside of service
+	presets := make([]FunctionPreset, len(s.functionPresets))
+	copy(presets, s.functionPresets)
+	return presets
+}
+
+// AddFunctionPreset adds or updates a function preset.
+func (s *ConfigService) AddFunctionPreset(preset FunctionPreset) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Update existing if name matches
+	found := false
+	for i, p := range s.functionPresets {
+		if p.Name == preset.Name {
+			s.functionPresets[i] = preset
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		s.functionPresets = append(s.functionPresets, preset)
+	}
+
+	s.saveConfig()
+}
+
+// RemoveFunctionPreset deletes a preset by name.
+func (s *ConfigService) RemoveFunctionPreset(name string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	newPresets := make([]FunctionPreset, 0, len(s.functionPresets))
+	for _, p := range s.functionPresets {
+		if p.Name != name {
+			newPresets = append(newPresets, p)
+		}
+	}
+	s.functionPresets = newPresets
+	s.saveConfig()
 }
 
 // OpenLogFile opens the current log file in the OS default text editor.
