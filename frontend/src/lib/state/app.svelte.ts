@@ -1,4 +1,4 @@
-import { Events } from "@wailsio/runtime";
+import { Events, Dialogs } from "@wailsio/runtime";
 import * as PluginService from "../../../bindings/olicanaplot/internal/plugins/service";
 import * as ConfigService from "../../../bindings/olicanaplot/internal/appconfig/configservice";
 import type { ChartAdapter, SeriesConfig, ContextMenuEvent } from "../chart/ChartAdapter";
@@ -24,6 +24,7 @@ class AppState {
     error = $state<string | null>(null);
     dataSource = $state("funcplot");
     isDarkMode = $state(false);
+    isDefault = $state(true);
 
     // Data State
     currentSeriesData = $state<SeriesConfig[]>([]);
@@ -149,14 +150,7 @@ class AppState {
         } else if (this.dataSource && (this.dataSource.toLowerCase() === "sine" || this.dataSource.toLowerCase() === "funcplot" || this.dataSource === "Function Plotter")) {
             // Restore auto-load of default plot on startup
             PluginService.LogDebug("AppState", "Auto-loading Function Plotter on startup", "");
-            const dampedSine = JSON.stringify({
-                functionName: "Damped Sine",
-                expression: "exp(-0.01*x) * sin(x * 0.1)",
-                xMin: 0,
-                xMax: 500,
-                numPoints: 1000
-            });
-            this.activatePlugin("Function Plotter", dampedSine);
+            this.resetToDefault(true);
         } else {
             PluginService.LogDebug("AppState", `initChart() no auto-load: dataSource=${this.dataSource}`, "");
         }
@@ -173,6 +167,33 @@ class AppState {
             this.error = e.message;
         }
         this.loading = false;
+    }
+
+    // Create the default plot
+    async resetToDefault(skipConfirmation = false) {
+        if (!skipConfirmation && !this.isDefault) {
+            const res = await Dialogs.Question({
+                Title: "Default Plot",
+                Message: "Clear current plot and return to default damped sine wave?",
+                Buttons: [
+                    { Label: "OK", IsDefault: true },
+                    { Label: "Cancel", IsCancel: true }
+                ]
+            });
+            if (res !== "OK") return;
+        }
+
+        const defaultConfig = JSON.stringify({
+            functionName: "Damped Sine",
+            expression: "exp(-0.01*x) * sin(x * 0.1)",
+            xMin: 0,
+            xMax: 500,
+            numPoints: 1000
+        });
+
+        await this.activatePlugin("Function Plotter", defaultConfig);
+        this.differentiateSeries("Damped Sine");
+        this.isDefault = true;
     }
 
     async addDataToChart(pluginName: string, initStr = "", asSubplots = false) {
@@ -211,6 +232,7 @@ class AppState {
             }
 
             this.currentSeriesData = [...this.currentSeriesData, ...newSeriesData];
+            this.isDefault = false;
             this.updateChart();
         } catch (e: any) {
             console.error("Failed to add data:", e);
@@ -302,6 +324,7 @@ class AppState {
             this.currentSeriesData = seriesData;
             this.currentTitle = `${source.charAt(0).toUpperCase() + source.slice(1)} Data`;
             this.dataSource = source;
+            this.isDefault = false; // Reset to false whenever any data is loaded
             this.updateChart();
         } catch (e: any) {
             console.error("Failed to fetch data:", e);
@@ -474,10 +497,10 @@ class AppState {
         for (let i = 0; i < numPoints; i++) {
             if (isArrays) {
                 newData[i] = series.data[i];
-                newData[numPoints + i] = (i === 0) ? 0 : (series.data[numPoints + i] - series.data[numPoints + i - 1]) / (series.data[i] - series.data[i - 1]);
+                newData[numPoints + i] = (i === 0) ? NaN : (series.data[numPoints + i] - series.data[numPoints + i - 1]) / (series.data[i] - series.data[i - 1]);
             } else {
                 newData[i * 2] = series.data[i * 2];
-                newData[i * 2 + 1] = (i === 0) ? 0 : (series.data[i * 2 + 1] - series.data[(i - 1) * 2 + 1]) / (series.data[i * 2] - series.data[(i - 1) * 2]);
+                newData[i * 2 + 1] = (i === 0) ? NaN : (series.data[i * 2 + 1] - series.data[(i - 1) * 2 + 1]) / (series.data[i * 2] - series.data[(i - 1) * 2]);
             }
         }
 
@@ -491,6 +514,7 @@ class AppState {
         };
 
         this.currentSeriesData = [...this.currentSeriesData, newSeries];
+        this.isDefault = false;
         this.updateChart();
     }
 

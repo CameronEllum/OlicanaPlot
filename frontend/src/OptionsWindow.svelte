@@ -1,6 +1,6 @@
 <script lang="ts">
     import { onMount } from "svelte";
-    import { Events, Window } from "@wailsio/runtime";
+    import { Events, Window, Dialogs } from "@wailsio/runtime";
     import * as ConfigService from "../bindings/olicanaplot/internal/appconfig/configservice";
     import * as PluginService from "../bindings/olicanaplot/internal/plugins/service";
     import ContextMenu from "./lib/ContextMenu.svelte";
@@ -99,10 +99,16 @@
             const oldLibrary = await ConfigService.GetChartLibrary();
 
             if (oldLibrary !== chartLibrary) {
-                const confirmed = confirm(
-                    "Changing the chart engine will erase the current plot and reset to defaults. Continue?",
-                );
-                if (!confirmed) {
+                const res = await Dialogs.Question({
+                    Title: "Change Chart Engine",
+                    Message:
+                        "Changing the chart engine will erase the current plot and reset to defaults. Continue?",
+                    Buttons: [
+                        { Label: "OK", IsDefault: true },
+                        { Label: "Cancel", IsCancel: true },
+                    ],
+                });
+                if (res !== "OK") {
                     chartLibrary = oldLibrary;
                     return;
                 }

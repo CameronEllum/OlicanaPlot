@@ -6,11 +6,10 @@
 <header class="main-header">
     <div
         class="logo"
-        onclick={() => appState.activatePlugin("Sine Wave", "Sine")}
+        onclick={() => appState.resetToDefault()}
         role="button"
         tabindex="0"
-        onkeydown={(e) =>
-            e.key === "Enter" && appState.activatePlugin("Sine Wave", "Sine")}
+        onkeydown={(e) => e.key === "Enter" && appState.resetToDefault()}
         oncontextmenu={(e) => appState.handleLogoContextMenu(e)}
         style="cursor: pointer;"
     >
