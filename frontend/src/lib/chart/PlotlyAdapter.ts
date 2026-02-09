@@ -91,11 +91,12 @@ export class PlotlyAdapter extends ChartAdapter {
     const textColor = darkMode ? "#ccc" : "#333";
     const bgColor = darkMode ? "#2b2b2b" : "#ffffff";
     const gridColor = darkMode ? "#444" : "#e0e0e0";
+    const axisLineColor = darkMode ? "#ccc" : "#000";
 
     const layout: any = {
       title: {
-        text: title,
-        font: { color: textColor },
+        text: `<b>${title}</b>`,
+        font: { color: textColor, size: 20 },
         x: 0.5,
         xanchor: "center" as const,
       },
@@ -139,6 +140,9 @@ export class PlotlyAdapter extends ChartAdapter {
         anchor: axes.y,
         matches: i === 0 ? undefined : "x", // link for sync zoom
         showticklabels: i === numSubplots - 1,
+        showline: true,
+        linewidth: 2,
+        linecolor: axisLineColor,
       };
 
       layout[axes.yaxisKey] = {
@@ -151,6 +155,9 @@ export class PlotlyAdapter extends ChartAdapter {
         tickfont: { color: textColor },
         domain: [Math.max(0, rowBottom), Math.min(1, rowTop)],
         anchor: axes.x,
+        showline: true,
+        linewidth: 2,
+        linecolor: axisLineColor,
       };
     }
 
