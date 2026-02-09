@@ -175,8 +175,13 @@ func (s *ConfigService) GetChartLibrary() string {
 func (s *ConfigService) SetChartLibrary(lib string) {
 	s.mu.Lock()
 	s.chartLibrary = lib
+	app := s.app
 	s.mu.Unlock()
 	s.saveConfig()
+
+	if app != nil {
+		app.Event.Emit("chartLibraryChanged", lib)
+	}
 }
 
 // GetTheme returns the current theme ("light" or "dark").
@@ -190,8 +195,13 @@ func (s *ConfigService) GetTheme() string {
 func (s *ConfigService) SetTheme(theme string) {
 	s.mu.Lock()
 	s.theme = theme
+	app := s.app
 	s.mu.Unlock()
 	s.saveConfig()
+
+	if app != nil {
+		app.Event.Emit("themeChanged", theme)
+	}
 }
 
 // GetLogLevel returns the current log level.

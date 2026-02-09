@@ -232,9 +232,17 @@ export class EChartsAdapter extends ChartAdapter {
   onContextMenu(handler: (event: ContextMenuEvent) => void) {
     if (!this.instance) return;
 
+    // Flag to prevent double-firing between component and global surface listeners
+    let handled = false;
+
     // Internal ECharts component events (Title, Legend, etc)
     this.instance.on("contextmenu", (params: any) => {
       const rawEvent = params.event?.event || params.event;
+      if (rawEvent && typeof rawEvent.stopPropagation === "function") {
+        rawEvent.stopPropagation();
+      }
+      handled = true;
+      setTimeout(() => { handled = false; }, 50);
 
       if (params.componentType === "title") {
         PluginService.LogDebug(
@@ -292,11 +300,13 @@ export class EChartsAdapter extends ChartAdapter {
 
     // Global ZRender surface events
     this.instance.getZr().on("contextmenu", (e: any) => {
-      // If e.target exists, it means ZRender hit an internal element
       // (handled by high-level 'contextmenu' event above).
-      if (e.target) return;
+      if (e.target || handled) return;
 
       const rawEvent = e.event || e;
+      if (rawEvent && typeof rawEvent.stopPropagation === "function") {
+        rawEvent.stopPropagation();
+      }
       const x = e.offsetX;
       const y = e.offsetY;
 

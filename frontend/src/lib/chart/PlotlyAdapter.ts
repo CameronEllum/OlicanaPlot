@@ -13,7 +13,7 @@ export class PlotlyAdapter extends ChartAdapter {
   public darkMode: boolean = false;
   public currentData: SeriesConfig[] | null = null;
   public lastSubplotCount: number = 0;
-  private contextMenuHandler: ((event: any) => void) | null = null;
+  private contextMenuHandler: ((event: ContextMenuEvent) => void) | null = null;
 
 
 
@@ -175,7 +175,8 @@ export class PlotlyAdapter extends ChartAdapter {
     Plotly.react(this.container, traces, layout, config);
 
     // Legend context menu logic
-    this.container.removeAllListeners("plotly_afterplot");
+    // Clean up old listeners before re-registering
+    this.container.off?.("plotly_afterplot");
     this.container.on("plotly_afterplot", () => {
       // Legend context menu
       const legendItems = this.container.querySelectorAll(
@@ -273,11 +274,31 @@ export class PlotlyAdapter extends ChartAdapter {
   // Attach a handler for legend click events and return false to prevent
   // Plotly's default toggling behavior.
   onLegendClick(handler: (seriesName: string, event: any) => void) {
-    if (!this.container) return;
-    this.container.on("plotly_legendclick", (event: any) => {
-      handler(event.data[event.curveNumber].name, event);
-      return false;
-    });
+    if (!this.container) {
+      PluginService.LogDebug("PlotlyAdapter", "onLegendClick: container is null", "");
+      return;
+    }
+
+    try {
+      PluginService.LogDebug("PlotlyAdapter", "Attaching plotly_legendclick", "");
+      if (typeof this.container.on === "function") {
+        this.container.on("plotly_legendclick", (event: any) => {
+          try {
+            const name = event.data[event.curveNumber].name;
+            PluginService.LogDebug("PlotlyAdapter", `Legend click detected: ${name}`, "");
+            handler(name, event);
+          } catch (e: any) {
+            PluginService.LogDebug("PlotlyAdapter", "Error in legend click handler callback", e.toString());
+          }
+          return false;
+        });
+        PluginService.LogDebug("PlotlyAdapter", "Successfully attached plotly_legendclick", "");
+      } else {
+        PluginService.LogDebug("PlotlyAdapter", "onLegendClick: container exists but .on is not a function", "");
+      }
+    } catch (e: any) {
+      PluginService.LogDebug("PlotlyAdapter", "Failed to attach plotly_legendclick", e.toString());
+    }
   }
 
   // Register a callback for handling right-click context menu events on the
@@ -286,6 +307,8 @@ export class PlotlyAdapter extends ChartAdapter {
     this.contextMenuHandler = handler;
     if (this.container) {
       this.container.addEventListener("contextmenu", (e: MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
         PluginService.LogDebug(
           "PlotlyAdapter",
           "Container context menu event",
