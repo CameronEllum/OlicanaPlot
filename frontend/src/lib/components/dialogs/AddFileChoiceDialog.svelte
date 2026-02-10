@@ -155,13 +155,6 @@
 <style>
     .visual-grid-modal {
         width: 500px;
-        max-width: 95vw;
-    }
-
-    .dialog-msg {
-        color: var(--text-secondary);
-        margin-bottom: 24px;
-        font-size: 0.95rem;
     }
 
     .grid-container {

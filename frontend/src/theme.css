@@ -97,14 +97,16 @@ body {
 .modal-content {
     background: var(--bg-glass);
     border: 1px solid var(--border-color);
-    border-radius: 12px;
-    padding: 16px 20px;
-    width: 460px;
-    max-width: 98vw;
+    border-radius: 20px;
+    padding: 24px 30px;
+    width: 480px;
+    max-width: 95vw;
     box-shadow: var(--shadow-premium);
     color: var(--text-primary);
     animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
     backdrop-filter: blur(20px);
+    position: relative;
+    overflow: hidden;
 }
 
 .modal-header {
@@ -140,11 +142,19 @@ body {
 }
 
 label {
-    font-size: 0.7rem;
+    font-size: 0.75rem;
     font-weight: 600;
     color: var(--text-secondary);
     text-transform: uppercase;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.05em;
+    margin-bottom: 4px;
+}
+
+.help-text {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    margin-top: 4px;
+    line-height: 1.4;
 }
 
 input[type="text"],
@@ -208,6 +218,66 @@ select:focus {
 .btn-secondary:hover {
     background: rgba(255, 255, 255, 0.1);
     border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* Selection Lists */
+.selection-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 20px 0;
+}
+
+.selection-item {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 14px 18px;
+    color: var(--text-primary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    text-align: left;
+    width: 100%;
+    font-family: inherit;
+}
+
+.selection-item:hover {
+    background: var(--accent-glow);
+    border-color: var(--accent);
+    transform: translateX(4px);
+}
+
+.selection-item .item-primary {
+    font-weight: 600;
+    font-size: 0.95rem;
+}
+
+/* Checkboxes */
+.checkbox-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    cursor: pointer;
+}
+
+.checkbox-item input[type="checkbox"] {
+    margin-top: 3px;
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+}
+
+.checkbox-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.checkbox-info .title {
+    font-size: 0.9rem;
+    font-weight: 600;
 }
 
 /* Layout Utilities */

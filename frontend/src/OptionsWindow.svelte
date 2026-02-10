@@ -339,7 +339,7 @@
                                 bind:checked={showGeneratorsMenu}
                             />
                             <div class="checkbox-info">
-                                <span>Show Generators Menu</span>
+                                <span class="title">Show Generators Menu</span>
                                 <p class="help-text">
                                     Display the "Generators" button in the main
                                     application toolbar.
@@ -787,22 +787,7 @@
     }
 
     .checkbox-item {
-        display: flex;
-        align-items: flex-start;
-        gap: 16px;
-        cursor: pointer;
-    }
-
-    .checkbox-info {
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-    }
-
-    .checkbox-info span {
-        font-size: 14px;
-        font-weight: 500;
-        color: var(--text-primary);
+        margin-top: 4px; /* Local adjustment for options layout */
     }
 
     .plugin-info {
