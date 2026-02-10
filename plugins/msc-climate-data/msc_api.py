@@ -121,7 +121,9 @@ def search_stations_bbox(
         "limit": 500,
     }
 
-    ipc_helpers.log("debug", f"Discovery OGC API Request: {url} params={params}")
+    ipc_helpers.log(
+        "debug", f"Discovery OGC API Request: {url} params={params}"
+    )
     with httpx.Client(timeout=30.0) as client:
         response = client.get(url, params=params)
         response.raise_for_status()
@@ -146,11 +148,16 @@ def search_stations_bbox(
     return sorted(stations_map.values(), key=lambda s: s.name)
 
 
-def fetch_daily_data(climate_id: str, start_date: str, end_date: str) -> list[DailyObservation]:
+def fetch_daily_data(
+    climate_id: str, start_date: str, end_date: str
+) -> list[DailyObservation]:
     """Fetch daily climate observations for a station and date range."""
     # Ensure start_date is before end_date
     if start_date > end_date:
-        ipc_helpers.log("warn", f"Dates were backwards: {start_date} -> {end_date}. Swapping.")
+        ipc_helpers.log(
+            "warn",
+            f"Dates were backwards: {start_date} -> {end_date}. Swapping.",
+        )
         start_date, end_date = end_date, start_date
 
     url = f"{BASE_URL}/collections/climate-daily/items"

@@ -45,10 +45,21 @@ def handle_initialize(args: str) -> None:
                     "location": {
                         "type": "object",
                         "title": "1. Pick a location on the map",
-                        "properties": {"lat": {"type": "number"}, "lng": {"type": "number"}},
+                        "properties": {
+                            "lat": {"type": "number"},
+                            "lng": {"type": "number"},
+                        },
                     },
-                    "startDate": {"type": "string", "title": "2. Start Date", "format": "date"},
-                    "endDate": {"type": "string", "title": "3. End Date", "format": "date"},
+                    "startDate": {
+                        "type": "string",
+                        "title": "2. Start Date",
+                        "format": "date",
+                    },
+                    "endDate": {
+                        "type": "string",
+                        "title": "3. End Date",
+                        "format": "date",
+                    },
                 },
             }
             ui = {
@@ -57,8 +68,14 @@ def handle_initialize(args: str) -> None:
                 "startDate": {"ui:widget": "date"},
                 "endDate": {"ui:widget": "date"},
             }
-            data = {"location": coords, "startDate": start_date, "endDate": end_date}
-            ipc_helpers.send_show_form("MSC Climate Discovery - Step 1/2", schema, ui, data)
+            data = {
+                "location": coords,
+                "startDate": start_date,
+                "endDate": end_date,
+            }
+            ipc_helpers.send_show_form(
+                "MSC Climate Discovery - Step 1/2", schema, ui, data
+            )
 
         elif step == 2:
             schema = {
@@ -70,15 +87,24 @@ def handle_initialize(args: str) -> None:
                         "type": "string",
                         "title": "4. Select verified station",
                         "oneOf": [
-                            {"const": s.climate_id, "title": f"{s.name} ({s.climate_id})"}
+                            {
+                                "const": s.climate_id,
+                                "title": f"{s.name} ({s.climate_id})",
+                            }
                             for s in discovered_stations
                         ],
                     }
                 },
             }
             ui = {"station": {"ui:widget": "select"}}
-            data = {"station": discovered_stations[0].climate_id if discovered_stations else ""}
-            ipc_helpers.send_show_form("MSC Climate Discovery - Step 2/2", schema, ui, data)
+            data = {
+                "station": discovered_stations[0].climate_id
+                if discovered_stations
+                else ""
+            }
+            ipc_helpers.send_show_form(
+                "MSC Climate Discovery - Step 2/2", schema, ui, data
+            )
 
         req = ipc_helpers.read_request()
         if not req:
@@ -92,7 +118,8 @@ def handle_initialize(args: str) -> None:
                 end_date = res.get("endDate", end_date)
 
                 ipc_helpers.log(
-                    "info", f"Verifying stations near {coords['lat']}, {coords['lng']}..."
+                    "info",
+                    f"Verifying stations near {coords['lat']}, {coords['lng']}...",
                 )
                 try:
                     discovered_stations = msc_api.search_stations_bbox(
@@ -115,7 +142,14 @@ def handle_initialize(args: str) -> None:
 
             elif step == 2:
                 selected_id = res["station"]
-                stn = next((s for s in discovered_stations if s.climate_id == selected_id), None)
+                stn = next(
+                    (
+                        s
+                        for s in discovered_stations
+                        if s.climate_id == selected_id
+                    ),
+                    None,
+                )
                 if not stn:
                     ipc_helpers.send_error("Selection lost. Please try again.")
                     step = 1
@@ -125,9 +159,13 @@ def handle_initialize(args: str) -> None:
                 state.start_date = start_date
                 state.end_date = end_date
 
-                ipc_helpers.log("info", f"Selected {stn.name}. Fetching full data set...")
+                ipc_helpers.log(
+                    "info", f"Selected {stn.name}. Fetching full data set..."
+                )
                 try:
-                    state.observations = msc_api.fetch_daily_data(selected_id, start_date, end_date)
+                    state.observations = msc_api.fetch_daily_data(
+                        selected_id, start_date, end_date
+                    )
                     if not state.observations:
                         ipc_helpers.send_error(
                             "Station verification failed: no actual observations returned."
@@ -135,7 +173,10 @@ def handle_initialize(args: str) -> None:
                         step = 1
                         continue
 
-                    ipc_helpers.log("info", f"Loaded {len(state.observations)} daily observations")
+                    ipc_helpers.log(
+                        "info",
+                        f"Loaded {len(state.observations)} daily observations",
+                    )
                     ipc_helpers.send_response({"result": "initialized"})
                     break
                 except Exception as e:
@@ -164,9 +205,21 @@ def handle_get_chart_config() -> None:
 def handle_get_series_config() -> None:
     prefix = f"{state.station.name} " if state.station else ""
     series = [
-        {"id": "mean_temp", "name": f"{prefix}Mean Temp", "color": ipc_helpers.CHART_COLORS[0]},
-        {"id": "min_temp", "name": f"{prefix}Min Temp", "color": ipc_helpers.CHART_COLORS[2]},
-        {"id": "max_temp", "name": f"{prefix}Max Temp", "color": ipc_helpers.CHART_COLORS[1]},
+        {
+            "id": "mean_temp",
+            "name": f"{prefix}Mean Temp",
+            "color": ipc_helpers.CHART_COLORS[0],
+        },
+        {
+            "id": "min_temp",
+            "name": f"{prefix}Min Temp",
+            "color": ipc_helpers.CHART_COLORS[2],
+        },
+        {
+            "id": "max_temp",
+            "name": f"{prefix}Max Temp",
+            "color": ipc_helpers.CHART_COLORS[1],
+        },
     ]
     ipc_helpers.send_response({"result": series})
 
@@ -217,7 +270,9 @@ def main() -> None:
 
         method = req.get("method")
         if method == "info":
-            ipc_helpers.send_response({"name": "MSC Climate Data", "version": 1})
+            ipc_helpers.send_response(
+                {"name": "MSC Climate Data", "version": 1}
+            )
         elif method == "initialize":
             handle_initialize(req.get("args", ""))
         elif method == "get_chart_config":
@@ -226,7 +281,8 @@ def main() -> None:
             handle_get_series_config()
         elif method == "get_series_data":
             handle_get_series_data(
-                req.get("series_id", ""), req.get("preferred_storage", "interleaved")
+                req.get("series_id", ""),
+                req.get("preferred_storage", "interleaved"),
             )
         else:
             ipc_helpers.send_error(f"Unknown method: {method}")
