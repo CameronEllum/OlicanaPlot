@@ -107,13 +107,15 @@
                     Message:
                         "Changing the chart engine will erase the current plot and reset to defaults. Continue?",
                     Buttons: [
-                        { Label: "OK", IsDefault: true },
-                        { Label: "Cancel", IsCancel: true },
+                        { Label: "Yes", IsDefault: true },
+                        { Label: "No", IsCancel: true },
                     ],
                 });
 
+                PluginService.LogDebug("Options", "Dialog result: " + res, "");
+
                 // In Wails v3, the result is the label of the button clicked.
-                if (res !== "OK") {
+                if (res !== "Yes") {
                     chartLibrary = oldLibrary;
                     return;
                 }
