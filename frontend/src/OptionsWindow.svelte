@@ -10,6 +10,7 @@
     let logLevel = $state("info");
     let chartLibrary = $state("echarts");
     let plugins = $state<any[]>([]);
+    let pluginSearchDirs = $state<string[]>([]);
     let showGeneratorsMenu = $state(true);
     let defaultLineWidth = $state(2.0);
     let activeTab = $state("general");
@@ -30,6 +31,7 @@
             logLevel = await ConfigService.GetLogLevel();
             chartLibrary = await ConfigService.GetChartLibrary();
             plugins = await PluginService.ListPlugins();
+            pluginSearchDirs = await ConfigService.GetPluginSearchDirs();
             showGeneratorsMenu = await ConfigService.GetShowGeneratorsMenu();
             defaultLineWidth = await ConfigService.GetDefaultLineWidth();
             isMaximised = await Window.IsMaximised();
@@ -123,6 +125,10 @@
 
             await ConfigService.SetShowGeneratorsMenu(showGeneratorsMenu);
             await ConfigService.SetDefaultLineWidth(defaultLineWidth);
+            await ConfigService.SetPluginSearchDirs(
+                $state.snapshot(pluginSearchDirs),
+            );
+
             PluginService.LogDebug(
                 "Options",
                 "handleSave complete, closing window",
@@ -144,6 +150,25 @@
             console.error("Failed to open log file:", e);
             alert("Failed to open log file: " + e.message);
         }
+    }
+
+    async function handleAddSearchDir() {
+        try {
+            const result = await Dialogs.OpenFile({
+                Title: "Select Plugin Search Directory",
+                CanChooseDirectories: true,
+                CanChooseFiles: false,
+            });
+            if (result && !pluginSearchDirs.includes(result as string)) {
+                pluginSearchDirs.push(result as string);
+            }
+        } catch (e) {
+            console.error("Failed to choose directory:", e);
+        }
+    }
+
+    function handleRemoveSearchDir(dir: string) {
+        pluginSearchDirs = pluginSearchDirs.filter((d) => d !== dir);
     }
 </script>
 
@@ -366,6 +391,66 @@
                         </div>
                     </section>
                 {:else if activeTab === "plugins"}
+                    <section class="plugin-section">
+                        <div class="section-header">
+                            <h3>Plugin Search Directories</h3>
+                            <button
+                                class="btn btn-secondary btn-sm"
+                                onclick={handleAddSearchDir}
+                            >
+                                <svg
+                                    viewBox="0 0 24 24"
+                                    width="14"
+                                    height="14"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                    fill="none"
+                                >
+                                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                                </svg>
+                                Add Directory
+                            </button>
+                        </div>
+                        <div class="dir-list">
+                            <div class="dir-item built-in">
+                                <span class="dir-path">Built-in Plugins</span>
+                                <span class="badge">Read-only</span>
+                            </div>
+                            {#each pluginSearchDirs as dir}
+                                <div class="dir-item">
+                                    <span class="dir-path" title={dir}
+                                        >{dir}</span
+                                    >
+                                    <button
+                                        class="icon-btn remove-btn"
+                                        onclick={() =>
+                                            handleRemoveSearchDir(dir)}
+                                        title="Remove directory"
+                                    >
+                                        <svg
+                                            viewBox="0 0 24 24"
+                                            width="14"
+                                            height="14"
+                                            stroke="currentColor"
+                                            stroke-width="2"
+                                            fill="none"
+                                        >
+                                            <line x1="18" y1="6" x2="6" y2="18"
+                                            ></line>
+                                            <line x1="6" y1="6" x2="18" y2="18"
+                                            ></line>
+                                        </svg>
+                                    </button>
+                                </div>
+                            {/each}
+                        </div>
+                        <p class="help-text mt-8">
+                            Note: Changes to search directories require an
+                            application restart to take effect.
+                        </p>
+                    </section>
+
                     <section class="plugin-section">
                         <h3>External Plugins</h3>
                         <div class="plugin-list">
@@ -813,5 +898,94 @@
         font-size: 11px;
         margin-top: 4px;
         word-break: break-all;
+    }
+
+    .section-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 16px;
+    }
+
+    .section-header h3 {
+        margin-bottom: 0 !important;
+    }
+
+    .dir-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        background: var(--bg-tertiary);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        padding: 8px;
+    }
+
+    .dir-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        padding: 8px 12px;
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        font-size: 13px;
+    }
+
+    .dir-path {
+        flex: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        color: var(--text-primary);
+    }
+
+    .icon-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 24px;
+        height: 24px;
+        border: none;
+        background: transparent;
+        color: var(--text-secondary);
+        cursor: pointer;
+        border-radius: 4px;
+        transition: all 0.2s;
+    }
+
+    .icon-btn:hover {
+        background: rgba(0, 0, 0, 0.05);
+        color: var(--text-primary);
+    }
+
+    .remove-btn:hover {
+        background: rgba(232, 17, 35, 0.1) !important;
+        color: #e81123 !important;
+    }
+
+    .badge {
+        font-size: 10px;
+        padding: 2px 6px;
+        background: var(--bg-primary);
+        color: var(--text-secondary);
+        border-radius: 4px;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        font-weight: 600;
+        border: 1px solid var(--border-color);
+    }
+
+    .btn-sm {
+        padding: 4px 10px;
+        font-size: 12px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .mt-8 {
+        margin-top: 8px;
     }
 </style>

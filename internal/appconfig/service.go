@@ -28,6 +28,7 @@ type ConfigService struct {
 	showGeneratorsMenu bool
 	defaultLineWidth   float64
 	functionPresets    []FunctionPreset
+	pluginSearchDirs   []string
 }
 
 // FunctionPreset represents a user-saved function configuration
@@ -49,6 +50,7 @@ type configData struct {
 	ShowGeneratorsMenu bool             `json:"showGeneratorsMenu"`
 	DefaultLineWidth   float64          `json:"defaultLineWidth"`
 	FunctionPresets    []FunctionPreset `json:"functionPresets"`
+	PluginSearchDirs   []string         `json:"pluginSearchDirs"`
 }
 
 // NewConfigService creates a new config service with default values.
@@ -138,6 +140,7 @@ func (s *ConfigService) loadConfig() {
 	// Apply log level
 	logging.SetLevel(s.logLevel)
 	s.functionPresets = cfg.FunctionPresets
+	s.pluginSearchDirs = cfg.PluginSearchDirs
 }
 
 func (s *ConfigService) saveConfig() {
@@ -151,6 +154,7 @@ func (s *ConfigService) saveConfig() {
 		ShowGeneratorsMenu: s.showGeneratorsMenu,
 		DefaultLineWidth:   s.defaultLineWidth,
 		FunctionPresets:    s.functionPresets,
+		PluginSearchDirs:   s.pluginSearchDirs,
 	}
 	s.mu.RUnlock()
 
@@ -372,5 +376,28 @@ func (s *ConfigService) OpenURL(url string) {
 
 	if app != nil {
 		app.Browser.OpenURL(url)
+	}
+}
+
+// GetPluginSearchDirs returns the list of directories to search for plugins.
+func (s *ConfigService) GetPluginSearchDirs() []string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	// Return a copy
+	dirs := make([]string, len(s.pluginSearchDirs))
+	copy(dirs, s.pluginSearchDirs)
+	return dirs
+}
+
+// SetPluginSearchDirs updates the plugin search directories and notifies listeners.
+func (s *ConfigService) SetPluginSearchDirs(dirs []string) {
+	s.mu.Lock()
+	s.pluginSearchDirs = dirs
+	app := s.app
+	s.mu.Unlock()
+	s.saveConfig()
+
+	if app != nil {
+		app.Event.Emit("pluginSearchDirsChanged", dirs)
 	}
 }

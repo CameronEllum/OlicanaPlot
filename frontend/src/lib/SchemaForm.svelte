@@ -1,4 +1,5 @@
 <script lang="ts">
+    import MapPicker from "./MapPicker.svelte";
     import { onMount } from "svelte";
     import { Events } from "@wailsio/runtime";
 
@@ -13,6 +14,7 @@
         step?: number;
         enum?: any[];
         oneOf?: any[];
+        format?: string;
         items?: {
             type?: string;
             enum?: any[];
@@ -28,12 +30,10 @@
         scale?: "log10";
     }
 
-    interface UiSchemaEntry {
-        "ui:widget"?: string;
-        "ui:options"?: UiSchemaOptions;
+    interface UiSchema {
+        "ui:order"?: string[];
+        [key: string]: any;
     }
-
-    type UiSchema = Record<string, UiSchemaEntry>;
 
     // Receive schema, initial data, and callback handlers via props.
     let {
@@ -216,120 +216,149 @@
 
     <div class="form-content">
         {#if schema && schema.properties}
-            {#each Object.keys(schema.properties) as key}
+            {#each uiSchema?.["ui:order"] || Object.keys(schema.properties) as key}
                 {@const prop = schema.properties[key]}
-                {@const ui = (uiSchema || {})[key] || {}}
+                {#if prop}
+                    {@const ui = (uiSchema || {})[key] || {}}
 
-                <div class="form-group">
-                    <div class="label-row">
-                        <label for={key}>{prop.title || key}</label>
-                        {#if ui["ui:widget"] === "range"}
-                            <span class="slider-value"
-                                >{formatValue(key, formData[key])}</span
-                            >
-                        {/if}
-                    </div>
+                    <div class="form-group">
+                        <div class="label-row">
+                            <label for={key}>{prop.title || key}</label>
+                            {#if ui["ui:widget"] === "range"}
+                                <span class="slider-value"
+                                    >{formatValue(key, formData[key])}</span
+                                >
+                            {/if}
+                        </div>
 
-                    {#if prop.enum || prop.oneOf}
-                        <select id={key} bind:value={formData[key]}>
-                            {#if prop.oneOf}
-                                {#each prop.oneOf as option}
-                                    <option
-                                        value={option.const !== undefined
+                        {#if ui["ui:widget"] === "map-picker"}
+                            <MapPicker
+                                lat={formData[key]?.lat}
+                                lng={formData[key]?.lng}
+                                onSelect={(lat, lng) => {
+                                    formData[key] = { lat, lng };
+                                }}
+                            />
+                        {:else if prop.enum || prop.oneOf}
+                            <select id={key} bind:value={formData[key]}>
+                                {#if prop.oneOf}
+                                    {#each prop.oneOf as option}
+                                        <option
+                                            value={option.const !== undefined
+                                                ? option.const
+                                                : option}
+                                        >
+                                            {option.title || option}
+                                        </option>
+                                    {/each}
+                                {:else if prop.enum}
+                                    {#each prop.enum as option}
+                                        <option value={option}>{option}</option>
+                                    {/each}
+                                {/if}
+                            </select>
+                        {:else if prop.type === "array" && (prop.items?.enum || prop.items?.oneOf)}
+                            <div class="checkbox-group">
+                                {#each prop.items!.oneOf || prop.items!.enum!.map( (v) => ({ const: v, title: v }), ) as option}
+                                    {@const val =
+                                        option.const !== undefined
                                             ? option.const
                                             : option}
-                                    >
-                                        {option.title || option}
-                                    </option>
+                                    <label class="checkbox-label">
+                                        <input
+                                            type="checkbox"
+                                            checked={(
+                                                formData[key] || []
+                                            ).includes(val)}
+                                            onchange={(e) => {
+                                                const current =
+                                                    formData[key] || [];
+                                                const target =
+                                                    e.target as HTMLInputElement;
+                                                if (target.checked) {
+                                                    formData[key] = [
+                                                        ...current,
+                                                        val,
+                                                    ];
+                                                } else {
+                                                    formData[key] =
+                                                        current.filter(
+                                                            (v: any) =>
+                                                                v !== val,
+                                                        );
+                                                }
+                                            }}
+                                        />
+                                        {option.title || val}
+                                    </label>
                                 {/each}
-                            {:else if prop.enum}
-                                {#each prop.enum as option}
-                                    <option value={option}>{option}</option>
-                                {/each}
-                            {/if}
-                        </select>
-                    {:else if prop.type === "array" && (prop.items?.enum || prop.items?.oneOf)}
-                        <div class="checkbox-group">
-                            {#each prop.items!.oneOf || prop.items!.enum!.map( (v) => ({ const: v, title: v }), ) as option}
-                                {@const val =
-                                    option.const !== undefined
-                                        ? option.const
-                                        : option}
-                                <label class="checkbox-label">
+                            </div>
+                        {:else if prop.type === "integer" || prop.type === "number"}
+                            {#if ui["ui:widget"] === "range"}
+                                <div class="slider-group">
                                     <input
-                                        type="checkbox"
-                                        checked={(formData[key] || []).includes(
-                                            val,
+                                        type="range"
+                                        id={key}
+                                        min={ui["ui:options"]?.scale === "log10"
+                                            ? Math.log10(prop.minimum || 1)
+                                            : prop.minimum || 0}
+                                        max={ui["ui:options"]?.scale === "log10"
+                                            ? Math.log10(prop.maximum || 100)
+                                            : prop.maximum || 100}
+                                        step={ui["ui:options"]?.scale ===
+                                        "log10"
+                                            ? 0.1
+                                            : prop.step || 1}
+                                        value={getSliderValue(
+                                            key,
+                                            formData[key],
                                         )}
-                                        onchange={(e) => {
-                                            const current = formData[key] || [];
+                                        oninput={(e) => {
                                             const target =
                                                 e.target as HTMLInputElement;
-                                            if (target.checked) {
-                                                formData[key] = [
-                                                    ...current,
-                                                    val,
-                                                ];
-                                            } else {
-                                                formData[key] = current.filter(
-                                                    (v: any) => v !== val,
-                                                );
-                                            }
+                                            setSliderValue(
+                                                key,
+                                                parseFloat(target.value),
+                                            );
                                         }}
                                     />
-                                    {option.title || val}
-                                </label>
-                            {/each}
-                        </div>
-                    {:else if prop.type === "integer" || prop.type === "number"}
-                        {#if ui["ui:widget"] === "range"}
-                            <div class="slider-group">
+                                </div>
+                            {:else}
                                 <input
-                                    type="range"
+                                    type="number"
                                     id={key}
-                                    min={ui["ui:options"]?.scale === "log10"
-                                        ? Math.log10(prop.minimum || 1)
-                                        : prop.minimum || 0}
-                                    max={ui["ui:options"]?.scale === "log10"
-                                        ? Math.log10(prop.maximum || 100)
-                                        : prop.maximum || 100}
-                                    step={ui["ui:options"]?.scale === "log10"
-                                        ? 0.1
-                                        : prop.step || 1}
-                                    value={getSliderValue(key, formData[key])}
-                                    oninput={(e) => {
-                                        const target =
-                                            e.target as HTMLInputElement;
-                                        setSliderValue(
-                                            key,
-                                            parseFloat(target.value),
-                                        );
-                                    }}
+                                    bind:value={formData[key]}
+                                    min={prop.minimum}
+                                    max={prop.maximum}
+                                    step={prop.step}
                                 />
-                            </div>
-                        {:else}
+                            {/if}
+                        {:else if ui["ui:widget"] === "date" || prop.format === "date"}
                             <input
-                                type="number"
+                                type="date"
                                 id={key}
                                 bind:value={formData[key]}
-                                min={prop.minimum}
-                                max={prop.maximum}
-                                step={prop.step}
+                            />
+                        {:else if ui["ui:widget"] === "datetime-local" || prop.format === "date-time"}
+                            <input
+                                type="datetime-local"
+                                id={key}
+                                bind:value={formData[key]}
+                            />
+                        {:else}
+                            <input
+                                type="text"
+                                id={key}
+                                bind:value={formData[key]}
+                                placeholder={prop.default}
                             />
                         {/if}
-                    {:else}
-                        <input
-                            type="text"
-                            id={key}
-                            bind:value={formData[key]}
-                            placeholder={prop.default}
-                        />
-                    {/if}
 
-                    {#if prop.description}
-                        <p class="description">{prop.description}</p>
-                    {/if}
-                </div>
+                        {#if prop.description}
+                            <p class="description">{prop.description}</p>
+                        {/if}
+                    </div>
+                {/if}
             {/each}
         {/if}
     </div>

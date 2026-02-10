@@ -1,0 +1,5 @@
+{
+    "name": "MSC Climate Data",
+    "patterns": [],
+    "command": "uv run main.py"
+}

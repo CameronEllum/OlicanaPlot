@@ -24,14 +24,14 @@ import (
 
 // Loader discovers and manages IPC plugins.
 type Loader struct {
-	pluginsDir string
+	searchDirs []string
 	logger     logging.Logger
 }
 
 // NewLoader creates a new IPC plugin loader.
-func NewLoader(pluginsDir string, logger logging.Logger) *Loader {
+func NewLoader(searchDirs []string, logger logging.Logger) *Loader {
 	return &Loader{
-		pluginsDir: pluginsDir,
+		searchDirs: searchDirs,
 		logger:     logger,
 	}
 }
@@ -40,48 +40,62 @@ func NewLoader(pluginsDir string, logger logging.Logger) *Loader {
 func (l *Loader) Discover() ([]*Plugin, error) {
 	var result []*Plugin
 
-	l.logger.Info("Scanning for IPC plugins", "dir", l.pluginsDir)
+	for _, dir := range l.searchDirs {
+		l.logger.Info("Scanning for IPC plugins", "dir", dir)
 
-	// Check if plugins directory exists
-	if _, err := os.Stat(l.pluginsDir); os.IsNotExist(err) {
-		l.logger.Warn("IPC plugins directory not found", "dir", l.pluginsDir)
-		return nil, nil
-	}
-
-	entries, err := os.ReadDir(l.pluginsDir)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read plugins directory: %w", err)
-	}
-
-	execSuffix := ""
-	if runtime.GOOS == "windows" {
-		execSuffix = ".exe"
-	}
-
-	for _, entry := range entries {
-		if !entry.IsDir() {
+		// Check if directory exists
+		if _, err := os.Stat(dir); os.IsNotExist(err) {
+			l.logger.Warn("IPC plugins search directory not found", "dir", dir)
 			continue
 		}
 
-		// Look for executable with same name as directory
-		dirName := entry.Name()
-		execName := dirName + execSuffix
-		execPath := filepath.Join(l.pluginsDir, dirName, execName)
-
-		if _, err := os.Stat(execPath); err != nil {
-			l.logger.Debug("Skipping directory: no executable found", "dir", dirName, "exec", execName)
-			continue
-		}
-
-		l.logger.Info("Found IPC plugin candidate", "path", execPath)
-
-		plugin, err := NewPlugin(execPath)
+		entries, err := os.ReadDir(dir)
 		if err != nil {
-			l.logger.Error("Failed to load IPC plugin", "dir", dirName, "error", err)
+			l.logger.Error("Failed to read plugins search directory", "dir", dir, "error", err)
 			continue
 		}
 
-		result = append(result, plugin)
+		execSuffix := ""
+		if runtime.GOOS == "windows" {
+			execSuffix = ".exe"
+		}
+
+		for _, entry := range entries {
+			if !entry.IsDir() {
+				continue
+			}
+
+			pluginDir := filepath.Join(dir, entry.Name())
+			manifestPath := filepath.Join(pluginDir, "olicana-plot-plugin.json")
+
+			var plugin *Plugin
+			var err error
+
+			// 1. Try JSON manifest discovery (highest priority)
+			if _, errStat := os.Stat(manifestPath); errStat == nil {
+				l.logger.Info("Found JSON manifest plugin", "path", manifestPath)
+				plugin, err = l.NewPluginFromManifest(manifestPath)
+			} else {
+				// 2. Fallback to executable matching directory name
+				dirName := entry.Name()
+				execName := dirName + execSuffix
+				execPath := filepath.Join(pluginDir, execName)
+
+				if _, errStat := os.Stat(execPath); errStat == nil {
+					l.logger.Info("Found executable IPC plugin", "path", execPath)
+					plugin, err = NewPlugin(execPath)
+				}
+			}
+
+			if err != nil {
+				l.logger.Error("Failed to load IPC plugin", "dir", entry.Name(), "error", err)
+				continue
+			}
+
+			if plugin != nil {
+				result = append(result, plugin)
+			}
+		}
 	}
 
 	l.logger.Info("IPC discovery complete", "count", len(result))
@@ -92,6 +106,8 @@ func (l *Loader) Discover() ([]*Plugin, error) {
 type Plugin struct {
 	mu           sync.Mutex
 	execPath     string
+	execArgs     []string
+	workDir      string
 	cmd          *exec.Cmd
 	stdin        io.WriteCloser
 	stdout       *bufio.Reader
@@ -136,6 +152,65 @@ type Response struct {
 type PluginMetadata struct {
 	Name         string                `json:"name"`
 	FilePatterns []plugins.FilePattern `json:"patterns"`
+	Command      interface{}           `json:"command"` // string or []string
+	WorkDir      string                `json:"workDir"` // optional
+}
+
+// NewPluginFromManifest creates an IPC plugin wrapper from a JSON manifest file.
+func (l *Loader) NewPluginFromManifest(manifestPath string) (*Plugin, error) {
+	data, err := os.ReadFile(manifestPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read manifest: %w", err)
+	}
+
+	var meta PluginMetadata
+	if err := json.Unmarshal(data, &meta); err != nil {
+		return nil, fmt.Errorf("failed to parse manifest: %w", err)
+	}
+
+	pluginDir := filepath.Dir(manifestPath)
+
+	p := &Plugin{
+		name:         meta.Name,
+		filePatterns: meta.FilePatterns,
+		workDir:      pluginDir,
+		version:      1,
+	}
+
+	// Override workDir if specified in manifest (relative to plugin dir or absolute)
+	if meta.WorkDir != "" {
+		if filepath.IsAbs(meta.WorkDir) {
+			p.workDir = meta.WorkDir
+		} else {
+			p.workDir = filepath.Join(pluginDir, meta.WorkDir)
+		}
+	}
+
+	// Parse command
+	switch cmd := meta.Command.(type) {
+	case string:
+		// Simple space splitting for basic commands
+		parts := strings.Fields(cmd)
+		if len(parts) == 0 {
+			return nil, fmt.Errorf("empty command in manifest")
+		}
+		p.execPath = parts[0]
+		if len(parts) > 1 {
+			p.execArgs = parts[1:]
+		}
+	case []interface{}:
+		if len(cmd) == 0 {
+			return nil, fmt.Errorf("empty command array in manifest")
+		}
+		p.execPath = fmt.Sprint(cmd[0])
+		for i := 1; i < len(cmd); i++ {
+			p.execArgs = append(p.execArgs, fmt.Sprint(cmd[i]))
+		}
+	default:
+		return nil, fmt.Errorf("invalid command format in manifest (must be string or array)")
+	}
+
+	return p, nil
 }
 
 // NewPlugin creates an IPC plugin wrapper and fetches its metadata.
@@ -160,6 +235,7 @@ func NewPlugin(execPath string) (*Plugin, error) {
 
 	p := &Plugin{
 		execPath: execPath,
+		workDir:  filepath.Dir(execPath),
 		name:     displayName, // Default
 		version:  1,
 	}
@@ -190,7 +266,8 @@ func (p *Plugin) start() error {
 		return nil
 	}
 
-	p.cmd = exec.Command(p.execPath)
+	p.cmd = exec.Command(p.execPath, p.execArgs...)
+	p.cmd.Dir = p.workDir
 	configureCommand(p.cmd, true)
 
 	stdin, err := p.cmd.StdinPipe()
@@ -413,13 +490,16 @@ func (p *Plugin) handleShowForm(formMsg Response) error {
 		}()
 	}
 
-	// Unmarshal schema and uiSchema so they are sent as objects, not raw bytes
-	var schemaObj, uiSchemaObj interface{}
+	// Unmarshal schema, uiSchema and initial data so they are sent as objects, not raw bytes
+	var schemaObj, uiSchemaObj, dataObj interface{}
 	if len(formMsg.Schema) > 0 {
 		json.Unmarshal(formMsg.Schema, &schemaObj)
 	}
 	if len(formMsg.UISchema) > 0 {
 		json.Unmarshal(formMsg.UISchema, &uiSchemaObj)
+	}
+	if len(formMsg.Data) > 0 {
+		json.Unmarshal(formMsg.Data, &dataObj)
 	}
 
 	// Create a new window for the dialog
@@ -454,6 +534,7 @@ func (p *Plugin) handleShowForm(formMsg Response) error {
 		p.app.Event.Emit(`ipc-form-init-`+requestID, map[string]interface{}{
 			"schema":           schemaObj,
 			"uiSchema":         uiSchemaObj,
+			"data":             dataObj,
 			"handleFormChange": formMsg.HandleFormChange,
 		})
 	})

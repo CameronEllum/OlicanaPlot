@@ -79,9 +79,10 @@ func main() {
 		logger.Warn("Failed to register CSV plugin", "error", err)
 	}
 
-	// Load IPC plugins
-	pluginsDir, _ := filepath.Abs("plugins")
-	loader := ipc.NewLoader(pluginsDir, logger)
+	// Load IPC plugins from both built-in and user-configured directories
+	builtInDir, _ := filepath.Abs("plugins")
+	searchDirs := append([]string{builtInDir}, configService.GetPluginSearchDirs()...)
+	loader := ipc.NewLoader(searchDirs, logger)
 	ipcPlugins, err := loader.Discover()
 	if err != nil {
 		logger.Warn("Failed to discover IPC plugins", "error", err)
