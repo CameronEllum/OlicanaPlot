@@ -162,10 +162,11 @@ def handle_get_chart_config() -> None:
 
 
 def handle_get_series_config() -> None:
+    prefix = f"{state.station.name} " if state.station else ""
     series = [
-        {"id": "mean_temp", "name": "Mean Temp", "color": ipc_helpers.CHART_COLORS[0]},
-        {"id": "min_temp", "name": "Min Temp", "color": ipc_helpers.CHART_COLORS[2]},  # Greenish
-        {"id": "max_temp", "name": "Max Temp", "color": ipc_helpers.CHART_COLORS[1]},  # Reddish
+        {"id": "mean_temp", "name": f"{prefix}Mean Temp", "color": ipc_helpers.CHART_COLORS[0]},
+        {"id": "min_temp", "name": f"{prefix}Min Temp", "color": ipc_helpers.CHART_COLORS[2]},
+        {"id": "max_temp", "name": f"{prefix}Max Temp", "color": ipc_helpers.CHART_COLORS[1]},
     ]
     ipc_helpers.send_response({"result": series})
 

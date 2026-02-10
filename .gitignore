@@ -28,3 +28,7 @@ plugins/**/*.exe
 *.obj
 *.pdb
 *.ilk
+
+# Python
+*.pyc
+__pycache__/
