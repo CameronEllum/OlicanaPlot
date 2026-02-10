@@ -79,7 +79,7 @@ export class EChartsAdapter extends ChartAdapter {
       const left = 8 + cell.col * cellWidth;
       return {
         left: `${left}%`,
-        right: cell.col === maxCol ? getGridRight(seriesArr) : `${100 - (left + cellWidth - gap)}%`,
+        right: cell.col === maxCol ? "4%" : `${100 - (left + cellWidth - gap)}%`,
         top: `${top}%`,
         height: `${cellHeight - gap}%`,
         width: `${cellWidth - gap}%`,
@@ -168,9 +168,9 @@ export class EChartsAdapter extends ChartAdapter {
       ],
       legend: {
         data: seriesArr.map((s) => s.name),
-        orient: "vertical" as const,
-        right: 10,
-        top: 60,
+        orient: "horizontal" as const,
+        bottom: 0,
+        left: "center",
         textStyle: { color: textColor },
         type: "scroll" as const,
         triggerEvent: true,
