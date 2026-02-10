@@ -30,7 +30,7 @@ class AppState {
     currentSeriesData = $state<SeriesConfig[]>([]);
     currentTitle = $state("");
     xAxisName = $state("Time");
-    subplotNames = $state<Record<number, string>>({});
+    subplotNames = $state<Record<string, string>>({}); // key is "row,col"
     allPlugins = $state<AppPlugin[]>([]);
     showGeneratorsMenu = $state(true);
     defaultLineWidth = $state(2.0);
@@ -40,9 +40,9 @@ class AppState {
     pluginSelectionCandidates = $state<string[]>([]);
     pendingFilePath = $state("");
     pendingAddMode = $state(false);
-    pendingAsSubplots = $state(false);
+    pendingTargetCell = $state({ row: 0, col: 0 });
     addFileChoiceVisible = $state(false);
-    private addFileChoiceResolver: ((val: boolean | null) => void) | null = null;
+    private addFileChoiceResolver: ((val: { row: number; col: number } | null) => void) | null = null;
 
     renameVisible = $state(false);
     renameModalTitle = $state("");
@@ -94,7 +94,7 @@ class AppState {
 
     setupEventListeners() {
         this.unsubs.push(Events.On("chartLibraryChanged", (val: any) => {
-            this.chartLibrary = val.data as string;
+            this.chartLibrary = (Array.isArray(val.data) ? val.data[0] : val.data) as string;
             // Clear current data and reset to Sine Wave as requested
             this.currentSeriesData = [];
             this.dataSource = "sine";
@@ -102,11 +102,11 @@ class AppState {
         }));
 
         this.unsubs.push(Events.On("showGeneratorsMenuChanged", (val: any) => {
-            this.showGeneratorsMenu = val.data as boolean;
+            this.showGeneratorsMenu = (Array.isArray(val.data) ? val.data[0] : val.data) as boolean;
         }));
 
         this.unsubs.push(Events.On("defaultLineWidthChanged", (val: any) => {
-            this.defaultLineWidth = val.data as number;
+            this.defaultLineWidth = (Array.isArray(val.data) ? val.data[0] : val.data) as number;
             this.updateChart();
         }));
     }
@@ -198,7 +198,7 @@ class AppState {
         this.isDefault = true;
     }
 
-    async addDataToChart(pluginName: string, initStr = "", asSubplots = false) {
+    async addDataToChart(pluginName: string, initStr = "", targetCell: { row: number, col: number } = { row: 0, col: 0 }) {
         this.loading = true;
         try {
             await PluginService.ActivatePlugin(pluginName, initStr);
@@ -216,22 +216,15 @@ class AppState {
 
             const newSeriesData: SeriesConfig[] = await Promise.all(dataPromises);
 
-            if (asSubplots) {
-                const maxSubplot = Math.max(0, ...this.currentSeriesData.map((s) => s.subplotIndex || 0));
-                const nextSubplotIndex = maxSubplot + 1;
-                newSeriesData.forEach((s) => {
-                    s.subplotIndex = nextSubplotIndex;
-                    s.id = `subplot_${Date.now()}_${s.id}`;
-                });
-            } else {
-                const colors = ["#636EFA", "#EF553B", "#00CC96", "#AB63FA", "#FFA15A", "#19D3F3", "#FF6692", "#B6E880", "#FF97FF", "#FECB52"];
-                newSeriesData.forEach((s, i) => {
-                    const colorIndex = this.currentSeriesData.reduce((count, ser) => (ser.subplotIndex || 0) === 0 ? count + 1 : count, 0) + i;
-                    s.color = colors[colorIndex % colors.length];
-                    s.id = `added_${Date.now()}_${s.id}`;
-                    s.subplotIndex = 0;
-                });
-            }
+            const colors = ["#636EFA", "#EF553B", "#00CC96", "#AB63FA", "#FFA15A", "#19D3F3", "#FF6692", "#B6E880", "#FF97FF", "#FECB52"];
+            newSeriesData.forEach((s, i) => {
+                // Determine color based on existing series in this specific cell
+                const countInCell = this.currentSeriesData.filter(ser => (ser.subplotRow || 0) === targetCell.row && (ser.subplotCol || 0) === targetCell.col).length;
+                s.color = colors[(countInCell + i) % colors.length];
+                s.id = `added_${Date.now()}_${s.id}`;
+                s.subplotRow = targetCell.row;
+                s.subplotCol = targetCell.col;
+            });
 
             this.currentSeriesData = [...this.currentSeriesData, ...newSeriesData];
             this.isDefault = false;
@@ -266,16 +259,17 @@ class AppState {
     }
 
     async addFile(event: MouseEvent) {
-        let asSubplots = false;
+        let targetCell: { row: number, col: number } | null = null;
         if (event.ctrlKey) {
-            asSubplots = true;
+            const maxRow = Math.max(0, ...this.currentSeriesData.map(s => s.subplotRow || 0));
+            targetCell = { row: maxRow + 1, col: 0 };
         } else if (event.altKey) {
-            asSubplots = false;
+            targetCell = { row: 0, col: 0 };
         } else {
-            const choice = await this.showAddFileChoice();
-            if (choice === null) return;
-            asSubplots = choice;
+            targetCell = await this.showAddFileChoice();
         }
+
+        if (targetCell === null) return;
 
         this.loading = true;
         try {
@@ -284,12 +278,12 @@ class AppState {
             const { path, candidates } = result as { path: string; candidates: string[] };
 
             if (candidates?.length === 1) {
-                await this.addDataToChart(candidates[0], path, asSubplots);
+                await this.addDataToChart(candidates[0], path, targetCell);
             } else if (candidates?.length > 1) {
                 this.pluginSelectionCandidates = candidates;
                 this.pendingFilePath = path;
                 this.pendingAddMode = true;
-                this.pendingAsSubplots = asSubplots;
+                this.pendingTargetCell = targetCell; // Add this state field below
                 this.pluginSelectionVisible = true;
             } else {
                 this.error = "No specific plugin found to handle this file extension.";
@@ -300,17 +294,17 @@ class AppState {
         this.loading = false;
     }
 
-    private showAddFileChoice(): Promise<boolean | null> {
+    private showAddFileChoice(): Promise<{ row: number, col: number } | null> {
         return new Promise((resolve) => {
             this.addFileChoiceResolver = resolve;
             this.addFileChoiceVisible = true;
         });
     }
 
-    handleAddFileChoice(asSubplots: boolean | null) {
+    handleAddFileChoice(cell: { row: number, col: number } | null) {
         this.addFileChoiceVisible = false;
         if (this.addFileChoiceResolver) {
-            this.addFileChoiceResolver(asSubplots);
+            this.addFileChoiceResolver(cell);
             this.addFileChoiceResolver = null;
         }
     }
@@ -319,9 +313,9 @@ class AppState {
     async handlePluginSelection(pluginName: string) {
         this.pluginSelectionVisible = false;
         if (this.pendingAddMode) {
-            await this.addDataToChart(pluginName, this.pendingFilePath, this.pendingAsSubplots);
+            await this.addDataToChart(pluginName, this.pendingFilePath, this.pendingTargetCell);
             this.pendingAddMode = false;
-            this.pendingAsSubplots = false;
+            this.pendingTargetCell = { row: 0, col: 0 };
         } else {
             await this.activatePlugin(pluginName, this.pendingFilePath);
         }
@@ -347,7 +341,10 @@ class AppState {
             });
 
             const seriesData: SeriesConfig[] = await Promise.all(dataPromises);
-            seriesData.forEach((s) => (s.subplotIndex = 0));
+            seriesData.forEach((s) => {
+                s.subplotRow = 0;
+                s.subplotCol = 0;
+            });
 
             this.currentSeriesData = seriesData;
             this.currentTitle = `${source.charAt(0).toUpperCase() + source.slice(1)} Data`;
@@ -448,7 +445,7 @@ class AppState {
                 action: () => {
                     this.openRenameDialog(`Rename ${e.type === "xAxis" ? "X" : "Y"} Axis`, "New Name", e.axisLabel || "", (val) => {
                         if (e.type === "xAxis") this.xAxisName = val;
-                        else this.subplotNames[e.axisIndex!] = val;
+                        else this.subplotNames[`${e.row},${e.col}`] = val;
                         this.updateChart();
                     });
                 }
@@ -493,9 +490,12 @@ class AppState {
         const generators = this.allPlugins.filter(p => (!p.patterns || p.patterns.length === 0) && !p.name.includes("Template"));
         generators.sort((a, b) => a.name === "Sine Wave" ? -1 : b.name === "Sine Wave" ? 1 : a.name.localeCompare(b.name));
 
+        const maxRow = Math.max(0, ...this.currentSeriesData.map(s => s.subplotRow || 0));
+        const targetCell = isAddMode ? { row: maxRow + 1, col: 0 } : { row: 0, col: 0 };
+
         this.showMenu(event.clientX, event.clientY, generators.map(p => ({
-            label: `${isAddMode ? "Add as Subplot" : "Replace with"} ${p.name}`,
-            action: isAddMode ? () => this.addDataToChart(p.name, "", true) : () => this.activatePlugin(p.name, "", "")
+            label: `${isAddMode ? "Add as New Row" : "Replace with"} ${p.name}`,
+            action: isAddMode ? () => this.addDataToChart(p.name, "", targetCell) : () => this.activatePlugin(p.name, "", "")
         })));
     }
 

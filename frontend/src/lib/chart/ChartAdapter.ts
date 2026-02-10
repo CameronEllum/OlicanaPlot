@@ -5,7 +5,8 @@ export interface SeriesConfig {
   name: string;
   color: string;
   data: Float64Array;
-  subplotIndex?: number;
+  subplotRow?: number;
+  subplotCol?: number;
 }
 
 // Define the standardized structure for context menu events across chart
@@ -13,10 +14,14 @@ export interface SeriesConfig {
 export interface ContextMenuEvent {
   type: "title" | "legend" | "grid" | "xAxis" | "yAxis" | "other";
   rawEvent: MouseEvent;
+  x: number;
+  y: number;
   seriesName?: string; // For legend items
   dataPoint?: { x: number; y: number }; // For grid clicks
   axisLabel?: string; // For axis items
   axisIndex?: number; // For identifying which axis
+  row?: number;
+  col?: number;
 }
 
 // Define the interface for different chart library implementations (e.g.,

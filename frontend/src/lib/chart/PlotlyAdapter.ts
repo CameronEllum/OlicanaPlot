@@ -12,7 +12,7 @@ export class PlotlyAdapter extends ChartAdapter {
   public container: any = null;
   public darkMode: boolean = false;
   public currentData: SeriesConfig[] | null = null;
-  public lastSubplotCount: number = 0;
+  private lastGridKey: string = "";
   private contextMenuHandler: ((event: ContextMenuEvent) => void) | null = null;
 
 
@@ -32,7 +32,7 @@ export class PlotlyAdapter extends ChartAdapter {
     getGridRight: (data: SeriesConfig[]) => number,
     lineWidth: number,
     xAxisName: string,
-    yAxisNames: Record<number, string>,
+    yAxisNames: Record<string, string>,
   ) {
     if (!this.container) return;
 
@@ -42,27 +42,35 @@ export class PlotlyAdapter extends ChartAdapter {
     // Always expect an array of series
     const seriesArr = Array.isArray(seriesData) ? seriesData : [seriesData];
 
-    // Group series by subplotIndex
-    const subplotIndices = [
-      ...new Set(seriesArr.map((s) => s.subplotIndex || 0)),
-    ].sort((a, b) => a - b);
-    const numSubplots = subplotIndices.length;
+    // Find 2D grid dimensions
+    const cells = [
+      ...new Set(seriesArr.map((s) => `${s.subplotRow || 0},${s.subplotCol || 0}`)),
+    ].map(str => {
+      const [r, c] = str.split(',').map(Number);
+      return { row: r, col: c, id: str };
+    }).sort((a, b) => a.row - b.row || a.col - b.col);
+
+    const maxRow = Math.max(0, ...cells.map(c => c.row));
+    const maxCol = Math.max(0, ...cells.map(c => c.col));
+    const numRows = maxRow + 1;
+    const numCols = maxCol + 1;
 
     PluginService.LogDebug(
       "PlotlyAdapter",
-      "Rendering subplots",
-      subplotIndices.join(", "),
+      "Rendering 2D subplots",
+      `Rows: ${numRows}, Cols: ${numCols}, Unique Cells: ${cells.length}`,
     );
 
-    // Map subplotIndex to Plotly axis labels
-    const subplotToAxisMap: Record<number, any> = {};
-    for (const [i, sidx] of subplotIndices.entries()) {
+    // Map cell "row,col" to Plotly axis labels
+    const cellToAxisMap: Record<string, any> = {};
+    for (const [i, cell] of cells.entries()) {
       const axisNum = i === 0 ? "" : (i + 1).toString();
-      subplotToAxisMap[sidx] = {
+      cellToAxisMap[cell.id] = {
         x: `x${axisNum}`,
         y: `y${axisNum}`,
         xaxisKey: `xaxis${axisNum}`,
         yaxisKey: `yaxis${axisNum}`,
+        cell
       };
     }
 
@@ -70,7 +78,8 @@ export class PlotlyAdapter extends ChartAdapter {
       const pointCount = s.data.length / 2;
       const xData = s.data.subarray(0, pointCount);
       const yData = s.data.subarray(pointCount);
-      const axes = subplotToAxisMap[s.subplotIndex || 0];
+      const cellId = `${s.subplotRow || 0},${s.subplotCol || 0}`;
+      const axes = cellToAxisMap[cellId];
 
       return {
         x: xData,
@@ -119,27 +128,30 @@ export class PlotlyAdapter extends ChartAdapter {
       dragmode: "pan" as const,
     };
 
-    // Calculate vertical domains
-    const gap = 0.05;
-    const h = (1.0 - (numSubplots - 1) * gap) / numSubplots;
+    // Calculate vertical and horizontal domains
+    const xGap = 0.04;
+    const yGap = 0.06;
+    const cellW = (1.0 - (numCols - 1) * xGap) / numCols;
+    const cellH = (1.0 - (numRows - 1) * yGap) / numRows;
 
-    for (const [i, sidx] of subplotIndices.entries()) {
-      const axes = subplotToAxisMap[sidx];
-      // Stack from top down
-      const rowTop = 1.0 - i * (h + gap);
-      const rowBottom = rowTop - h;
+    for (const [i, cell] of cells.entries()) {
+      const axes = cellToAxisMap[cell.id];
+
+      const xLeft = cell.col * (cellW + xGap);
+      const xRight = xLeft + cellW;
+
+      const yTop = 1.0 - (cell.row * (cellH + yGap));
+      const yBottom = Math.max(0, yTop - cellH);
 
       layout[axes.xaxisKey] = {
-        title:
-          i === numSubplots - 1
-            ? { text: xAxisName, font: { size: 16, color: textColor } }
-            : undefined,
+        title: cell.row === maxRow ? { text: xAxisName, font: { size: 16, color: textColor } } : undefined,
         gridcolor: gridColor,
         zerolinecolor: gridColor,
         tickfont: { color: textColor },
+        domain: [Math.max(0, xLeft), Math.min(1, xRight)],
         anchor: axes.y,
-        matches: i === 0 ? undefined : "x", // link for sync zoom
-        showticklabels: i === numSubplots - 1,
+        matches: cell.row === 0 ? undefined : cellToAxisMap[`0,${cell.col}`]?.x || undefined,
+        showticklabels: cell.row === maxRow,
         showline: true,
         linewidth: 2,
         linecolor: axisLineColor,
@@ -147,13 +159,13 @@ export class PlotlyAdapter extends ChartAdapter {
 
       layout[axes.yaxisKey] = {
         title: {
-          text: yAxisNames[sidx] || `Subplot ${sidx}`,
+          text: yAxisNames[cell.id] || (cell.row === 0 && cell.col === 0 ? "Main" : `Subplot ${cell.row},${cell.col}`),
           font: { size: 14, color: textColor },
         },
         gridcolor: gridColor,
         zerolinecolor: gridColor,
         tickfont: { color: textColor },
-        domain: [Math.max(0, rowBottom), Math.min(1, rowTop)],
+        domain: [Math.max(0, yBottom), Math.min(1, yTop)],
         anchor: axes.x,
         showline: true,
         linewidth: 2,
@@ -168,15 +180,16 @@ export class PlotlyAdapter extends ChartAdapter {
       modeBarButtonsToRemove: ["lasso2d", "select2d"],
     };
 
-    // If the number of subplots changed, purge the plot to ensure a clean layout update
-    if (numSubplots !== this.lastSubplotCount) {
+    // If grid dimensions change, purge
+    const gridKey = `${numRows}x${numCols}`;
+    if (gridKey !== (this as any).lastGridKey) {
       PluginService.LogDebug(
         "PlotlyAdapter",
-        "Purging plot due to subplot count change",
-        `from ${this.lastSubplotCount} to ${numSubplots}`,
+        "Purging plot due to grid dimension change",
+        `from ${(this as any).lastGridKey || 'none'} to ${gridKey}`,
       );
       Plotly.purge(this.container);
-      this.lastSubplotCount = numSubplots;
+      (this as any).lastGridKey = gridKey;
     }
 
     Plotly.react(this.container, traces, layout, config);
@@ -210,6 +223,8 @@ export class PlotlyAdapter extends ChartAdapter {
               type: "legend",
               rawEvent: e,
               seriesName: traceName,
+              x: e.clientX,
+              y: e.clientY,
             });
           }
         };
@@ -260,7 +275,7 @@ export class PlotlyAdapter extends ChartAdapter {
   // Map screen coordinates to chart regions (title, axes, grid).
   private getClickTarget(e: MouseEvent): ContextMenuEvent {
     if (!this.container || !this.container._fullLayout) {
-      return { type: "other", rawEvent: e };
+      return { type: "other", rawEvent: e, x: e.clientX, y: e.clientY };
     }
 
     const layout = this.container._fullLayout;
@@ -268,41 +283,67 @@ export class PlotlyAdapter extends ChartAdapter {
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
-    // 1. Check Main Title
     if (y < layout.margin.t) {
-      // Precise check for centered title area if needed, but margin.t is usually safe
-      return { type: "title", rawEvent: e };
+      return { type: "title", rawEvent: e, x: e.clientX, y: e.clientY };
     }
 
-    // 2. Check X Axes (Bottom margin)
-    // In our stacked layout, only the bottom-most axis has a title.
-    if (y > layout.height - layout.margin.b) {
-      // Find the primary x axis (highest index or simply xaxis)
-      return { type: "xAxis", rawEvent: e, axisLabel: layout.xaxis.title?.text || "", axisIndex: 0 };
-    }
+    // Check all axis pairs
+    const yAxisKeys = Object.keys(layout).filter(k => k.startsWith("yaxis"));
+    for (const yKey of yAxisKeys) {
+      const yAx = layout[yKey];
+      if (!yAx || yAx._offset === undefined) continue;
 
-    // 3. Check Y Axes (Left margin)
-    if (x < layout.margin.l) {
-      // Iterate through all y-axes to see which one's vertical span matches y
-      const yAxisKeys = Object.keys(layout).filter(k => k.startsWith("yaxis"));
-      for (const key of yAxisKeys) {
-        const ax = layout[key];
-        if (ax && ax._offset !== undefined && ax._length !== undefined) {
-          if (y >= ax._offset && y <= ax._offset + ax._length) {
-            const index = key === "yaxis" ? 0 : parseInt(key.replace("yaxis", ""), 10) - 1;
-            return { type: "yAxis", rawEvent: e, axisLabel: ax.title?.text || "", axisIndex: index };
-          }
-        }
+      // Determine the corresponding x-axis for this y-axis
+      // Plotly links axes via the 'anchor' property. If anchor is 'x', it's xaxis.
+      // Otherwise, it's 'xaxisN' where N is the anchor value.
+      const xKey = yAx.anchor === "x" ? "xaxis" : `xaxis${yAx.anchor.replace('x', '')}`;
+      const xAx = layout[xKey];
+      if (!xAx || xAx._offset === undefined) continue;
+
+      // Check vertical axis hit (left side)
+      // The y-axis label area is typically to the left of the x-axis's start.
+      // We check if the click is within the y-axis's vertical span and to the left of the plot area.
+      if (x < xAx._offset && y >= yAx._offset && y <= yAx._offset + yAx._length) {
+        // Extract axis index from key (e.g., "yaxis2" -> 2, "yaxis" -> 0)
+        const axisIndex = yKey === "yaxis" ? 0 : parseInt(yKey.replace("yaxis", ""), 10) - 1;
+        return {
+          type: "yAxis",
+          rawEvent: e,
+          axisLabel: yAx.title?.text || "",
+          axisIndex: axisIndex,
+          x: e.clientX,
+          y: e.clientY,
+        };
+      }
+
+      // Check horizontal axis hit (bottom side)
+      // The x-axis label area is typically below the y-axis's end.
+      // We check if the click is within the x-axis's horizontal span and below the plot area.
+      if (y > yAx._offset + yAx._length && x >= xAx._offset && x <= xAx._offset + xAx._length) {
+        // Extract axis index from key (e.g., "xaxis2" -> 2, "xaxis" -> 0)
+        const axisIndex = xKey === "xaxis" ? 0 : parseInt(xKey.replace("xaxis", ""), 10) - 1;
+        return {
+          type: "xAxis",
+          rawEvent: e,
+          axisLabel: xAx.title?.text || "",
+          axisIndex: axisIndex,
+          x: e.clientX,
+          y: e.clientY
+        };
+      }
+
+      // Check grid hit for this specific subplot
+      if (x >= xAx._offset && x <= xAx._offset + xAx._length &&
+        y >= yAx._offset && y <= yAx._offset + yAx._length) {
+        const dataPoint = {
+          x: xAx.p2d(x - xAx._offset),
+          y: yAx.p2d(yAx._offset + yAx._length - y)
+        };
+        return { type: "grid", rawEvent: e, dataPoint, x: e.clientX, y: e.clientY };
       }
     }
 
-    // 4. Check Grid Area
-    const dataPoint = this.getDataAtPixel(x, y);
-    if (dataPoint) {
-      return { type: "grid", rawEvent: e, dataPoint };
-    }
-
-    return { type: "other", rawEvent: e };
+    return { type: "other", rawEvent: e, x: e.clientX, y: e.clientY };
   }
 
   // Convert data coordinates into screen pixel coordinates for use by external

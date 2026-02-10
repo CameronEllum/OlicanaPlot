@@ -32,7 +32,7 @@ export class EChartsAdapter extends ChartAdapter {
     getGridRight: (data: SeriesConfig[]) => number,
     lineWidth: number,
     xAxisName: string,
-    yAxisNames: Record<number, string>,
+    yAxisNames: Record<string, string>,
   ) {
     if (!this.instance) return;
 
@@ -42,36 +42,47 @@ export class EChartsAdapter extends ChartAdapter {
     // Always expect an array of series
     const seriesArr = Array.isArray(seriesData) ? seriesData : [seriesData];
 
-    // Group series by subplotIndex
-    const subplotIndices = [
-      ...new Set(seriesArr.map((s) => s.subplotIndex || 0)),
-    ].sort((a, b) => a - b);
-    const numSubplots = subplotIndices.length;
+    // Find 2D grid dimensions
+    const cells = [
+      ...new Set(seriesArr.map((s) => `${s.subplotRow || 0},${s.subplotCol || 0}`)),
+    ].map(str => {
+      const [r, c] = str.split(',').map(Number);
+      return { row: r, col: c, id: str };
+    }).sort((a, b) => a.row - b.row || a.col - b.col);
+
+    const maxRow = Math.max(0, ...cells.map(c => c.row));
+    const maxCol = Math.max(0, ...cells.map(c => c.col));
+    const numRows = maxRow + 1;
+    const numCols = maxCol + 1;
 
     PluginService.LogDebug(
       "EChartsAdapter",
-      "Rendering subplots",
-      subplotIndices.join(", "),
+      "Rendering 2D subplots",
+      `Rows: ${numRows}, Cols: ${numCols}, Unique Cells: ${cells.length}`,
     );
 
-    // Map subplotIndex to actual grid/axis index in ECharts
-    const subplotToIndexMap: Record<number, number> = {};
-    for (const [i, sidx] of subplotIndices.entries()) {
-      subplotToIndexMap[sidx] = i;
+    // Map cell ID "row,col" to actual grid index
+    const cellToIndexMap: Record<string, number> = {};
+    for (const [i, cell] of cells.entries()) {
+      cellToIndexMap[cell.id] = i;
     }
 
-    // Split vertical space
+    // Split vertical and horizontal space
     const totalHeight = 84;
-    const subplotHeight = totalHeight / numSubplots;
-    const gap = numSubplots > 1 ? 5 : 0;
+    const totalWidth = 90; // Useable width
+    const cellHeight = totalHeight / numRows;
+    const cellWidth = totalWidth / numCols;
+    const gap = 4;
 
-    const grids = subplotIndices.map((_, i) => {
-      const top = 10 + i * subplotHeight;
+    const grids = cells.map((cell) => {
+      const top = 10 + cell.row * cellHeight;
+      const left = 8 + cell.col * cellWidth;
       return {
-        left: 80,
-        right: getGridRight(seriesArr),
+        left: `${left}%`,
+        right: cell.col === maxCol ? getGridRight(seriesArr) : `${100 - (left + cellWidth - gap)}%`,
         top: `${top}%`,
-        height: `${subplotHeight - gap}%`,
+        height: `${cellHeight - gap}%`,
+        width: `${cellWidth - gap}%`,
         containLabel: true,
       };
     });
@@ -81,25 +92,26 @@ export class EChartsAdapter extends ChartAdapter {
       dimensions: ["x", "y"],
     }));
 
-    const xAxes = subplotIndices.map((_, i) => ({
+    const xAxes = cells.map((cell, i) => ({
       type: "value" as const,
-      name: i === numSubplots - 1 ? xAxisName : "",
+      name: cell.row === maxRow ? xAxisName : "",
       nameLocation: "center" as const,
       nameGap: 30,
       gridIndex: i,
-      axisLabel: { show: i === numSubplots - 1 },
+      axisLabel: { show: cell.row === maxRow },
       axisLine: { lineStyle: { color: textColor } },
       splitLine: { lineStyle: { color: darkMode ? "#444" : "#e0e0e0" } },
       triggerEvent: true,
     }));
 
-    const yAxes = subplotIndices.map((sidx, i) => ({
+    const yAxes = cells.map((cell, i) => ({
       type: "value" as const,
-      name: yAxisNames[sidx] || `Subplot ${sidx}`,
+      name: yAxisNames[cell.id] || (cell.row === 0 && cell.col === 0 ? "Main" : `Subplot ${cell.row},${cell.col}`),
       nameLocation: "center" as const,
       nameGap: 45,
       nameRotate: 90,
       gridIndex: i,
+      axisLabel: { show: cell.col === 0 },
       axisLine: { lineStyle: { color: textColor } },
       splitLine: { lineStyle: { color: darkMode ? "#444" : "#e0e0e0" } },
       nameTextStyle: { color: textColor, fontWeight: "bold" },
@@ -108,14 +120,15 @@ export class EChartsAdapter extends ChartAdapter {
     }));
 
     const series = seriesArr.map((s, i) => {
-      const subplotIdx = subplotToIndexMap[s.subplotIndex || 0];
+      const cellId = `${s.subplotRow || 0},${s.subplotCol || 0}`;
+      const cellIdx = cellToIndexMap[cellId];
       return {
         name: s.name,
         type: "line" as const,
         showSymbol: false,
         datasetIndex: i,
-        xAxisIndex: subplotIdx,
-        yAxisIndex: subplotIdx,
+        xAxisIndex: cellIdx,
+        yAxisIndex: cellIdx,
         encode: { x: "x", y: "y" },
         large: true,
         emphasis: { disabled: true },
@@ -139,7 +152,7 @@ export class EChartsAdapter extends ChartAdapter {
       tooltip: { trigger: "axis" as const },
       toolbox: {
         feature: {
-          dataZoom: { xAxisIndex: subplotIndices.map((_, i) => i) },
+          dataZoom: { xAxisIndex: cells.map((_, i) => i) },
           restore: {},
           saveAsImage: {},
         },
@@ -149,7 +162,7 @@ export class EChartsAdapter extends ChartAdapter {
       dataZoom: [
         {
           type: "inside" as const,
-          xAxisIndex: subplotIndices.map((_, i) => i),
+          xAxisIndex: cells.map((_, i) => i),
           filterMode: "none" as const,
         },
       ],
@@ -250,7 +263,7 @@ export class EChartsAdapter extends ChartAdapter {
           "Standardized title context menu",
           "",
         );
-        handler({ type: "title", rawEvent });
+        handler({ type: "title", rawEvent, x: rawEvent.clientX, y: rawEvent.clientY });
       } else if (params.componentType === "legend") {
         // Resolve series name from dataIndex if name is missing
         let seriesName = params.name;
@@ -266,7 +279,7 @@ export class EChartsAdapter extends ChartAdapter {
           "Standardized legend context menu",
           seriesName || "unknown",
         );
-        handler({ type: "legend", rawEvent, seriesName });
+        handler({ type: "legend", rawEvent, seriesName, x: rawEvent.clientX, y: rawEvent.clientY });
       } else if (
         params.componentType === "xAxis" ||
         params.componentType === "yAxis"
@@ -287,6 +300,8 @@ export class EChartsAdapter extends ChartAdapter {
           rawEvent,
           axisLabel,
           axisIndex,
+          x: rawEvent.clientX,
+          y: rawEvent.clientY,
         });
       } else {
         PluginService.LogDebug(
@@ -294,7 +309,7 @@ export class EChartsAdapter extends ChartAdapter {
           `Standardized other component context menu: ${params.componentType}`,
           "",
         );
-        handler({ type: "other", rawEvent });
+        handler({ type: "other", rawEvent, x: rawEvent.clientX, y: rawEvent.clientY });
       }
     });
 
@@ -323,14 +338,14 @@ export class EChartsAdapter extends ChartAdapter {
           "Standardized grid context menu",
           "",
         );
-        handler({ type: "grid", rawEvent, dataPoint: dataPoint || undefined });
+        handler({ type: "grid", rawEvent, dataPoint: dataPoint || undefined, x: rawEvent.clientX, y: rawEvent.clientY });
       } else {
         PluginService.LogDebug(
           "EChartsAdapter",
           "Standardized other surface context menu",
           "",
         );
-        handler({ type: "other", rawEvent });
+        handler({ type: "other", rawEvent, x: rawEvent.clientX, y: rawEvent.clientY });
       }
     });
   }

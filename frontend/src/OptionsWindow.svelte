@@ -94,6 +94,7 @@
     // reset confirmation.
     async function handleSave() {
         try {
+            PluginService.LogDebug("Options", "handleSave starting", "");
             await ConfigService.SetLogPath(logPath);
             await ConfigService.SetLogLevel(logLevel);
             const oldLibrary = await ConfigService.GetChartLibrary();
@@ -108,6 +109,8 @@
                         { Label: "Cancel", IsCancel: true },
                     ],
                 });
+
+                // In Wails v3, the result is the label of the button clicked.
                 if (res !== "OK") {
                     chartLibrary = oldLibrary;
                     return;
@@ -120,6 +123,11 @@
 
             await ConfigService.SetShowGeneratorsMenu(showGeneratorsMenu);
             await ConfigService.SetDefaultLineWidth(defaultLineWidth);
+            PluginService.LogDebug(
+                "Options",
+                "handleSave complete, closing window",
+                "",
+            );
             Window.Close();
         } catch (e: any) {
             console.error("Failed to save config:", e);
@@ -190,7 +198,13 @@
             </button>
             <button
                 class="control-btn close-btn"
-                onclick={() => Window.Close()}
+                onclick={() => {
+                    if (Window && typeof Window.Close === "function") {
+                        Window.Close();
+                    } else {
+                        (window as any).wails?.Window?.Close();
+                    }
+                }}
                 title="Close"
             >
                 <svg
@@ -499,8 +513,15 @@
         </div>
 
         <footer class="window-footer">
-            <button class="btn btn-secondary" onclick={() => Window.Close()}
-                >Cancel</button
+            <button
+                class="btn btn-secondary"
+                onclick={() => {
+                    if (Window && typeof Window.Close === "function") {
+                        Window.Close();
+                    } else {
+                        (window as any).wails?.Window?.Close();
+                    }
+                }}>Cancel</button
             >
             <button class="btn btn-primary" onclick={handleSave}
                 >Save Changes</button
