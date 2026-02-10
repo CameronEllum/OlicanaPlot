@@ -4,6 +4,7 @@
   import ChartWrapper from "./lib/components/ChartWrapper.svelte";
   import GlobalContextMenu from "./lib/components/GlobalContextMenu.svelte";
   import PluginSelectionDialog from "./lib/components/dialogs/PluginSelectionDialog.svelte";
+  import AddFileChoiceDialog from "./lib/components/dialogs/AddFileChoiceDialog.svelte";
   import RenameDialog from "./lib/RenameDialog.svelte";
 
   // Synchronize the root document class with the dark mode state.
@@ -41,6 +42,7 @@
   <GlobalContextMenu />
 
   <PluginSelectionDialog />
+  <AddFileChoiceDialog />
 </div>
 
 <style>

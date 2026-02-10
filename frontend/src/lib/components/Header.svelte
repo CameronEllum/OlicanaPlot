@@ -88,7 +88,7 @@
         </button>
         <button
             onclick={(e) => appState.addFile(e)}
-            title="Add data to current chart (Ctrl = add as subplots)"
+            title="Add data (Ctrl = Subplots, Alt = Current Axes)"
         >
             <svg
                 viewBox="0 0 24 24"

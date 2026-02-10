@@ -41,6 +41,8 @@ class AppState {
     pendingFilePath = $state("");
     pendingAddMode = $state(false);
     pendingAsSubplots = $state(false);
+    addFileChoiceVisible = $state(false);
+    private addFileChoiceResolver: ((val: boolean | null) => void) | null = null;
 
     renameVisible = $state(false);
     renameModalTitle = $state("");
@@ -264,7 +266,17 @@ class AppState {
     }
 
     async addFile(event: MouseEvent) {
-        const asSubplots = event.ctrlKey;
+        let asSubplots = false;
+        if (event.ctrlKey) {
+            asSubplots = true;
+        } else if (event.altKey) {
+            asSubplots = false;
+        } else {
+            const choice = await this.showAddFileChoice();
+            if (choice === null) return;
+            asSubplots = choice;
+        }
+
         this.loading = true;
         try {
             const result = await PluginService.OpenFile();
@@ -287,6 +299,22 @@ class AppState {
         }
         this.loading = false;
     }
+
+    private showAddFileChoice(): Promise<boolean | null> {
+        return new Promise((resolve) => {
+            this.addFileChoiceResolver = resolve;
+            this.addFileChoiceVisible = true;
+        });
+    }
+
+    handleAddFileChoice(asSubplots: boolean | null) {
+        this.addFileChoiceVisible = false;
+        if (this.addFileChoiceResolver) {
+            this.addFileChoiceResolver(asSubplots);
+            this.addFileChoiceResolver = null;
+        }
+    }
+
 
     async handlePluginSelection(pluginName: string) {
         this.pluginSelectionVisible = false;
