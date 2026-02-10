@@ -490,12 +490,18 @@ class AppState {
         const generators = this.allPlugins.filter(p => (!p.patterns || p.patterns.length === 0) && !p.name.includes("Template"));
         generators.sort((a, b) => a.name === "Sine Wave" ? -1 : b.name === "Sine Wave" ? 1 : a.name.localeCompare(b.name));
 
-        const maxRow = Math.max(0, ...this.currentSeriesData.map(s => s.subplotRow || 0));
-        const targetCell = isAddMode ? { row: maxRow + 1, col: 0 } : { row: 0, col: 0 };
-
         this.showMenu(event.clientX, event.clientY, generators.map(p => ({
-            label: `${isAddMode ? "Add as New Row" : "Replace with"} ${p.name}`,
-            action: isAddMode ? () => this.addDataToChart(p.name, "", targetCell) : () => this.activatePlugin(p.name, "", "")
+            label: `${isAddMode ? "Add" : "Replace with"} ${p.name}`,
+            action: async () => {
+                if (isAddMode) {
+                    const targetCell = await this.showAddFileChoice();
+                    if (targetCell) {
+                        await this.addDataToChart(p.name, "", targetCell);
+                    }
+                } else {
+                    await this.activatePlugin(p.name, "", "");
+                }
+            }
         })));
     }
 
