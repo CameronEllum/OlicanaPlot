@@ -2,13 +2,15 @@
     import { appState } from "../../state/app.svelte.ts";
 
     // Compute grid dimensions based on current subplots
+    // Compute grid dimensions based on current subplots
     function getGridInfo() {
         const series = appState.currentSeriesData;
         if (series.length === 0) {
             return {
                 rows: 1,
                 cols: 1,
-                cells: [{ row: 0, col: 0, series: [] }],
+                cells: [{ row: 0, col: 0, series: [], isBlocked: false }],
+                ghostColumnBlocked: [false],
             };
         }
 
@@ -18,16 +20,26 @@
         const cols = maxCol + 1;
 
         const cells = [];
+        const ghostColumnBlocked = [];
+
         for (let r = 0; r < rows; r++) {
+            let leftNeighborOccupied = true;
             for (let c = 0; c < cols; c++) {
                 const cellSeries = series.filter(
                     (s) =>
                         (s.subplotRow || 0) === r && (s.subplotCol || 0) === c,
                 );
-                cells.push({ row: r, col: c, series: cellSeries });
+                const isOccupied = cellSeries.length > 0;
+                const isBlocked = !isOccupied && !leftNeighborOccupied;
+
+                cells.push({ row: r, col: c, series: cellSeries, isBlocked });
+                leftNeighborOccupied = isOccupied;
             }
+            // A new column is only allowed if the last cell in this row is occupied
+            ghostColumnBlocked.push(!leftNeighborOccupied);
         }
-        return { rows, cols, cells };
+
+        return { rows, cols, cells, ghostColumnBlocked };
     }
 
     let grid = $derived(getGridInfo());
@@ -64,7 +76,10 @@
                 <!-- Existing Subplots -->
                 {#each grid.cells as cell}
                     <button
-                        class="grid-cell occupied"
+                        class="grid-cell {cell.series.length > 0
+                            ? 'occupied'
+                            : 'ghost'} {cell.isBlocked ? 'blocked' : ''}"
+                        disabled={cell.isBlocked}
                         onclick={() =>
                             appState.handleAddFileChoice({
                                 row: cell.row,
@@ -72,20 +87,46 @@
                             })}
                         style="grid-row: {cell.row +
                             1}; grid-column: {cell.col + 1};"
-                        title="Overlay on {cell.series.length > 0
-                            ? cell.series.map((s) => s.name).join(', ')
-                            : 'Empty Cell'}"
+                        title={cell.isBlocked
+                            ? "Cannot skip cells in a row"
+                            : cell.series.length > 0
+                              ? `Overlay on ${cell.series
+                                    .map((s) => s.name)
+                                    .join(", ")}`
+                              : "Place in empty cell"}
                     >
-                        <div class="cell-label">
-                            {cell.series.length > 0
-                                ? cell.series[0].name.substring(0, 15) +
-                                  (cell.series[0].name.length > 15 ? "..." : "")
-                                : "Main"}
-                        </div>
-                        {#if cell.series.length > 1}
-                            <div class="cell-count">
-                                +{cell.series.length - 1}
+                        {#if cell.series.length > 0}
+                            <div class="cell-label">
+                                {cell.series[0].name.substring(0, 15) +
+                                    (cell.series[0].name.length > 15
+                                        ? "..."
+                                        : "")}
                             </div>
+                            {#if cell.series.length > 1}
+                                <div class="cell-count">
+                                    +{cell.series.length - 1}
+                                </div>
+                            {/if}
+                        {:else}
+                            <div class="cell-label subtitle">
+                                {cell.row === 0 && cell.col === 0
+                                    ? "Main"
+                                    : `(${cell.row}, ${cell.col})`}
+                            </div>
+                            {#if !cell.isBlocked}
+                                <svg
+                                    viewBox="0 0 24 24"
+                                    width="16"
+                                    height="16"
+                                    stroke="currentColor"
+                                    stroke-width="3"
+                                    fill="none"
+                                    class="mt-4"
+                                >
+                                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                                </svg>
+                            {/if}
                         {/if}
                     </button>
                 {/each}
@@ -117,26 +158,33 @@
                 <!-- Ghost Column Right -->
                 {#each Array(grid.rows) as _, r}
                     <button
-                        class="grid-cell ghost"
+                        class="grid-cell ghost {grid.ghostColumnBlocked[r]
+                            ? 'blocked'
+                            : ''}"
+                        disabled={grid.ghostColumnBlocked[r]}
                         onclick={() =>
                             appState.handleAddFileChoice({
                                 row: r,
                                 col: grid.cols,
                             })}
                         style="grid-row: {r + 1}; grid-column: {grid.cols + 1};"
-                        title="Add as new column"
+                        title={grid.ghostColumnBlocked[r]
+                            ? "Cannot skip columns"
+                            : "Add as new column"}
                     >
-                        <svg
-                            viewBox="0 0 24 24"
-                            width="16"
-                            height="16"
-                            stroke="currentColor"
-                            stroke-width="3"
-                            fill="none"
-                        >
-                            <line x1="12" y1="5" x2="12" y2="19"></line>
-                            <line x1="5" y1="12" x2="19" y2="12"></line>
-                        </svg>
+                        {#if !grid.ghostColumnBlocked[r]}
+                            <svg
+                                viewBox="0 0 24 24"
+                                width="16"
+                                height="16"
+                                stroke="currentColor"
+                                stroke-width="3"
+                                fill="none"
+                            >
+                                <line x1="12" y1="5" x2="12" y2="19"></line>
+                                <line x1="5" y1="12" x2="19" y2="12"></line>
+                            </svg>
+                        {/if}
                     </button>
                 {/each}
             </div>
@@ -213,12 +261,27 @@
         transform: scale(1.02);
     }
 
+    .grid-cell.blocked {
+        opacity: 0.3;
+        cursor: not-allowed;
+    }
+
     .cell-label {
         font-size: 0.8rem;
         font-weight: 700;
         text-align: center;
         word-break: break-all;
         color: var(--text-primary);
+    }
+
+    .cell-label.subtitle {
+        font-weight: 500;
+        opacity: 0.7;
+        margin-bottom: 4px;
+    }
+
+    .grid-cell svg {
+        margin-top: 4px;
     }
 
     .cell-count {

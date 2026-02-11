@@ -11,7 +11,7 @@ import {
 export class EChartsAdapter extends ChartAdapter {
   public instance: echarts.ECharts | null = null;
   public container: HTMLElement | null = null;
-
+  private lastArgs: any = null;
 
   // Create a new ECharts instance within the provided container and apply the
   // appropriate theme.
@@ -35,6 +35,15 @@ export class EChartsAdapter extends ChartAdapter {
     yAxisNames: Record<string, string>,
   ) {
     if (!this.instance) return;
+    this.lastArgs = {
+      seriesData,
+      title,
+      darkMode,
+      getGridRight,
+      lineWidth,
+      xAxisName,
+      yAxisNames,
+    };
 
     const textColor = darkMode ? "#ccc" : "#333";
     const bgColor = darkMode ? "#2b2b2b" : "#ffffff";
@@ -44,14 +53,18 @@ export class EChartsAdapter extends ChartAdapter {
 
     // Find 2D grid dimensions
     const cells = [
-      ...new Set(seriesArr.map((s) => `${s.subplotRow || 0},${s.subplotCol || 0}`)),
-    ].map(str => {
-      const [r, c] = str.split(',').map(Number);
-      return { row: r, col: c, id: str };
-    }).sort((a, b) => a.row - b.row || a.col - b.col);
+      ...new Set(
+        seriesArr.map((s) => `${s.subplotRow || 0},${s.subplotCol || 0}`),
+      ),
+    ]
+      .map((str) => {
+        const [r, c] = str.split(",").map(Number);
+        return { row: r, col: c, id: str };
+      })
+      .sort((a, b) => a.row - b.row || a.col - b.col);
 
-    const maxRow = Math.max(0, ...cells.map(c => c.row));
-    const maxCol = Math.max(0, ...cells.map(c => c.col));
+    const maxRow = Math.max(0, ...cells.map((c) => c.row));
+    const maxCol = Math.max(0, ...cells.map((c) => c.col));
     const numRows = maxRow + 1;
     const numCols = maxCol + 1;
 
@@ -69,20 +82,34 @@ export class EChartsAdapter extends ChartAdapter {
 
     // Split vertical and horizontal space
     const totalHeight = 84;
-    const totalWidth = 90; // Useable width
     const cellHeight = totalHeight / numRows;
-    const cellWidth = totalWidth / numCols;
-    const gap = 4;
+
+    // Logic for equal horizontal distribution within legend-free space.
+    // We convert the pixel-based right margin into a percentage of the current
+    // container width so that we can distribute the "inner" columns equally using percentages.
+    const containerWidth = this.container?.clientWidth || 800;
+    const leftMarginPct = 8;
+    const rightMarginPx = getGridRight(seriesArr);
+    const rightMarginPct = (rightMarginPx / containerWidth) * 100;
+    const gapPct = 4;
+
+    const totalUsableWidthPct = 100 - leftMarginPct - rightMarginPct;
+    const cellWidthPct =
+      (totalUsableWidthPct - (numCols - 1) * gapPct) / numCols;
 
     const grids = cells.map((cell) => {
       const top = 10 + cell.row * cellHeight;
-      const left = 8 + cell.col * cellWidth;
+      const left = leftMarginPct + cell.col * (cellWidthPct + gapPct);
+      const right = 100 - (left + cellWidthPct);
+
       return {
         left: `${left}%`,
-        right: cell.col === maxCol ? "4%" : `${100 - (left + cellWidth - gap)}%`,
+        right: `${right}%`,
         top: `${top}%`,
-        height: `${cellHeight - gap}%`,
-        width: `${cellWidth - gap}%`,
+        bottom:
+          cell.row === maxRow
+            ? "10%"
+            : `${100 - (top + cellHeight - gapPct)}%`,
         containLabel: true,
       };
     });
@@ -106,7 +133,11 @@ export class EChartsAdapter extends ChartAdapter {
 
     const yAxes = cells.map((cell, i) => ({
       type: "value" as const,
-      name: yAxisNames[cell.id] || (cell.row === 0 && cell.col === 0 ? "Main" : `Subplot ${cell.row},${cell.col}`),
+      name:
+        yAxisNames[cell.id] ||
+        (cell.row === 0 && cell.col === 0
+          ? "Main"
+          : `Subplot ${cell.row},${cell.col}`),
       nameLocation: "center" as const,
       nameGap: 45,
       nameRotate: 90,
@@ -168,9 +199,9 @@ export class EChartsAdapter extends ChartAdapter {
       ],
       legend: {
         data: seriesArr.map((s) => s.name),
-        orient: "horizontal" as const,
-        bottom: 0,
-        left: "center",
+        orient: "vertical" as const,
+        right: 10,
+        top: 60,
         textStyle: { color: textColor },
         type: "scroll" as const,
         triggerEvent: true,
@@ -190,6 +221,19 @@ export class EChartsAdapter extends ChartAdapter {
   resize() {
     if (this.instance) {
       this.instance.resize();
+      // Re-trigger setData if we have args, to re-calculate equal percentages
+      // for subplots based on the new container width.
+      if (this.lastArgs) {
+        this.setData(
+          this.lastArgs.seriesData,
+          this.lastArgs.title,
+          this.lastArgs.darkMode,
+          this.lastArgs.getGridRight,
+          this.lastArgs.lineWidth,
+          this.lastArgs.xAxisName,
+          this.lastArgs.yAxisNames,
+        );
+      }
     }
   }
 
