@@ -33,6 +33,8 @@ export class PlotlyAdapter extends ChartAdapter {
     lineWidth: number,
     xAxisName: string,
     yAxisNames: Record<string, string>,
+    linkX: boolean,
+    linkY: boolean,
   ) {
     if (!this.container) return;
 
@@ -44,14 +46,18 @@ export class PlotlyAdapter extends ChartAdapter {
 
     // Find 2D grid dimensions
     const cells = [
-      ...new Set(seriesArr.map((s) => `${s.subplotRow || 0},${s.subplotCol || 0}`)),
-    ].map(str => {
-      const [r, c] = str.split(',').map(Number);
-      return { row: r, col: c, id: str };
-    }).sort((a, b) => a.row - b.row || a.col - b.col);
+      ...new Set(
+        seriesArr.map((s) => `${s.subplotRow || 0},${s.subplotCol || 0}`),
+      ),
+    ]
+      .map((str) => {
+        const [r, c] = str.split(",").map(Number);
+        return { row: r, col: c, id: str };
+      })
+      .sort((a, b) => a.row - b.row || a.col - b.col);
 
-    const maxRow = Math.max(0, ...cells.map(c => c.row));
-    const maxCol = Math.max(0, ...cells.map(c => c.col));
+    const maxRow = Math.max(0, ...cells.map((c) => c.row));
+    const maxCol = Math.max(0, ...cells.map((c) => c.col));
     const numRows = maxRow + 1;
     const numCols = maxCol + 1;
 
@@ -70,7 +76,8 @@ export class PlotlyAdapter extends ChartAdapter {
         y: `y${axisNum}`,
         xaxisKey: `xaxis${axisNum}`,
         yaxisKey: `yaxis${axisNum}`,
-        cell
+        cell,
+        axisIndex: i,
       };
     }
 
@@ -140,17 +147,28 @@ export class PlotlyAdapter extends ChartAdapter {
       const xLeft = cell.col * (cellW + xGap);
       const xRight = xLeft + cellW;
 
-      const yTop = 1.0 - (cell.row * (cellH + yGap));
+      const yTop = 1.0 - cell.row * (cellH + yGap);
       const yBottom = Math.max(0, yTop - cellH);
 
+      // Link X: Global vs Per Column
+      let xMatches: string | undefined;
+      if (linkX) {
+        xMatches = i === 0 ? undefined : "x";
+      } else if (cell.row !== 0) {
+        xMatches = cellToAxisMap[`0,${cell.col}`]?.x || undefined;
+      }
+
       layout[axes.xaxisKey] = {
-        title: cell.row === maxRow ? { text: xAxisName, font: { size: 16, color: textColor } } : undefined,
+        title:
+          cell.row === maxRow
+            ? { text: xAxisName, font: { size: 16, color: textColor } }
+            : undefined,
         gridcolor: gridColor,
         zerolinecolor: gridColor,
         tickfont: { color: textColor },
         domain: [Math.max(0, xLeft), Math.min(1, xRight)],
         anchor: axes.y,
-        matches: cell.row === 0 ? undefined : cellToAxisMap[`0,${cell.col}`]?.x || undefined,
+        matches: xMatches,
         showticklabels: cell.row === maxRow,
         showline: true,
         linewidth: 2,
@@ -159,7 +177,11 @@ export class PlotlyAdapter extends ChartAdapter {
 
       layout[axes.yaxisKey] = {
         title: {
-          text: yAxisNames[cell.id] || (cell.row === 0 && cell.col === 0 ? "Main" : `Subplot ${cell.row},${cell.col}`),
+          text:
+            yAxisNames[cell.id] ||
+            (cell.row === 0 && cell.col === 0
+              ? "Main"
+              : `Subplot ${cell.row},${cell.col}`),
           font: { size: 14, color: textColor },
         },
         gridcolor: gridColor,
@@ -167,6 +189,7 @@ export class PlotlyAdapter extends ChartAdapter {
         tickfont: { color: textColor },
         domain: [Math.max(0, yBottom), Math.min(1, yTop)],
         anchor: axes.x,
+        matches: linkY ? (i === 0 ? undefined : "y") : undefined,
         showline: true,
         linewidth: 2,
         linecolor: axisLineColor,

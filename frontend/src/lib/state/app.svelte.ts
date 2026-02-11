@@ -23,6 +23,8 @@ class AppState {
     loading = $state(true);
     error = $state<string | null>(null);
     dataSource = $state("funcplot");
+    linkX = $state(true); // Default to true as it was the previous behavior
+    linkY = $state(false);
     isDarkMode = $state(false);
     isDefault = $state(true);
 
@@ -34,6 +36,13 @@ class AppState {
     allPlugins = $state<AppPlugin[]>([]);
     showGeneratorsMenu = $state(true);
     defaultLineWidth = $state(2.0);
+
+    get hasSubplots(): boolean {
+        const cells = new Set(
+            this.currentSeriesData.map(s => `${s.subplotRow || 0},${s.subplotCol || 0}`)
+        );
+        return cells.size > 1;
+    }
 
     // UI State - Dialogs
     pluginSelectionVisible = $state(false);
@@ -368,8 +377,20 @@ class AppState {
             this.getGridRight.bind(this),
             this.defaultLineWidth,
             this.xAxisName,
-            this.subplotNames
+            this.subplotNames,
+            this.linkX,
+            this.linkY
         );
+    }
+
+    toggleLinkX() {
+        this.linkX = !this.linkX;
+        this.updateChart();
+    }
+
+    toggleLinkY() {
+        this.linkY = !this.linkY;
+        this.updateChart();
     }
 
     getGridRight(seriesData: SeriesConfig[]) {

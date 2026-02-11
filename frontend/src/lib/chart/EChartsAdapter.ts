@@ -33,6 +33,8 @@ export class EChartsAdapter extends ChartAdapter {
     lineWidth: number,
     xAxisName: string,
     yAxisNames: Record<string, string>,
+    linkX: boolean,
+    linkY: boolean,
   ) {
     if (!this.instance) return;
     this.lastArgs = {
@@ -43,6 +45,8 @@ export class EChartsAdapter extends ChartAdapter {
       lineWidth,
       xAxisName,
       yAxisNames,
+      linkX,
+      linkY,
     };
 
     const textColor = darkMode ? "#ccc" : "#333";
@@ -58,8 +62,10 @@ export class EChartsAdapter extends ChartAdapter {
       ),
     ]
       .map((str) => {
-        const [r, c] = str.split(",").map(Number);
-        return { row: r, col: c, id: str };
+        const [r, c] = str.split(",");
+        const row = parseInt(r, 10);
+        const col = parseInt(c, 10);
+        return { row, col, id: str };
       })
       .sort((a, b) => a.row - b.row || a.col - b.col);
 
@@ -131,6 +137,31 @@ export class EChartsAdapter extends ChartAdapter {
       triggerEvent: true,
     }));
 
+    // If linkY is active, calculate global min/max for all Y data
+    let globalYMin: number | undefined;
+    let globalYMax: number | undefined;
+    if (linkY) {
+      let min = Infinity;
+      let max = -Infinity;
+      seriesArr.forEach((s) => {
+        if (!s.data) return;
+        // Data is interleaved [x, y, x, y ...]
+        for (let j = 1; j < s.data.length; j += 2) {
+          const val = s.data[j];
+          if (!Number.isNaN(val)) {
+            if (val < min) min = val;
+            if (val > max) max = val;
+          }
+        }
+      });
+      if (min !== Infinity) {
+        // Add small padding
+        const pad = (max - min) * 0.05 || 0.1;
+        globalYMin = min - pad;
+        globalYMax = max + pad;
+      }
+    }
+
     const yAxes = cells.map((cell, i) => ({
       type: "value" as const,
       name:
@@ -142,6 +173,8 @@ export class EChartsAdapter extends ChartAdapter {
       nameGap: 45,
       nameRotate: 90,
       gridIndex: i,
+      min: globalYMin,
+      max: globalYMax,
       axisLabel: { show: cell.col === 0 },
       axisLine: { lineStyle: { color: textColor } },
       splitLine: { lineStyle: { color: darkMode ? "#444" : "#e0e0e0" } },
@@ -169,6 +202,38 @@ export class EChartsAdapter extends ChartAdapter {
       };
     });
 
+    // Generate dataZoom based on link settings
+    const dataZoom: any[] = [];
+    if (linkX) {
+      dataZoom.push({
+        type: "inside",
+        xAxisIndex: cells.map((_, i) => i),
+        filterMode: "none",
+      });
+    } else {
+      // Per-column linking
+      const cols: Record<number, number[]> = {};
+      cells.forEach((c, i) => {
+        if (!cols[c.col]) cols[c.col] = [];
+        cols[c.col].push(i);
+      });
+      Object.values(cols).forEach((indices) => {
+        dataZoom.push({
+          type: "inside",
+          xAxisIndex: indices,
+          filterMode: "none",
+        });
+      });
+    }
+
+    if (linkY) {
+      dataZoom.push({
+        type: "inside",
+        yAxisIndex: cells.map((_, i) => i),
+        filterMode: "none",
+      });
+    }
+
     const option = {
       backgroundColor: bgColor,
       animation: false,
@@ -183,20 +248,17 @@ export class EChartsAdapter extends ChartAdapter {
       tooltip: { trigger: "axis" as const },
       toolbox: {
         feature: {
-          dataZoom: { xAxisIndex: cells.map((_, i) => i) },
+          dataZoom: {
+            xAxisIndex: linkX ? cells.map((_, i) => i) : "auto",
+            yAxisIndex: linkY ? cells.map((_, i) => i) : "auto",
+          },
           restore: {},
           saveAsImage: {},
         },
         right: 20,
         iconStyle: { borderColor: textColor },
       },
-      dataZoom: [
-        {
-          type: "inside" as const,
-          xAxisIndex: cells.map((_, i) => i),
-          filterMode: "none" as const,
-        },
-      ],
+      dataZoom: dataZoom,
       legend: {
         data: seriesArr.map((s) => s.name),
         orient: "vertical" as const,
@@ -232,6 +294,8 @@ export class EChartsAdapter extends ChartAdapter {
           this.lastArgs.lineWidth,
           this.lastArgs.xAxisName,
           this.lastArgs.yAxisNames,
+          this.lastArgs.linkX,
+          this.lastArgs.linkY,
         );
       }
     }

@@ -26,6 +26,56 @@
     </div>
 
     <nav class="menu-bar">
+        <div class="behavior-group">
+            <button
+                class="behavior-btn"
+                class:active={appState.linkX}
+                disabled={!appState.hasSubplots}
+                onclick={() => appState.toggleLinkX()}
+                title="Link X Axes: zoom/pan all X axes together"
+            >
+                <svg
+                    viewBox="0 0 24 24"
+                    width="16"
+                    height="16"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    fill="none"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                >
+                    <line x1="4" y1="12" x2="20" y2="12"></line>
+                    <polyline points="8 8 4 12 8 16"></polyline>
+                    <polyline points="16 8 20 12 16 16"></polyline>
+                </svg>
+                <span class="axis-label">X</span>
+            </button>
+
+            <button
+                class="behavior-btn"
+                class:active={appState.linkY}
+                disabled={!appState.hasSubplots}
+                onclick={() => appState.toggleLinkY()}
+                title="Link Y Axes: zoom/pan all Y axes together"
+            >
+                <svg
+                    viewBox="0 0 24 24"
+                    width="16"
+                    height="16"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    fill="none"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                >
+                    <line x1="12" y1="4" x2="12" y2="20"></line>
+                    <polyline points="8 8 12 4 16 8"></polyline>
+                    <polyline points="8 16 12 20 16 16"></polyline>
+                </svg>
+                <span class="axis-label">Y</span>
+            </button>
+        </div>
+
         <button onclick={() => appState.toggleTheme()} title="Toggle Dark Mode">
             {#if appState.isDarkMode}
                 <svg
@@ -108,6 +158,7 @@
             >
             Add File
         </button>
+
         {#if appState.showGeneratorsMenu}
             <button onclick={(e) => appState.showGenerateMenu(e)}>
                 <svg
@@ -210,5 +261,71 @@
         background-color: #4b4d4f;
         border-color: #555;
         color: #eee;
+    }
+
+    /* Behavior Toolbar Styles */
+    .behavior-group {
+        display: flex;
+        gap: 2px;
+        margin-left: 8px;
+        margin-right: 8px;
+        border-left: 1px solid #dee2e6;
+        border-right: 1px solid #dee2e6;
+        padding: 0 8px;
+    }
+
+    :global(.dark-mode) .behavior-group {
+        border-color: #444;
+    }
+
+    .behavior-btn {
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        padding: 6px 8px;
+        border: 1px solid transparent;
+        background: transparent;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: all 0.2s;
+        color: #495057;
+    }
+
+    :global(.dark-mode) .behavior-btn {
+        color: #bbb;
+    }
+
+    .behavior-btn:disabled {
+        opacity: 0.3;
+        cursor: not-allowed;
+    }
+
+    .behavior-btn:not(:disabled):hover {
+        background-color: #e9ecef;
+        border-color: #adb5bd;
+    }
+
+    :global(.dark-mode) .behavior-btn:not(:disabled):hover {
+        background-color: #4b4d4f;
+        border-color: #555;
+        color: #eee;
+    }
+
+    .behavior-btn.active {
+        background-color: #e8e0ff;
+        border-color: #6c5ce7;
+        color: #6c5ce7;
+    }
+
+    :global(.dark-mode) .behavior-btn.active {
+        background-color: rgba(108, 92, 231, 0.2);
+        border-color: #6c5ce7;
+        color: #6c5ce7;
+    }
+
+    .axis-label {
+        font-size: 0.7rem;
+        font-weight: 800;
+        line-height: 1;
     }
 </style>

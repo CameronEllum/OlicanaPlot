@@ -41,6 +41,8 @@ export abstract class ChartAdapter {
     lineWidth: number,
     xAxisName: string,
     yAxisNames: Record<number, string>,
+    linkX: boolean,
+    linkY: boolean,
   ): void;
 
   // Trigger the chart to update its dimensions to fit its container.
