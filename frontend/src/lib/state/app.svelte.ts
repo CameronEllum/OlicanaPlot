@@ -145,7 +145,7 @@ class AppState {
         }
         PluginService.LogDebug("AppState", "initChart() adapter instance created", "");
 
-        this.chartAdapter.init(container, this.isDarkMode);
+        this.chartAdapter.init(container);
         PluginService.LogDebug("AppState", "initChart() adapter.init sequence basic done", "");
 
         PluginService.LogDebug("AppState", "initChart() binding context menu", "");
@@ -397,7 +397,6 @@ class AppState {
         this.chartAdapter.setData(
             this.currentSeriesData,
             this.currentTitle,
-            this.isDarkMode,
             this.getGridRight.bind(this),
             this.defaultLineWidth,
             this.xAxisName,
@@ -430,7 +429,7 @@ class AppState {
         const newTheme = this.isDarkMode ? "dark" : "light";
         await ConfigService.SetTheme(newTheme);
         if (this.chartAdapter) {
-            this.chartAdapter.init(this.chartContainer!, this.isDarkMode);
+            this.chartAdapter.init(this.chartContainer!);
             this.updateChart();
         }
     }

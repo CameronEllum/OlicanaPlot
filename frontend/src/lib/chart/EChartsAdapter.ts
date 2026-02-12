@@ -15,14 +15,13 @@ export class EChartsAdapter extends ChartAdapter {
   private lastArgs: any = null;
   private cells: any[] = [];
 
-  // Create a new ECharts instance within the provided container and apply the
-  // appropriate theme.
-  init(container: HTMLElement, darkMode: boolean) {
+  // Create a new ECharts instance within the provided container.
+  init(container: HTMLElement) {
     this.container = container;
     if (this.instance) {
       this.instance.dispose();
     }
-    this.instance = echarts.init(container, darkMode ? "dark" : undefined);
+    this.instance = echarts.init(container);
   }
 
   // Configure and render the ECharts visualization, including subplots, axes,
@@ -30,7 +29,6 @@ export class EChartsAdapter extends ChartAdapter {
   setData(
     seriesData: SeriesConfig[],
     title: string,
-    darkMode: boolean,
     getGridRight: (data: SeriesConfig[]) => number,
     lineWidth: number,
     xAxisName: string,
@@ -42,7 +40,6 @@ export class EChartsAdapter extends ChartAdapter {
     this.lastArgs = {
       seriesData,
       title,
-      darkMode,
       getGridRight,
       lineWidth,
       xAxisName,
@@ -297,7 +294,6 @@ export class EChartsAdapter extends ChartAdapter {
         this.setData(
           this.lastArgs.seriesData,
           this.lastArgs.title,
-          this.lastArgs.darkMode,
           this.lastArgs.getGridRight,
           this.lastArgs.lineWidth,
           this.lastArgs.xAxisName,

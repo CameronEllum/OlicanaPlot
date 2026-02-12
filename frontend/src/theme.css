@@ -18,6 +18,12 @@
     --slider-track: #e2e8f0;
     --slider-progress: linear-gradient(90deg, #6366f1, #a855f7);
     --header-gradient: linear-gradient(135deg, #0f172a, #475569);
+
+    /* Chart Variables */
+    --chart-grid: #e0e0e0;
+    --chart-axis: #000000;
+    --chart-text: #333333;
+    --chart-bg: #ffffff;
 }
 
 .dark-mode {
@@ -31,6 +37,12 @@
     --slider-track: #2a2a3a;
     --shadow-premium: 0 20px 40px rgba(0, 0, 0, 0.4);
     --header-gradient: linear-gradient(135deg, #fff, #9898a8);
+
+    /* Chart Variables */
+    --chart-grid: #444444;
+    --chart-axis: #cccccc;
+    --chart-text: #cccccc;
+    --chart-bg: #2b2b2b;
 }
 
 /* Animations */

@@ -27,16 +27,14 @@ export interface ContextMenuEvent {
 // Define the interface for different chart library implementations (e.g.,
 // ECharts, Plotly).
 export abstract class ChartAdapter {
-  // Initialize the chart within the specified DOM container and set the
-  // initial theme mode.
-  abstract init(container: HTMLElement, darkMode: boolean): void;
+  // Initialize the chart within the specified DOM container.
+  abstract init(container: HTMLElement): void;
 
-  // Render the provided series data on the chart with a title, theme
-  // configuration, and dynamic grid calculation.
+  // Render the provided series data on the chart with a title
+  // and dynamic grid calculation.
   abstract setData(
     seriesData: SeriesConfig[],
     title: string,
-    darkMode: boolean,
     getGridRight: (data: SeriesConfig[]) => number,
     lineWidth: number,
     xAxisName: string,

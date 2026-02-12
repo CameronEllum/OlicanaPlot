@@ -16,8 +16,8 @@ export class PlotlyAdapter extends ChartAdapter {
   private contextMenuHandler: ((event: ContextMenuEvent) => void) | null = null;
   private cells: any[] = [];
 
-  // Initialize the container and dark mode state.
-  init(container: HTMLElement, darkMode: boolean) {
+  // Initialize the container.
+  init(container: HTMLElement) {
     this.container = container;
   }
 
@@ -25,7 +25,6 @@ export class PlotlyAdapter extends ChartAdapter {
   setData(
     seriesData: SeriesConfig[],
     title: string,
-    darkMode: boolean,
     getGridRight: (data: SeriesConfig[]) => number,
     lineWidth: number,
     xAxisName: string,
