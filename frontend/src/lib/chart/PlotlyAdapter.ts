@@ -187,11 +187,10 @@ export class PlotlyAdapter extends ChartAdapter {
         font: { color: textColor },
       },
       margin: {
-        l: 0,
+        l: 100,
         r: marginRight,
         t: 60,
         b: 0,
-        pad: 20,
       },
       dragmode: "pan" as const,
       grid: {
