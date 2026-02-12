@@ -135,9 +135,11 @@ export class PlotlyAdapter extends ChartAdapter {
       dragmode: "pan" as const,
     };
 
-    // Calculate vertical and horizontal domains
-    const xGap = numCols > 1 ? 0.12 : 0.04;
-    const yGap = numRows > 1 ? 0.12 : 0.06;
+    // Calculate vertical and horizontal domains (0-1) using pixel-based gaps
+    const containerWidth = this.container.clientWidth || 800;
+    const containerHeight = this.container.clientHeight || 600;
+    const xGap = numCols > 1 ? 80 / containerWidth : 0;
+    const yGap = numRows > 1 ? 60 / containerHeight : 0;
     const cellW = (1.0 - (numCols - 1) * xGap) / numCols;
     const cellH = (1.0 - (numRows - 1) * yGap) / numRows;
 
@@ -150,12 +152,12 @@ export class PlotlyAdapter extends ChartAdapter {
       const yTop = 1.0 - cell.row * (cellH + yGap);
       const yBottom = Math.max(0, yTop - cellH);
 
-      // Link X: Global vs Per Column
+      // Link X: Global vs Independent
       let xMatches: string | undefined;
       if (linkX) {
         xMatches = i === 0 ? undefined : "x";
-      } else if (cell.row !== 0) {
-        xMatches = cellToAxisMap[`0,${cell.col}`]?.x || undefined;
+      } else {
+        xMatches = undefined;
       }
 
       layout[axes.xaxisKey] = {

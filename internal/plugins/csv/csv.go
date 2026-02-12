@@ -240,9 +240,14 @@ func (p *Plugin) GetChartConfig(args string) (*plugins.ChartConfig, error) {
 		xLabel = p.selectedX
 	}
 
+	yLabel := "Value"
+	if len(p.selectedY) == 1 {
+		yLabel = p.selectedY[0]
+	}
+
 	return &plugins.ChartConfig{
 		Title:      title,
-		AxisLabels: []string{xLabel, "Value"},
+		AxisLabels: []string{xLabel, yLabel},
 	}, nil
 }
 

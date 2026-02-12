@@ -173,6 +173,7 @@ class AppState {
         try {
             await PluginService.ActivatePlugin(pluginName, initStr);
             await this.loadData(sourceLabel || pluginName);
+            await this.fetchPluginConfig();
         } catch (e: any) {
             console.error("Failed to activate plugin:", e);
             this.error = e.message;
@@ -237,6 +238,7 @@ class AppState {
 
             this.currentSeriesData = [...this.currentSeriesData, ...newSeriesData];
             this.isDefault = false;
+            await this.fetchPluginConfig(targetCell.row, targetCell.col);
             this.updateChart();
         } catch (e: any) {
             console.error("Failed to add data:", e);
@@ -356,15 +358,32 @@ class AppState {
             });
 
             this.currentSeriesData = seriesData;
-            this.currentTitle = `${source.charAt(0).toUpperCase() + source.slice(1)} Data`;
             this.dataSource = source;
             this.isDefault = false; // Reset to false whenever any data is loaded
+
+            await this.fetchPluginConfig();
             this.updateChart();
         } catch (e: any) {
             console.error("Failed to fetch data:", e);
             this.error = e.message;
         }
         this.loading = false;
+    }
+
+    async fetchPluginConfig(row = 0, col = 0) {
+        try {
+            const config = await PluginService.GetChartConfig();
+            if (config) {
+                if (row === 0 && col === 0 && config.title) this.currentTitle = config.title;
+                if (config.axis_labels && config.axis_labels.length >= 2) {
+                    if (row === 0) this.xAxisName = config.axis_labels[0];
+                    // Update the subplot's Y label
+                    this.subplotNames[`${row},${col}`] = config.axis_labels[1];
+                }
+            }
+        } catch (e) {
+            console.error("Failed to fetch plugin config:", e);
+        }
     }
 
 

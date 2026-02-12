@@ -94,18 +94,22 @@ export class EChartsAdapter extends ChartAdapter {
     // We convert the pixel-based right margin into a percentage of the current
     // container width so that we can distribute the "inner" columns equally using percentages.
     const containerWidth = this.container?.clientWidth || 800;
+    const containerHeight = this.container?.clientHeight || 600;
     const leftMarginPct = 8;
     const rightMarginPx = getGridRight(seriesArr);
     const rightMarginPct = (rightMarginPx / containerWidth) * 100;
-    const gapPct = numCols > 1 || numRows > 1 ? 7 : 4; // Increase gap if we have subplots
+
+    // Use pixel-based gaps converted to percentages to keep spacing consistent across window sizes
+    const hGapPct = numCols > 1 ? (80 / containerWidth) * 100 : 0;
+    const vGapPct = numRows > 1 ? (60 / containerHeight) * 100 : 0;
 
     const totalUsableWidthPct = 100 - leftMarginPct - rightMarginPct;
     const cellWidthPct =
-      (totalUsableWidthPct - (numCols - 1) * gapPct) / numCols;
+      (totalUsableWidthPct - (numCols - 1) * hGapPct) / numCols;
 
     const grids = cells.map((cell) => {
       const top = 10 + cell.row * cellHeight;
-      const left = leftMarginPct + cell.col * (cellWidthPct + gapPct);
+      const left = leftMarginPct + cell.col * (cellWidthPct + hGapPct);
       const right = 100 - (left + cellWidthPct);
 
       return {
@@ -115,7 +119,7 @@ export class EChartsAdapter extends ChartAdapter {
         bottom:
           cell.row === maxRow
             ? "10%"
-            : `${100 - (top + cellHeight - gapPct)}%`,
+            : `${100 - (top + cellHeight - vGapPct)}%`,
         containLabel: true,
       };
     });
@@ -215,16 +219,11 @@ export class EChartsAdapter extends ChartAdapter {
         filterMode: "none",
       });
     } else {
-      // Per-column linking
-      const cols: Record<number, number[]> = {};
-      cells.forEach((c, i) => {
-        if (!cols[c.col]) cols[c.col] = [];
-        cols[c.col].push(i);
-      });
-      Object.values(cols).forEach((indices) => {
+      // Independent X axes for each subplot
+      cells.forEach((_, i) => {
         dataZoom.push({
           type: "inside",
-          xAxisIndex: indices,
+          xAxisIndex: i,
           filterMode: "none",
         });
       });

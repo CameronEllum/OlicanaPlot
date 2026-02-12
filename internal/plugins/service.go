@@ -246,3 +246,12 @@ func (s *Service) OpenFile() (*OpenFileResult, error) {
 		Candidates: candidates,
 	}, nil
 }
+
+// GetChartConfig returns the chart configuration for the active plugin.
+func (s *Service) GetChartConfig() (*ChartConfig, error) {
+	active := s.manager.GetActive()
+	if active == nil {
+		return nil, fmt.Errorf("no active plugin")
+	}
+	return active.GetChartConfig("")
+}
