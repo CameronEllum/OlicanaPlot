@@ -186,13 +186,18 @@ class AppState {
         if (!skipConfirmation && !this.isDefault) {
             const res = await Dialogs.Question({
                 Title: "Default Plot",
-                Message: "Clear current plot and return to default damped sine wave?",
+                Message:
+                    "Clear current plot and return to the default plot?",
                 Buttons: [
-                    { Label: "OK", IsDefault: true },
-                    { Label: "Cancel", IsCancel: true }
-                ]
+                    { Label: "Yes", IsDefault: true },
+                    { Label: "No", IsCancel: true },
+                ],
             });
-            if (res !== "OK") return;
+
+            // The result is the label of the button clicked.
+            if (res !== "Yes") {
+                return;
+            }
         }
 
         const defaultConfig = JSON.stringify({

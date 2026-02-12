@@ -16,14 +16,13 @@ export class PlotlyAdapter extends ChartAdapter {
   private contextMenuHandler: ((event: ContextMenuEvent) => void) | null = null;
   private cells: any[] = [];
 
-  // Store the target container and initial theme for the Plotly instance.
+  // Initialize the container and dark mode state.
   init(container: HTMLElement, darkMode: boolean) {
     this.container = container;
     this.darkMode = darkMode;
   }
 
-  // Prepare the data traces and layout configuration, then render or update the
-  // Plotly chart including subplot partitioning.
+  // Set the chart data, configuration, and perform the draw operation.
   setData(
     seriesData: SeriesConfig[],
     title: string,
@@ -40,10 +39,48 @@ export class PlotlyAdapter extends ChartAdapter {
     this.darkMode = darkMode;
     this.currentData = seriesData;
 
-    // Always expect an array of series
     const seriesArr = Array.isArray(seriesData) ? seriesData : [seriesData];
+    const grid = this.getGridInfo(seriesArr);
+    this.cells = grid.cells;
 
-    // Find 2D grid dimensions
+    PluginService.LogDebug(
+      "PlotlyAdapter",
+      "Rendering 2D subplots",
+      `Rows: ${grid.numRows}, Cols: ${grid.numCols}, Unique Cells: ${grid.cells.length}`,
+    );
+
+    const { cellToAxisMap, gridSubplots } = this.createAxisMapping(
+      grid.cells,
+      grid.numRows,
+      grid.numCols,
+    );
+
+    const traces = this.createTraces(seriesArr, cellToAxisMap, lineWidth);
+    const layout = this.createBaseLayout(
+      title,
+      darkMode,
+      getGridRight(seriesArr),
+      gridSubplots,
+    );
+
+    this.applyAxisConfiguration(
+      layout,
+      grid,
+      cellToAxisMap,
+      xAxisName,
+      yAxisNames,
+      darkMode,
+      linkX,
+      linkY,
+    );
+
+    this.handleGridChange(grid.numRows, grid.numCols);
+    this.renderPlot(traces, layout);
+    this.setupPostPlotHandlers();
+  }
+
+  // Determine the dimensions and cell layout of the subplot grid.
+  private getGridInfo(seriesArr: SeriesConfig[]) {
     const cells = [
       ...new Set(
         seriesArr.map((s) => `${s.subplotRow || 0},${s.subplotCol || 0}`),
@@ -55,20 +92,20 @@ export class PlotlyAdapter extends ChartAdapter {
       })
       .sort((a, b) => a.row - b.row || a.col - b.col);
 
-    this.cells = cells;
-
     const maxRow = Math.max(0, ...cells.map((c) => c.row));
     const maxCol = Math.max(0, ...cells.map((c) => c.col));
-    const numRows = maxRow + 1;
-    const numCols = maxCol + 1;
 
-    PluginService.LogDebug(
-      "PlotlyAdapter",
-      "Rendering 2D subplots",
-      `Rows: ${numRows}, Cols: ${numCols}, Unique Cells: ${cells.length}`,
-    );
+    return {
+      cells,
+      numRows: maxRow + 1,
+      numCols: maxCol + 1,
+      maxRow,
+      maxCol,
+    };
+  }
 
-    // Map cell "row,col" to Plotly axis labels
+  // Map each grid cell to its corresponding Plotly axis identifier.
+  private createAxisMapping(cells: any[], numRows: number, numCols: number) {
     const cellToAxisMap: Record<string, any> = {};
     const gridSubplots: string[][] = Array.from({ length: numRows }, () =>
       Array(numCols).fill(""),
@@ -85,12 +122,19 @@ export class PlotlyAdapter extends ChartAdapter {
         axisIndex: i,
       };
       cellToAxisMap[cell.id] = axes;
-
-      // Place the correct subplot reference at its designated grid coordinates
       gridSubplots[cell.row][cell.col] = `${axes.x}${axes.y}`;
     }
 
-    const traces = seriesArr.map((s) => {
+    return { cellToAxisMap, gridSubplots };
+  }
+
+  // Generate the data traces for each series in the chart.
+  private createTraces(
+    seriesArr: SeriesConfig[],
+    cellToAxisMap: Record<string, any>,
+    lineWidth: number,
+  ) {
+    return seriesArr.map((s) => {
       const pointCount = s.data.length / 2;
       const xData = s.data.subarray(0, pointCount);
       const yData = s.data.subarray(pointCount);
@@ -112,13 +156,19 @@ export class PlotlyAdapter extends ChartAdapter {
         hoverinfo: "x+y+name",
       };
     });
+  }
 
+  // Create the base layout configuration object.
+  private createBaseLayout(
+    title: string,
+    darkMode: boolean,
+    marginRight: number,
+    gridSubplots: string[][],
+  ) {
     const textColor = darkMode ? "#ccc" : "#333";
     const bgColor = darkMode ? "#2b2b2b" : "#ffffff";
-    const gridColor = darkMode ? "#444" : "#e0e0e0";
-    const axisLineColor = darkMode ? "#ccc" : "#000";
 
-    const layout: any = {
+    return {
       title: {
         text: `<b>${title}</b>`,
         font: { color: textColor, size: 20 },
@@ -135,15 +185,14 @@ export class PlotlyAdapter extends ChartAdapter {
         y: 1,
         font: { color: textColor },
       },
-      // Zero-base margins; automargin on each axis expands as needed
       margin: {
-        l: 80,
-        r: getGridRight(seriesArr),
+        l: 0,
+        r: marginRight,
         t: 60,
         b: 0,
+        pad: 20,
       },
       dragmode: "pan" as const,
-      // Let Plotly compute all subplot domains automatically
       grid: {
         subplots: gridSubplots,
         pattern: "independent",
@@ -152,22 +201,29 @@ export class PlotlyAdapter extends ChartAdapter {
         roworder: "top to bottom",
       },
     };
+  }
 
-    // Configure each axis pair — no manual domain needed
-    for (const [i, cell] of cells.entries()) {
+  // Apply specific axis settings and linking to the layout.
+  private applyAxisConfiguration(
+    layout: any,
+    grid: { cells: any[]; maxRow: number },
+    cellToAxisMap: Record<string, any>,
+    xAxisName: string,
+    yAxisNames: Record<string, string>,
+    darkMode: boolean,
+    linkX: boolean,
+    linkY: boolean,
+  ) {
+    const textColor = darkMode ? "#ccc" : "#333";
+    const gridColor = darkMode ? "#444" : "#e0e0e0";
+    const axisLineColor = darkMode ? "#ccc" : "#000";
+
+    for (const [i, cell] of grid.cells.entries()) {
       const axes = cellToAxisMap[cell.id];
-
-      // Link X: Global vs Independent
-      let xMatches: string | undefined;
-      if (linkX) {
-        xMatches = i === 0 ? undefined : "x";
-      } else {
-        xMatches = undefined;
-      }
 
       layout[axes.xaxisKey] = {
         title:
-          cell.row === maxRow
+          cell.row === grid.maxRow
             ? {
               text: `<b>${xAxisName}</b>`,
               font: { size: 16, color: textColor },
@@ -178,7 +234,7 @@ export class PlotlyAdapter extends ChartAdapter {
         zerolinecolor: gridColor,
         tickfont: { color: textColor },
         anchor: axes.y,
-        matches: xMatches,
+        matches: linkX ? (i === 0 ? undefined : "x") : undefined,
         showticklabels: true,
         showline: true,
         linewidth: 2,
@@ -210,90 +266,102 @@ export class PlotlyAdapter extends ChartAdapter {
         automargin: true,
       };
     }
+  }
 
+  // Purge the plot if the grid dimensions have changed.
+  private handleGridChange(numRows: number, numCols: number) {
+    const gridKey = `${numRows}x${numCols}`;
+    if (gridKey !== this.lastGridKey) {
+      PluginService.LogDebug(
+        "PlotlyAdapter",
+        "Purging plot due to grid dimension change",
+        `from ${this.lastGridKey || "none"} to ${gridKey}`,
+      );
+      Plotly.purge(this.container);
+      this.lastGridKey = gridKey;
+    }
+  }
+
+  // Update the chart using the react method.
+  private renderPlot(traces: any[], layout: any) {
     const config = {
       responsive: true,
       scrollZoom: true,
       displayModeBar: true,
       modeBarButtonsToRemove: ["lasso2d", "select2d"],
     };
-
-    // If grid dimensions change, purge
-    const gridKey = `${numRows}x${numCols}`;
-    if (gridKey !== (this as any).lastGridKey) {
-      PluginService.LogDebug(
-        "PlotlyAdapter",
-        "Purging plot due to grid dimension change",
-        `from ${(this as any).lastGridKey || 'none'} to ${gridKey}`,
-      );
-      Plotly.purge(this.container);
-      (this as any).lastGridKey = gridKey;
-    }
-
     Plotly.react(this.container, traces, layout, config);
+  }
 
-    // Legend context menu logic
-    // Clean up old listeners before re-registering
+  // Register event listeners for interactions after the chart renders.
+  private setupPostPlotHandlers() {
     this.container.off?.("plotly_afterplot");
     this.container.on("plotly_afterplot", () => {
-      // Legend context menu
-      const legendItems = this.container.querySelectorAll(
-        ".legendtext, .legendtoggle",
-      );
-      for (const el of legendItems) {
-        (el as any).oncontextmenu = (e: MouseEvent) => {
-          e.preventDefault();
-          e.stopPropagation();
-
-          const traceGroup = (el as any).closest(".traces") as HTMLElement;
-          const textEl = traceGroup
-            ? traceGroup.querySelector(".legendtext")
-            : null;
-          const traceName = textEl ? textEl.textContent?.trim() : null;
-
-          if (traceName && this.contextMenuHandler) {
-            PluginService.LogDebug(
-              "PlotlyAdapter",
-              "Standardized legend context menu",
-              traceName,
-            );
-            this.contextMenuHandler({
-              type: "legend",
-              rawEvent: e,
-              seriesName: traceName,
-              x: e.clientX,
-              y: e.clientY,
-            });
-          }
-        };
-      }
-
-      // Title context menu discovery
-      const titleEl = this.container.querySelector(
-        ".gtitle, .g-title, .titletext, .main-title",
-      );
-      if (titleEl) {
-        PluginService.LogDebug(
-          "PlotlyAdapter",
-          "Title element found, storing reference",
-          "",
-        );
-        (this as any).titleElement = titleEl;
-      } else {
-        PluginService.LogDebug("PlotlyAdapter", "Title element NOT found", "");
-      }
+      this.setupLegendContextMenu();
+      this.findTitleElement();
     });
   }
 
-  // Trigger Plotly's internal resizing logic to fit the container.
+  // Attach context menu listeners to legend items.
+  private setupLegendContextMenu() {
+    const legendItems = this.container.querySelectorAll(
+      ".legendtext, .legendtoggle",
+    );
+    for (const el of legendItems) {
+      (el as any).oncontextmenu = (e: MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const traceGroup = (el as any).closest(".traces") as HTMLElement;
+        const textEl = traceGroup
+          ? traceGroup.querySelector(".legendtext")
+          : null;
+        const traceName = textEl ? textEl.textContent?.trim() : null;
+
+        if (traceName && this.contextMenuHandler) {
+          PluginService.LogDebug(
+            "PlotlyAdapter",
+            "Standardized legend context menu",
+            traceName,
+          );
+          this.contextMenuHandler({
+            type: "legend",
+            rawEvent: e,
+            seriesName: traceName,
+            x: e.clientX,
+            y: e.clientY,
+          });
+        }
+      };
+    }
+  }
+
+  // Locate and store a reference to the chart title element.
+  private findTitleElement() {
+    const titleEl = this.container.querySelector(
+      ".gtitle, .g-title, .titletext, .main-title",
+    );
+    if (titleEl) {
+      PluginService.LogDebug(
+        "PlotlyAdapter",
+        "Title element found, storing reference",
+        "",
+      );
+      (this as any).titleElement = titleEl;
+    } else {
+      PluginService.LogDebug("PlotlyAdapter", "Title element NOT found", "");
+    }
+  }
+
+
+  // Resize the chart to fit its container.
   resize() {
     if (this.container) {
       Plotly.Plots.resize(this.container);
     }
   }
 
-  // Calculate data-space coordinates from screen pixel values by using Plotly's
-  // axis scaling functions.
+  // Convert pixel coordinates to data coordinates using Plotly scaling functions.
   getDataAtPixel(x: number, y: number) {
     const layout = this.container?._fullLayout;
     const { xaxis, yaxis } = layout || {};
@@ -322,12 +390,12 @@ export class PlotlyAdapter extends ChartAdapter {
 
     return { x: dataX, y: dataY };
   }
-
+  // Remove HTML tags from the given string.
   private stripTags(str: string): string {
     return str.replace(/<\/?b>/gi, "");
   }
 
-  // Map screen coordinates to chart regions (title, axes, grid).
+  // Determine the chart element located at the click coordinates.
   private getClickTarget(e: MouseEvent): ContextMenuEvent {
     if (!this.container || !this.container._fullLayout) {
       return { type: "other", rawEvent: e, x: e.clientX, y: e.clientY };
@@ -424,8 +492,7 @@ export class PlotlyAdapter extends ChartAdapter {
     return { type: "other", rawEvent: e, x: e.clientX, y: e.clientY };
   }
 
-  // Convert data coordinates into screen pixel coordinates for use by external
-  // UI overlays.
+  // Convert data coordinates to pixel coordinates.
   getPixelFromData(x: number, y: number) {
     if (!this.container || !this.container._fullLayout) return null;
     const layout = this.container._fullLayout;
@@ -437,15 +504,14 @@ export class PlotlyAdapter extends ChartAdapter {
     return { x: pixelX, y: pixelY };
   }
 
-  // Release all Plotly resources and clear the container.
+  // Clean up chart resources and purge the plot.
   destroy() {
     if (this.container) {
       Plotly.purge(this.container);
     }
   }
 
-  // Attach a handler for legend click events and return false to prevent
-  // Plotly's default toggling behavior.
+  // Register a handler for legend click events.
   onLegendClick(handler: (seriesName: string, event: any) => void) {
     if (!this.container) {
       PluginService.LogDebug(
@@ -502,8 +568,7 @@ export class PlotlyAdapter extends ChartAdapter {
     }
   }
 
-  // Register a callback for handling right-click context menu events on the
-  // chart.
+  // Register a handler for right-click context menu events.
   onContextMenu(handler: (event: ContextMenuEvent) => void) {
     this.contextMenuHandler = handler;
     if (this.container) {
