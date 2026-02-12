@@ -179,7 +179,7 @@ export class PlotlyAdapter extends ChartAdapter {
         tickfont: { color: textColor },
         anchor: axes.y,
         matches: xMatches,
-        showticklabels: cell.row === maxRow,
+        showticklabels: true,
         showline: true,
         linewidth: 2,
         linecolor: axisLineColor,
@@ -206,7 +206,7 @@ export class PlotlyAdapter extends ChartAdapter {
         showline: true,
         linewidth: 2,
         linecolor: axisLineColor,
-        showticklabels: cell.col === 0,
+        showticklabels: true,
         automargin: true,
       };
     }
