@@ -70,9 +70,13 @@ export class PlotlyAdapter extends ChartAdapter {
 
     // Map cell "row,col" to Plotly axis labels
     const cellToAxisMap: Record<string, any> = {};
+    const gridSubplots: string[][] = Array.from({ length: numRows }, () =>
+      Array(numCols).fill(""),
+    );
+
     for (const [i, cell] of cells.entries()) {
       const axisNum = i === 0 ? "" : (i + 1).toString();
-      cellToAxisMap[cell.id] = {
+      const axes = {
         x: `x${axisNum}`,
         y: `y${axisNum}`,
         xaxisKey: `xaxis${axisNum}`,
@@ -80,6 +84,10 @@ export class PlotlyAdapter extends ChartAdapter {
         cell,
         axisIndex: i,
       };
+      cellToAxisMap[cell.id] = axes;
+
+      // Place the correct subplot reference at its designated grid coordinates
+      gridSubplots[cell.row][cell.col] = `${axes.x}${axes.y}`;
     }
 
     const traces = seriesArr.map((s) => {
@@ -137,11 +145,10 @@ export class PlotlyAdapter extends ChartAdapter {
       dragmode: "pan" as const,
       // Let Plotly compute all subplot domains automatically
       grid: {
-        rows: numRows,
-        columns: numCols,
+        subplots: gridSubplots,
         pattern: "independent",
-        xgap: 0.1,
-        ygap: 0.15,
+        xgap: 0.18,
+        ygap: 0.22,
         roworder: "top to bottom",
       },
     };
@@ -161,7 +168,11 @@ export class PlotlyAdapter extends ChartAdapter {
       layout[axes.xaxisKey] = {
         title:
           cell.row === maxRow
-            ? { text: `<b>${xAxisName}</b>`, font: { size: 16, color: textColor } }
+            ? {
+              text: `<b>${xAxisName}</b>`,
+              font: { size: 16, color: textColor },
+              standoff: 25,
+            }
             : undefined,
         gridcolor: gridColor,
         zerolinecolor: gridColor,
@@ -185,6 +196,7 @@ export class PlotlyAdapter extends ChartAdapter {
         title: {
           text: `<b>${customYName || defaultYName}</b>`,
           font: { size: 14, color: textColor },
+          standoff: 25,
         },
         gridcolor: gridColor,
         zerolinecolor: gridColor,
