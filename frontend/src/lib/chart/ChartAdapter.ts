@@ -71,3 +71,8 @@ export abstract class ChartAdapter {
   // chart.
   abstract onContextMenu(handler: (event: ContextMenuEvent) => void): void;
 }
+
+export function getCSSVar(name: string): string {
+  if (typeof window === 'undefined') return '';
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}

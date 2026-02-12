@@ -1,6 +1,7 @@
 // Main entry point for the frontend application. This script initializes the
 // global styles and mounts the root Svelte component to the DOM.
 import './theme.css';
+import './plot-theme.css';
 import { mount } from 'svelte'
 import App from './App.svelte'
 

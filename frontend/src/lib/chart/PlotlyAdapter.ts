@@ -4,6 +4,7 @@ import {
   ChartAdapter,
   type ContextMenuEvent,
   type SeriesConfig,
+  getCSSVar,
 } from "./ChartAdapter.ts";
 
 // Plotly.js implementation of ChartAdapter using WebGL (scattergl).
@@ -165,8 +166,8 @@ export class PlotlyAdapter extends ChartAdapter {
     marginRight: number,
     gridSubplots: string[][],
   ) {
-    const textColor = darkMode ? "#ccc" : "#333";
-    const bgColor = darkMode ? "#2b2b2b" : "#ffffff";
+    const textColor = getCSSVar("--chart-text");
+    const bgColor = getCSSVar("--chart-bg");
 
     return {
       title: {
@@ -214,9 +215,9 @@ export class PlotlyAdapter extends ChartAdapter {
     linkX: boolean,
     linkY: boolean,
   ) {
-    const textColor = darkMode ? "#ccc" : "#333";
-    const gridColor = darkMode ? "#444" : "#e0e0e0";
-    const axisLineColor = darkMode ? "#ccc" : "#000";
+    const textColor = getCSSVar("--chart-text");
+    const gridColor = getCSSVar("--chart-grid");
+    const axisLineColor = getCSSVar("--chart-axis");
 
     for (const [i, cell] of grid.cells.entries()) {
       const axes = cellToAxisMap[cell.id];

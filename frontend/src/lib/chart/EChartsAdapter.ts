@@ -4,6 +4,7 @@ import {
   ChartAdapter,
   type ContextMenuEvent,
   type SeriesConfig,
+  getCSSVar,
 } from "./ChartAdapter.ts";
 
 // ECharts implementation of ChartAdapter. Implements true subplots by using
@@ -50,8 +51,9 @@ export class EChartsAdapter extends ChartAdapter {
       linkY,
     };
 
-    const textColor = darkMode ? "#ccc" : "#333";
-    const bgColor = darkMode ? "#2b2b2b" : "#ffffff";
+    const textColor = getCSSVar("--chart-text");
+    const bgColor = getCSSVar("--chart-bg");
+    const gridColor = getCSSVar("--chart-grid");
 
     // Always expect an array of series
     const seriesArr = Array.isArray(seriesData) ? seriesData : [seriesData];
@@ -139,8 +141,8 @@ export class EChartsAdapter extends ChartAdapter {
       nameGap: 30,
       gridIndex: i,
       axisLabel: { show: true },
-      axisLine: { lineStyle: { color: textColor } },
-      splitLine: { lineStyle: { color: darkMode ? "#444" : "#e0e0e0" } },
+      axisLine: { lineStyle: { color: getCSSVar("--chart-axis") } },
+      splitLine: { lineStyle: { color: gridColor } },
       triggerEvent: true,
     }));
 
@@ -186,8 +188,8 @@ export class EChartsAdapter extends ChartAdapter {
         min: globalYMin,
         max: globalYMax,
         axisLabel: { show: true },
-        axisLine: { lineStyle: { color: textColor } },
-        splitLine: { lineStyle: { color: darkMode ? "#444" : "#e0e0e0" } },
+        axisLine: { lineStyle: { color: getCSSVar("--chart-axis") } },
+        splitLine: { lineStyle: { color: gridColor } },
         nameTextStyle: { color: textColor, fontWeight: "bold" },
         axisTick: { show: true },
         triggerEvent: true,
