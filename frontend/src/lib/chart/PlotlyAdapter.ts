@@ -11,7 +11,6 @@ import {
 // Implements true subplots by dynamically partitioning the Y domain.
 export class PlotlyAdapter extends ChartAdapter {
   public container: any = null;
-  public darkMode: boolean = false;
   public currentData: SeriesConfig[] | null = null;
   private lastGridKey: string = "";
   private contextMenuHandler: ((event: ContextMenuEvent) => void) | null = null;
@@ -20,7 +19,6 @@ export class PlotlyAdapter extends ChartAdapter {
   // Initialize the container and dark mode state.
   init(container: HTMLElement, darkMode: boolean) {
     this.container = container;
-    this.darkMode = darkMode;
   }
 
   // Set the chart data, configuration, and perform the draw operation.
@@ -37,7 +35,6 @@ export class PlotlyAdapter extends ChartAdapter {
   ) {
     if (!this.container) return;
 
-    this.darkMode = darkMode;
     this.currentData = seriesData;
 
     const seriesArr = Array.isArray(seriesData) ? seriesData : [seriesData];
@@ -59,7 +56,6 @@ export class PlotlyAdapter extends ChartAdapter {
     const traces = this.createTraces(seriesArr, cellToAxisMap, lineWidth);
     const layout = this.createBaseLayout(
       title,
-      darkMode,
       getGridRight(seriesArr),
       gridSubplots,
     );
@@ -70,7 +66,6 @@ export class PlotlyAdapter extends ChartAdapter {
       cellToAxisMap,
       xAxisName,
       yAxisNames,
-      darkMode,
       linkX,
       linkY,
     );
@@ -162,7 +157,6 @@ export class PlotlyAdapter extends ChartAdapter {
   // Create the base layout configuration object.
   private createBaseLayout(
     title: string,
-    darkMode: boolean,
     marginRight: number,
     gridSubplots: string[][],
   ) {
@@ -210,7 +204,6 @@ export class PlotlyAdapter extends ChartAdapter {
     cellToAxisMap: Record<string, any>,
     xAxisName: string,
     yAxisNames: Record<string, string>,
-    darkMode: boolean,
     linkX: boolean,
     linkY: boolean,
   ) {
