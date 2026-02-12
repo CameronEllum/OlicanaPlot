@@ -97,7 +97,7 @@ export class EChartsAdapter extends ChartAdapter {
     const leftMarginPct = 8;
     const rightMarginPx = getGridRight(seriesArr);
     const rightMarginPct = (rightMarginPx / containerWidth) * 100;
-    const gapPct = 4;
+    const gapPct = numCols > 1 || numRows > 1 ? 7 : 4; // Increase gap if we have subplots
 
     const totalUsableWidthPct = 100 - leftMarginPct - rightMarginPct;
     const cellWidthPct =
@@ -162,26 +162,30 @@ export class EChartsAdapter extends ChartAdapter {
       }
     }
 
-    const yAxes = cells.map((cell, i) => ({
-      type: "value" as const,
-      name:
-        yAxisNames[cell.id] ||
-        (cell.row === 0 && cell.col === 0
+    const yAxes = cells.map((cell, i) => {
+      const customName = yAxisNames[cell.id];
+      const defaultName =
+        cell.row === 0 && cell.col === 0
           ? "Main"
-          : `Subplot ${cell.row},${cell.col}`),
-      nameLocation: "center" as const,
-      nameGap: 45,
-      nameRotate: 90,
-      gridIndex: i,
-      min: globalYMin,
-      max: globalYMax,
-      axisLabel: { show: cell.col === 0 },
-      axisLine: { lineStyle: { color: textColor } },
-      splitLine: { lineStyle: { color: darkMode ? "#444" : "#e0e0e0" } },
-      nameTextStyle: { color: textColor, fontWeight: "bold" },
-      axisTick: { show: true },
-      triggerEvent: true,
-    }));
+          : `Subplot ${cell.row},${cell.col}`;
+
+      return {
+        type: "value" as const,
+        name: customName || defaultName,
+        nameLocation: "center" as const,
+        nameGap: cell.col === 0 ? 45 : 20,
+        nameRotate: 90,
+        gridIndex: i,
+        min: globalYMin,
+        max: globalYMax,
+        axisLabel: { show: cell.col === 0 },
+        axisLine: { lineStyle: { color: textColor } },
+        splitLine: { lineStyle: { color: darkMode ? "#444" : "#e0e0e0" } },
+        nameTextStyle: { color: textColor, fontWeight: "bold" },
+        axisTick: { show: true },
+        triggerEvent: true,
+      };
+    });
 
     const series = seriesArr.map((s, i) => {
       const cellId = `${s.subplotRow || 0},${s.subplotCol || 0}`;

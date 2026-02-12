@@ -127,7 +127,7 @@ export class PlotlyAdapter extends ChartAdapter {
         font: { color: textColor },
       },
       margin: {
-        l: 80,
+        l: 100,
         r: getGridRight(seriesArr),
         t: 60,
         b: 70,
@@ -136,8 +136,8 @@ export class PlotlyAdapter extends ChartAdapter {
     };
 
     // Calculate vertical and horizontal domains
-    const xGap = 0.04;
-    const yGap = 0.06;
+    const xGap = numCols > 1 ? 0.12 : 0.04;
+    const yGap = numRows > 1 ? 0.12 : 0.06;
     const cellW = (1.0 - (numCols - 1) * xGap) / numCols;
     const cellH = (1.0 - (numRows - 1) * yGap) / numRows;
 
@@ -161,7 +161,7 @@ export class PlotlyAdapter extends ChartAdapter {
       layout[axes.xaxisKey] = {
         title:
           cell.row === maxRow
-            ? { text: xAxisName, font: { size: 16, color: textColor } }
+            ? { text: `<b>${xAxisName}</b>`, font: { size: 16, color: textColor } }
             : undefined,
         gridcolor: gridColor,
         zerolinecolor: gridColor,
@@ -175,14 +175,17 @@ export class PlotlyAdapter extends ChartAdapter {
         linecolor: axisLineColor,
       };
 
+      const customYName = yAxisNames[cell.id];
+      const defaultYName =
+        cell.row === 0 && cell.col === 0
+          ? "Main"
+          : `Subplot ${cell.row},${cell.col}`;
+
       layout[axes.yaxisKey] = {
         title: {
-          text:
-            yAxisNames[cell.id] ||
-            (cell.row === 0 && cell.col === 0
-              ? "Main"
-              : `Subplot ${cell.row},${cell.col}`),
+          text: `<b>${customYName || defaultYName}</b>`,
           font: { size: 14, color: textColor },
+          standoff: cell.col === 0 ? 30 : 15,
         },
         gridcolor: gridColor,
         zerolinecolor: gridColor,
@@ -193,6 +196,7 @@ export class PlotlyAdapter extends ChartAdapter {
         showline: true,
         linewidth: 2,
         linecolor: axisLineColor,
+        showticklabels: cell.col === 0,
       };
     }
 

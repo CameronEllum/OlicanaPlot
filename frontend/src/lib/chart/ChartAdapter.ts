@@ -40,7 +40,7 @@ export abstract class ChartAdapter {
     getGridRight: (data: SeriesConfig[]) => number,
     lineWidth: number,
     xAxisName: string,
-    yAxisNames: Record<number, string>,
+    yAxisNames: Record<string, string>,
     linkX: boolean,
     linkY: boolean,
   ): void;
