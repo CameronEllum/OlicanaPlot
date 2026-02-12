@@ -12,6 +12,7 @@ export class EChartsAdapter extends ChartAdapter {
   public instance: echarts.ECharts | null = null;
   public container: HTMLElement | null = null;
   private lastArgs: any = null;
+  private cells: any[] = [];
 
   // Create a new ECharts instance within the provided container and apply the
   // appropriate theme.
@@ -68,6 +69,8 @@ export class EChartsAdapter extends ChartAdapter {
         return { row, col, id: str };
       })
       .sort((a, b) => a.row - b.row || a.col - b.col);
+
+    this.cells = cells;
 
     const maxRow = Math.max(0, ...cells.map((c) => c.row));
     const maxCol = Math.max(0, ...cells.map((c) => c.col));
@@ -396,6 +399,7 @@ export class EChartsAdapter extends ChartAdapter {
         params.componentType === "yAxis"
       ) {
         const axisIndex = params.componentIndex;
+        const cell = this.cells[axisIndex];
         // Search for the axis in the current options to get its name
         const option = this.instance!.getOption() as any;
         const axisConfig = option[params.componentType][axisIndex];
@@ -411,6 +415,8 @@ export class EChartsAdapter extends ChartAdapter {
           rawEvent,
           axisLabel,
           axisIndex,
+          row: cell?.row,
+          col: cell?.col,
           x: rawEvent.clientX,
           y: rawEvent.clientY,
         });

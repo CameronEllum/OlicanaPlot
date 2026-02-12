@@ -14,8 +14,7 @@ export class PlotlyAdapter extends ChartAdapter {
   public currentData: SeriesConfig[] | null = null;
   private lastGridKey: string = "";
   private contextMenuHandler: ((event: ContextMenuEvent) => void) | null = null;
-
-
+  private cells: any[] = [];
 
   // Store the target container and initial theme for the Plotly instance.
   init(container: HTMLElement, darkMode: boolean) {
@@ -55,6 +54,8 @@ export class PlotlyAdapter extends ChartAdapter {
         return { row: r, col: c, id: str };
       })
       .sort((a, b) => a.row - b.row || a.col - b.col);
+
+    this.cells = cells;
 
     const maxRow = Math.max(0, ...cells.map((c) => c.row));
     const maxCol = Math.max(0, ...cells.map((c) => c.col));
@@ -127,7 +128,7 @@ export class PlotlyAdapter extends ChartAdapter {
         font: { color: textColor },
       },
       margin: {
-        l: 100,
+        l: 120,
         r: getGridRight(seriesArr),
         t: 60,
         b: 70,
@@ -175,6 +176,7 @@ export class PlotlyAdapter extends ChartAdapter {
         showline: true,
         linewidth: 2,
         linecolor: axisLineColor,
+        automargin: true,
       };
 
       const customYName = yAxisNames[cell.id];
@@ -184,11 +186,6 @@ export class PlotlyAdapter extends ChartAdapter {
           : `Subplot ${cell.row},${cell.col}`;
 
       layout[axes.yaxisKey] = {
-        title: {
-          text: `<b>${customYName || defaultYName}</b>`,
-          font: { size: 14, color: textColor },
-          standoff: cell.col === 0 ? 30 : 15,
-        },
         gridcolor: gridColor,
         zerolinecolor: gridColor,
         tickfont: { color: textColor },
@@ -199,7 +196,31 @@ export class PlotlyAdapter extends ChartAdapter {
         linewidth: 2,
         linecolor: axisLineColor,
         showticklabels: cell.col === 0,
+        automargin: true,
       };
+
+      // Add aligned Y-axis title as annotation
+      if (!layout.annotations) layout.annotations = [];
+
+      // Calculate X position for the title:
+      // For col 0, we want it in the left margin. 
+      // For col > 0, we want it in the middle of the gap.
+      const xTitlePos = cell.col === 0
+        ? -0.07 // Domain space (~70-80px into the 120px margin)
+        : xLeft - (xGap * 0.6); // Center of the gap between columns
+
+      layout.annotations.push({
+        text: `<b>${customYName || defaultYName}</b>`,
+        font: { size: 14, color: textColor },
+        showarrow: false,
+        textangle: -90,
+        xref: "paper",
+        yref: "paper",
+        x: xTitlePos,
+        y: yBottom + cellH / 2,
+        xanchor: "right",
+        yanchor: "middle",
+      });
     }
 
     const config = {
@@ -301,6 +322,11 @@ export class PlotlyAdapter extends ChartAdapter {
     const dataY = yaxis.p2d(plotTop + plotHeight - y);
     return { x: dataX, y: dataY };
   }
+
+  private stripTags(str: string): string {
+    return str.replace(/<\/?b>/gi, "");
+  }
+
   // Map screen coordinates to chart regions (title, axes, grid).
   private getClickTarget(e: MouseEvent): ContextMenuEvent {
     if (!this.container || !this.container._fullLayout) {
@@ -317,58 +343,81 @@ export class PlotlyAdapter extends ChartAdapter {
     }
 
     // Check all axis pairs
-    const yAxisKeys = Object.keys(layout).filter(k => k.startsWith("yaxis"));
+    const yAxisKeys = Object.keys(layout).filter((k) => k.startsWith("yaxis"));
     for (const yKey of yAxisKeys) {
       const yAx = layout[yKey];
       if (!yAx || yAx._offset === undefined) continue;
 
       // Determine the corresponding x-axis for this y-axis
-      // Plotly links axes via the 'anchor' property. If anchor is 'x', it's xaxis.
-      // Otherwise, it's 'xaxisN' where N is the anchor value.
-      const xKey = yAx.anchor === "x" ? "xaxis" : `xaxis${yAx.anchor.replace('x', '')}`;
+      const xKey =
+        yAx.anchor === "x" ? "xaxis" : `xaxis${yAx.anchor.replace("x", "")}`;
       const xAx = layout[xKey];
       if (!xAx || xAx._offset === undefined) continue;
 
       // Check vertical axis hit (left side)
-      // The y-axis label area is typically to the left of the x-axis's start.
-      // We check if the click is within the y-axis's vertical span and to the left of the plot area.
-      if (x < xAx._offset && y >= yAx._offset && y <= yAx._offset + yAx._length) {
-        // Extract axis index from key (e.g., "yaxis2" -> 2, "yaxis" -> 0)
-        const axisIndex = yKey === "yaxis" ? 0 : parseInt(yKey.replace("yaxis", ""), 10) - 1;
+      if (
+        x < xAx._offset &&
+        y >= yAx._offset &&
+        y <= yAx._offset + yAx._length
+      ) {
+        const axisIndex =
+          yKey === "yaxis"
+            ? 0
+            : parseInt(yKey.replace("yaxis", ""), 10) - 1;
+        const cell = this.cells[axisIndex];
         return {
           type: "yAxis",
           rawEvent: e,
-          axisLabel: yAx.title?.text || "",
+          axisLabel: this.stripTags(yAx.title?.text || ""),
           axisIndex: axisIndex,
+          row: cell?.row,
+          col: cell?.col,
           x: e.clientX,
           y: e.clientY,
         };
       }
 
       // Check horizontal axis hit (bottom side)
-      // The x-axis label area is typically below the y-axis's end.
-      // We check if the click is within the x-axis's horizontal span and below the plot area.
-      if (y > yAx._offset + yAx._length && x >= xAx._offset && x <= xAx._offset + xAx._length) {
-        // Extract axis index from key (e.g., "xaxis2" -> 2, "xaxis" -> 0)
-        const axisIndex = xKey === "xaxis" ? 0 : parseInt(xKey.replace("xaxis", ""), 10) - 1;
+      if (
+        y > yAx._offset + yAx._length &&
+        x >= xAx._offset &&
+        x <= xAx._offset + xAx._length
+      ) {
+        const axisIndex =
+          xKey === "xaxis"
+            ? 0
+            : parseInt(xKey.replace("xaxis", ""), 10) - 1;
+        const cell = this.cells[axisIndex];
         return {
           type: "xAxis",
           rawEvent: e,
-          axisLabel: xAx.title?.text || "",
+          axisLabel: this.stripTags(xAx.title?.text || ""),
           axisIndex: axisIndex,
+          row: cell?.row,
+          col: cell?.col,
           x: e.clientX,
-          y: e.clientY
+          y: e.clientY,
         };
       }
 
       // Check grid hit for this specific subplot
-      if (x >= xAx._offset && x <= xAx._offset + xAx._length &&
-        y >= yAx._offset && y <= yAx._offset + yAx._length) {
+      if (
+        x >= xAx._offset &&
+        x <= xAx._offset + xAx._length &&
+        y >= yAx._offset &&
+        y <= yAx._offset + yAx._length
+      ) {
         const dataPoint = {
           x: xAx.p2d(x - xAx._offset),
-          y: yAx.p2d(yAx._offset + yAx._length - y)
+          y: yAx.p2d(yAx._offset + yAx._length - y),
         };
-        return { type: "grid", rawEvent: e, dataPoint, x: e.clientX, y: e.clientY };
+        return {
+          type: "grid",
+          rawEvent: e,
+          dataPoint,
+          x: e.clientX,
+          y: e.clientY,
+        };
       }
     }
 
@@ -399,29 +448,57 @@ export class PlotlyAdapter extends ChartAdapter {
   // Plotly's default toggling behavior.
   onLegendClick(handler: (seriesName: string, event: any) => void) {
     if (!this.container) {
-      PluginService.LogDebug("PlotlyAdapter", "onLegendClick: container is null", "");
+      PluginService.LogDebug(
+        "PlotlyAdapter",
+        "onLegendClick: container is null",
+        "",
+      );
       return;
     }
 
     try {
-      PluginService.LogDebug("PlotlyAdapter", "Attaching plotly_legendclick", "");
+      PluginService.LogDebug(
+        "PlotlyAdapter",
+        "Attaching plotly_legendclick",
+        "",
+      );
       if (typeof this.container.on === "function") {
         this.container.on("plotly_legendclick", (event: any) => {
           try {
             const name = event.data[event.curveNumber].name;
-            PluginService.LogDebug("PlotlyAdapter", `Legend click detected: ${name}`, "");
+            PluginService.LogDebug(
+              "PlotlyAdapter",
+              `Legend click detected: ${name}`,
+              "",
+            );
             handler(name, event);
           } catch (e: any) {
-            PluginService.LogDebug("PlotlyAdapter", "Error in legend click handler callback", e.toString());
+            PluginService.LogDebug(
+              "PlotlyAdapter",
+              "Error in legend click handler callback",
+              e.toString(),
+            );
           }
           return false;
         });
-        PluginService.LogDebug("PlotlyAdapter", "Successfully attached plotly_legendclick", "");
+        PluginService.LogDebug(
+          "PlotlyAdapter",
+          "Successfully attached plotly_legendclick",
+          "",
+        );
       } else {
-        PluginService.LogDebug("PlotlyAdapter", "onLegendClick: container exists but .on is not a function", "");
+        PluginService.LogDebug(
+          "PlotlyAdapter",
+          "onLegendClick: container exists but .on is not a function",
+          "",
+        );
       }
     } catch (e: any) {
-      PluginService.LogDebug("PlotlyAdapter", "Failed to attach plotly_legendclick", e.toString());
+      PluginService.LogDebug(
+        "PlotlyAdapter",
+        "Failed to attach plotly_legendclick",
+        e.toString(),
+      );
     }
   }
 
