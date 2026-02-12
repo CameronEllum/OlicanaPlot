@@ -127,31 +127,28 @@ export class PlotlyAdapter extends ChartAdapter {
         y: 1,
         font: { color: textColor },
       },
+      // Zero-base margins; automargin on each axis expands as needed
       margin: {
-        l: 120,
+        l: 80,
         r: getGridRight(seriesArr),
         t: 60,
-        b: 70,
+        b: 0,
       },
       dragmode: "pan" as const,
+      // Let Plotly compute all subplot domains automatically
+      grid: {
+        rows: numRows,
+        columns: numCols,
+        pattern: "independent",
+        xgap: 0.1,
+        ygap: 0.15,
+        roworder: "top to bottom",
+      },
     };
 
-    // Calculate vertical and horizontal domains (0-1) using pixel-based gaps
-    const containerWidth = this.container.clientWidth || 800;
-    const containerHeight = this.container.clientHeight || 600;
-    const xGap = numCols > 1 ? 80 / containerWidth : 0;
-    const yGap = numRows > 1 ? 60 / containerHeight : 0;
-    const cellW = (1.0 - (numCols - 1) * xGap) / numCols;
-    const cellH = (1.0 - (numRows - 1) * yGap) / numRows;
-
+    // Configure each axis pair — no manual domain needed
     for (const [i, cell] of cells.entries()) {
       const axes = cellToAxisMap[cell.id];
-
-      const xLeft = cell.col * (cellW + xGap);
-      const xRight = xLeft + cellW;
-
-      const yTop = 1.0 - cell.row * (cellH + yGap);
-      const yBottom = Math.max(0, yTop - cellH);
 
       // Link X: Global vs Independent
       let xMatches: string | undefined;
@@ -169,7 +166,6 @@ export class PlotlyAdapter extends ChartAdapter {
         gridcolor: gridColor,
         zerolinecolor: gridColor,
         tickfont: { color: textColor },
-        domain: [Math.max(0, xLeft), Math.min(1, xRight)],
         anchor: axes.y,
         matches: xMatches,
         showticklabels: cell.row === maxRow,
@@ -186,10 +182,13 @@ export class PlotlyAdapter extends ChartAdapter {
           : `Subplot ${cell.row},${cell.col}`;
 
       layout[axes.yaxisKey] = {
+        title: {
+          text: `<b>${customYName || defaultYName}</b>`,
+          font: { size: 14, color: textColor },
+        },
         gridcolor: gridColor,
         zerolinecolor: gridColor,
         tickfont: { color: textColor },
-        domain: [Math.max(0, yBottom), Math.min(1, yTop)],
         anchor: axes.x,
         matches: linkY ? (i === 0 ? undefined : "y") : undefined,
         showline: true,
@@ -198,29 +197,6 @@ export class PlotlyAdapter extends ChartAdapter {
         showticklabels: cell.col === 0,
         automargin: true,
       };
-
-      // Add aligned Y-axis title as annotation
-      if (!layout.annotations) layout.annotations = [];
-
-      // Calculate X position for the title:
-      // For col 0, we want it in the left margin. 
-      // For col > 0, we want it in the middle of the gap.
-      const xTitlePos = cell.col === 0
-        ? -0.07 // Domain space (~70-80px into the 120px margin)
-        : xLeft - (xGap * 0.6); // Center of the gap between columns
-
-      layout.annotations.push({
-        text: `<b>${customYName || defaultYName}</b>`,
-        font: { size: 14, color: textColor },
-        showarrow: false,
-        textangle: -90,
-        xref: "paper",
-        yref: "paper",
-        x: xTitlePos,
-        y: yBottom + cellH / 2,
-        xanchor: "right",
-        yanchor: "middle",
-      });
     }
 
     const config = {
@@ -307,19 +283,31 @@ export class PlotlyAdapter extends ChartAdapter {
   // Calculate data-space coordinates from screen pixel values by using Plotly's
   // axis scaling functions.
   getDataAtPixel(x: number, y: number) {
-    if (!this.container || !this.container._fullLayout) return null;
-    const layout = this.container._fullLayout;
-    const xaxis = layout.xaxis;
-    const yaxis = layout.yaxis;
-    if (!xaxis || !yaxis) return null;
-    const plotLeft = xaxis._offset;
-    const plotWidth = xaxis._length;
-    const plotTop = yaxis._offset;
-    const plotHeight = yaxis._length;
-    if (x < plotLeft || x > plotLeft + plotWidth) return null;
-    if (y < plotTop || y > plotTop + plotHeight) return null;
+    const layout = this.container?._fullLayout;
+    const { xaxis, yaxis } = layout || {};
+
+    // Early exit if the chart infrastructure isn't ready
+    if (!xaxis || !yaxis) {
+      return null;
+    }
+
+    // Extract dimensions for local coordinate mapping
+    const { _offset: plotLeft, _length: plotWidth } = xaxis;
+    const { _offset: plotTop, _length: plotHeight } = yaxis;
+
+    // Verify the point resides within the active plotting region
+    const isInsideX = x >= plotLeft && x <= plotLeft + plotWidth;
+    const isInsideY = y >= plotTop && y <= plotTop + plotHeight;
+
+    if (!isInsideX || !isInsideY) {
+      return null;
+    }
+
+    // Map pixel offsets back to data values
+    // Y-axis is inverted to account for screen coordinates (0 at top)
     const dataX = xaxis.p2d(x - plotLeft);
-    const dataY = yaxis.p2d(plotTop + plotHeight - y);
+    const dataY = yaxis.p2d(plotHeight - (y - plotTop));
+
     return { x: dataX, y: dataY };
   }
 
