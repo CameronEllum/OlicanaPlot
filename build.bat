@@ -69,6 +69,16 @@ if %errorlevel% neq 0 (
 )
 
 echo.
+echo Running Synchronization Tests...
+cd /d "%ROOT_DIR%"
+go test ./internal/plugins/...
+if %errorlevel% neq 0 (
+    echo.
+    echo ERROR: Synchronization tests failed!
+    exit /b %errorlevel%
+)
+
+echo.
 echo ========================================
 echo Build Complete
 echo ========================================

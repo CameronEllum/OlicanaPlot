@@ -12,6 +12,14 @@ const PluginAPIVersion uint32 = 1
 // ChartColors provides a Plotly-inspired color palette for series.
 var ChartColors = ipcplugin.ChartColors
 
+// IMPORTANT: The following structs are intentionally duplicated from pkg/ipcplugin
+// instead of using type aliases. This is a workaround for a Wails 3 binding
+// generation bug where cross-package type aliases result in broken JavaScript
+// imports (e.g., undefined "$0" references).
+//
+// If you modify these, you MUST also modify the corresponding structs in
+// pkg/ipcplugin/protocol.go and ensure internal/plugins/sync_test.go passes.
+
 // ChartConfig contains chart display configuration.
 type ChartConfig struct {
 	Title      string            `json:"title"`

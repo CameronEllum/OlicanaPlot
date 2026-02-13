@@ -202,16 +202,7 @@ func (s *Service) OpenFile() (*OpenFileResult, error) {
 		}
 	}
 
-	// Add grouped filters to the dialog
-	for desc, patsMap := range groupedPatterns {
-		var pats []string
-		for p := range patsMap {
-			pats = append(pats, p)
-		}
-		dialog.AddFilter(desc, strings.Join(pats, ";"))
-	}
-
-	// Add "All Supported Files" if we have multiple
+	// First, add "All Supported Files" if we have multiple, so it's the default
 	if len(patterns) > 1 {
 		allPatternsMap := make(map[string]bool)
 		for _, fp := range patterns {
@@ -225,6 +216,16 @@ func (s *Service) OpenFile() (*OpenFileResult, error) {
 		}
 		dialog.AddFilter("All Supported Files", strings.Join(allPatterns, ";"))
 	}
+
+	// Add grouped filters to the dialog
+	for desc, patsMap := range groupedPatterns {
+		var pats []string
+		for p := range patsMap {
+			pats = append(pats, p)
+		}
+		dialog.AddFilter(desc, strings.Join(pats, ";"))
+	}
+
 	dialog.AddFilter("All Files", "*.*")
 
 	path, err := dialog.PromptForSingleSelection()
