@@ -1,7 +1,7 @@
 // Imports for application components, Svelte mounting, and backend bindings.
 import './theme.css';
 import { mount } from 'svelte'
-import SchemaForm from './lib/SchemaForm.svelte'
+import SchemaForm from './lib/components/SchemaForm.svelte'
 import { Events } from "@wailsio/runtime";
 import * as ConfigService from "../bindings/olicanaplot/internal/appconfig/configservice";
 

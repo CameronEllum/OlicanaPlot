@@ -1,9 +1,9 @@
 <script lang="ts">
     import { onMount } from "svelte";
     import { Events, Window, Dialogs } from "@wailsio/runtime";
-    import * as ConfigService from "../bindings/olicanaplot/internal/appconfig/configservice";
-    import * as PluginService from "../bindings/olicanaplot/internal/plugins/service";
-    import ContextMenu from "./lib/ContextMenu.svelte";
+    import * as ConfigService from "../../../../bindings/olicanaplot/internal/appconfig/configservice";
+    import * as PluginService from "../../../../bindings/olicanaplot/internal/plugins/service";
+    import ContextMenu from "../ContextMenu.svelte";
 
     // Application state for logging, chart, and plugin preferences.
     let logPath = $state("");

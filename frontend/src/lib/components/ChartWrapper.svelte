@@ -1,7 +1,7 @@
 <script lang="ts">
     import { onMount, onDestroy } from "svelte";
     import { appState } from "../state/app.svelte.ts";
-    import MeasurementResult from "../MeasurementResult.svelte";
+    import MeasurementResult from "./MeasurementResult.svelte";
 
     let chartContainer = $state<HTMLElement>();
     let resizeObserver: ResizeObserver | null = null;

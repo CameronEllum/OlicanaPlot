@@ -1,5 +1,5 @@
 <script lang="ts">
-    import ContextMenu from "../ContextMenu.svelte";
+    import ContextMenu from "./ContextMenu.svelte";
     import { appState } from "../state/app.svelte.ts";
 </script>
 

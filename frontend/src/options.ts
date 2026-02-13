@@ -2,7 +2,7 @@
 // OptionsWindow component.
 import './theme.css';
 import { mount } from 'svelte'
-import OptionsWindow from './OptionsWindow.svelte'
+import OptionsWindow from './lib/components/dialogs/OptionsWindow.svelte'
 import * as ConfigService from "../bindings/olicanaplot/internal/appconfig/configservice";
 
 // Retrieve and apply the user's preferred theme (light/dark) from the

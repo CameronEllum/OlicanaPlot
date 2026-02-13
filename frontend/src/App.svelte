@@ -5,7 +5,7 @@
   import GlobalContextMenu from "./lib/components/GlobalContextMenu.svelte";
   import PluginSelectionDialog from "./lib/components/dialogs/PluginSelectionDialog.svelte";
   import AddFileChoiceDialog from "./lib/components/dialogs/AddFileChoiceDialog.svelte";
-  import RenameDialog from "./lib/RenameDialog.svelte";
+  import RenameDialog from "./lib/components/dialogs/RenameDialog.svelte";
 
   // Synchronize the root document class with the dark mode state.
   $effect(() => {
