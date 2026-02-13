@@ -13,12 +13,13 @@ echo Cleaning up running processes...
 taskkill /F /IM OlicanaPlot.exe /T >nul 2>&1
 taskkill /F /IM csv.exe /T >nul 2>&1
 taskkill /F /IM model_selector.exe /T >nul 2>&1
+taskkill /F /IM olicanaplot_reader.exe /T >nul 2>&1
 taskkill /F /IM random_walk_generator.exe /T >nul 2>&1
 taskkill /F /IM synthetic_data_generator.exe /T >nul 2>&1
 echo Done.
 
 echo.
-echo [1/5] Building Main Application...
+echo [1/6] Building Main Application...
 call wails3 build
 if %errorlevel% neq 0 (
     echo Error building main application.
@@ -26,7 +27,7 @@ if %errorlevel% neq 0 (
 )
 
 echo.
-echo [2/5] Building Random Walk Generator (C++ Plugin)...
+echo [2/6] Building Random Walk Generator (C++ Plugin)...
 cd /d "%ROOT_DIR%plugins\random_walk_generator"
 if exist build.bat (
     call build.bat
@@ -35,7 +36,7 @@ if exist build.bat (
 )
 
 echo.
-echo [3/5] Building CSV IPC (Go Plugin)...
+echo [3/6] Building CSV IPC (Go Plugin)...
 cd /d "%ROOT_DIR%plugins\csv"
 if exist build.bat (
     call build.bat
@@ -44,7 +45,7 @@ if exist build.bat (
 )
 
 echo.
-echo [4/5] Building Synthetic Data Generator (Wails Plugin)...
+echo [4/6] Building Synthetic Data Generator (Wails Plugin)...
 cd /d "%ROOT_DIR%plugins\synthetic_data_generator"
 call wails3 build
 if %errorlevel% neq 0 (
@@ -52,11 +53,19 @@ if %errorlevel% neq 0 (
 )
 
 echo.
-echo [5/5] Building Model Selector (Go IPC Plugin)...
+echo [5/6] Building Model Selector (Go IPC Plugin)...
 cd /d "%ROOT_DIR%plugins\model_selector"
 go build -o model_selector.exe main.go
 if %errorlevel% neq 0 (
     echo Warning: Error building model_selector.
+)
+
+echo.
+echo [6/6] Building OlicanaPlot Reader (Go IPC Plugin)...
+cd /d "%ROOT_DIR%plugins\olicanaplot_reader"
+go build -o olicanaplot_reader.exe main.go
+if %errorlevel% neq 0 (
+    echo Warning: Error building olicanaplot_reader.
 )
 
 echo.

@@ -1,3 +1,32 @@
+// AxisConfig describes an axis within a subplot.
+export interface AxisConfig {
+  title?: string;
+  position?: "bottom" | "top" | "left" | "right";
+  unit?: string;
+  type?: "linear" | "log" | "date";
+  min?: number;
+  max?: number;
+}
+
+// AxisGroupConfig describes all axes and series for one subplot cell.
+export interface AxisGroupConfig {
+  title?: string;
+  subplot: number[]; // [row, col]
+  x_axes?: AxisConfig[];
+  y_axes?: AxisConfig[];
+}
+// ChartConfig contains chart display configuration.
+export interface ChartConfig {
+  title: string;
+  axis_labels: string[];
+  line_width?: number;
+  axes?: AxisGroupConfig[];
+  link_x?: boolean;
+  link_y?: boolean;
+  rows?: number;
+  cols?: number;
+}
+
 // Define the structure for a single data series to be plotted, including its
 // identity, display name, color, and raw data.
 export interface SeriesConfig {
@@ -5,6 +34,13 @@ export interface SeriesConfig {
   name: string;
   color: string;
   data: Float64Array;
+  subplot?: number[]; // [row, col]
+  line_type?: "solid" | "dashed" | "dotted";
+  line_width?: number;
+  unit?: string;
+  visible?: boolean;
+  y_axis?: string; // references Y axis title
+  // Compatibility fields
   subplotRow?: number;
   subplotCol?: number;
 }

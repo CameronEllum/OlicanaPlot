@@ -3,35 +3,29 @@ package plugins
 
 import (
 	"olicanaplot/internal/logging"
+	"olicanaplot/pkg/ipcplugin"
 )
 
 // PluginAPIVersion is the current API version for compatibility checking.
 const PluginAPIVersion uint32 = 1
 
 // ChartColors provides a Plotly-inspired color palette for series.
-var ChartColors = []string{
-	"#636EFA", "#EF553B", "#00CC96", "#AB63FA", "#FFA15A",
-	"#19D3F3", "#FF6692", "#B6E880", "#FF97FF", "#FECB52",
-}
+var ChartColors = ipcplugin.ChartColors
 
 // ChartConfig contains chart display configuration.
-type ChartConfig struct {
-	Title      string   `json:"title"`
-	AxisLabels []string `json:"axis_labels"`
-}
+type ChartConfig = ipcplugin.ChartConfig
+
+// AxisConfig describes an axis within a subplot.
+type AxisConfig = ipcplugin.AxisConfig
+
+// AxisGroupConfig describes all axes and series for one subplot cell.
+type AxisGroupConfig = ipcplugin.AxisGroupConfig
 
 // SeriesConfig describes a data series available from a plugin.
-type SeriesConfig struct {
-	ID    string `json:"id"`
-	Name  string `json:"name"`
-	Color string `json:"color,omitempty"`
-}
+type SeriesConfig = ipcplugin.SeriesConfig
 
 // FilePattern describes a file type supported by a plugin.
-type FilePattern struct {
-	Description string   `json:"description"`
-	Patterns    []string `json:"patterns"`
-}
+type FilePattern = ipcplugin.FilePattern
 
 // Plugin is the interface that all data source plugins must implement.
 type Plugin interface {
