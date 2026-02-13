@@ -357,9 +357,9 @@ class AppState {
             });
 
             const seriesData: SeriesConfig[] = await Promise.all(dataPromises);
-            seriesData.forEach((s) => {
-                s.subplotRow = 0;
-                s.subplotCol = 0;
+            seriesData.forEach((s: any) => {
+                s.subplotRow = (s.subplot && s.subplot.length === 2) ? s.subplot[0] : 0;
+                s.subplotCol = (s.subplot && s.subplot.length === 2) ? s.subplot[1] : 0;
             });
 
             this.currentSeriesData = seriesData;

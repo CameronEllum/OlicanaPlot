@@ -153,8 +153,8 @@ bool show_host_form() {
   // Read response from host (stdin)
   std::string response;
   if (!std::getline(std::cin, response)) {
-    return false
-  };
+    return false;
+  }
 
   // Check for error/cancelled
   if (response.find("\"error\"") != std::string::npos) {

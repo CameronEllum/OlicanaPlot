@@ -13,19 +13,53 @@ const PluginAPIVersion uint32 = 1
 var ChartColors = ipcplugin.ChartColors
 
 // ChartConfig contains chart display configuration.
-type ChartConfig = ipcplugin.ChartConfig
+type ChartConfig struct {
+	Title      string            `json:"title"`
+	AxisLabels []string          `json:"axis_labels"`
+	LineWidth  *float64          `json:"line_width,omitempty"`
+	Axes       []AxisGroupConfig `json:"axes,omitempty"`
+	LinkX      *bool             `json:"link_x,omitempty"`
+	LinkY      *bool             `json:"link_y,omitempty"`
+	Rows       int               `json:"rows,omitempty"`
+	Cols       int               `json:"cols,omitempty"`
+}
 
 // AxisConfig describes an axis within a subplot.
-type AxisConfig = ipcplugin.AxisConfig
+type AxisConfig struct {
+	Title    string   `json:"title,omitempty"`
+	Position string   `json:"position,omitempty"` // "bottom", "top", "left", "right"
+	Unit     string   `json:"unit,omitempty"`
+	Type     string   `json:"type,omitempty"` // "linear", "log", "date"
+	Min      *float64 `json:"min,omitempty"`
+	Max      *float64 `json:"max,omitempty"`
+}
 
 // AxisGroupConfig describes all axes and series for one subplot cell.
-type AxisGroupConfig = ipcplugin.AxisGroupConfig
+type AxisGroupConfig struct {
+	Title   string       `json:"title,omitempty"`
+	Subplot []int        `json:"subplot"` // [row, col]
+	XAxes   []AxisConfig `json:"x_axes,omitempty"`
+	YAxes   []AxisConfig `json:"y_axes,omitempty"`
+}
 
 // SeriesConfig describes a data series available from a plugin.
-type SeriesConfig = ipcplugin.SeriesConfig
+type SeriesConfig struct {
+	ID        string   `json:"id"`
+	Name      string   `json:"name"`
+	Color     string   `json:"color,omitempty"`
+	Subplot   []int    `json:"subplot,omitempty"`   // [row, col]
+	LineType  string   `json:"line_type,omitempty"` // "solid", "dashed", "dotted"
+	LineWidth *float64 `json:"line_width,omitempty"`
+	Unit      string   `json:"unit,omitempty"`
+	Visible   *bool    `json:"visible,omitempty"`
+	YAxis     string   `json:"y_axis,omitempty"` // references Y axis title
+}
 
 // FilePattern describes a file type supported by a plugin.
-type FilePattern = ipcplugin.FilePattern
+type FilePattern struct {
+	Description string   `json:"description"`
+	Patterns    []string `json:"patterns"`
+}
 
 // Plugin is the interface that all data source plugins must implement.
 type Plugin interface {
