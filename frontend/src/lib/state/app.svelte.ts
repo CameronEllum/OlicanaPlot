@@ -363,9 +363,14 @@ class AppState {
             });
 
             const seriesData: SeriesConfig[] = await Promise.all(dataPromises);
-            seriesData.forEach((s: any) => {
+            const defaultColors = ["#636EFA", "#EF553B", "#00CC96", "#AB63FA", "#FFA15A", "#19D3F3", "#FF6692", "#B6E880", "#FF97FF", "#FECB52"];
+
+            seriesData.forEach((s: any, i) => {
                 s.subplotRow = (s.subplot && s.subplot.length === 2) ? s.subplot[0] : 0;
                 s.subplotCol = (s.subplot && s.subplot.length === 2) ? s.subplot[1] : 0;
+                if (!s.color) {
+                    s.color = defaultColors[i % defaultColors.length];
+                }
             });
 
             this.currentSeriesData = seriesData;

@@ -13,7 +13,7 @@ import (
 	"strings"
 	"sync"
 
-	"olicanaplot/pkg/ipcplugin"
+	sdk "olicanaplot/sdk/go"
 
 	"gopkg.in/yaml.v3"
 )
@@ -203,44 +203,44 @@ func handleIPC(p *Plugin) {
 			return
 		}
 
-		var req ipcplugin.Request
+		var req sdk.Request
 		if err := json.Unmarshal([]byte(strings.TrimSpace(line)), &req); err != nil {
-			ipcplugin.SendError("failed to parse request")
+			sdk.SendError("failed to parse request")
 			continue
 		}
 
 		switch req.Method {
 		case "info":
-			ipcplugin.SendResponse(ipcplugin.Response{
+			sdk.SendResponse(sdk.Response{
 				Name:    pluginName,
 				Version: uint32(pluginVersion),
 			})
 
 		case "initialize":
 			if req.Args == "" {
-				ipcplugin.SendError("no file path provided")
+				sdk.SendError("no file path provided")
 				continue
 			}
 			if err := p.loadFile(req.Args); err != nil {
-				ipcplugin.SendError(fmt.Sprintf("failed to load file: %v", err))
+				sdk.SendError(fmt.Sprintf("failed to load file: %v", err))
 				continue
 			}
-			ipcplugin.SendResponse(ipcplugin.Response{Result: "loaded"})
+			sdk.SendResponse(sdk.Response{Result: "loaded"})
 
 		case "get_chart_config":
 			if p.fileConfig == nil {
-				ipcplugin.SendError("no file loaded")
+				sdk.SendError("no file loaded")
 				continue
 			}
 
-			axes := make([]ipcplugin.AxisGroupConfig, len(p.fileConfig.Axes))
+			axes := make([]sdk.AxisGroupConfig, len(p.fileConfig.Axes))
 			for i, entry := range p.fileConfig.Axes {
-				axes[i] = ipcplugin.AxisGroupConfig{
+				axes[i] = sdk.AxisGroupConfig{
 					Title:   entry.Title,
 					Subplot: entry.Subplot,
 				}
 				for _, x := range entry.XAxes {
-					axes[i].XAxes = append(axes[i].XAxes, ipcplugin.AxisConfig{
+					axes[i].XAxes = append(axes[i].XAxes, sdk.AxisConfig{
 						Title:    x.Title,
 						Position: x.Position,
 						Unit:     x.Unit,
@@ -250,7 +250,7 @@ func handleIPC(p *Plugin) {
 					})
 				}
 				for _, y := range entry.YAxes {
-					axes[i].YAxes = append(axes[i].YAxes, ipcplugin.AxisConfig{
+					axes[i].YAxes = append(axes[i].YAxes, sdk.AxisConfig{
 						Title:    y.Title,
 						Position: y.Position,
 						Unit:     y.Unit,
@@ -261,7 +261,7 @@ func handleIPC(p *Plugin) {
 				}
 			}
 
-			config := ipcplugin.ChartConfig{
+			config := sdk.ChartConfig{
 				Title:     p.fileConfig.Chart.Title,
 				LineWidth: p.fileConfig.Chart.LineWidth,
 				Axes:      axes,
@@ -270,23 +270,18 @@ func handleIPC(p *Plugin) {
 				Rows:      p.fileConfig.Layout.Rows,
 				Cols:      p.fileConfig.Layout.Cols,
 			}
-			ipcplugin.SendResponse(ipcplugin.Response{Result: config})
+			sdk.SendResponse(sdk.Response{Result: config})
 
 		case "get_series_config":
 			if p.fileConfig == nil {
-				ipcplugin.SendError("no file loaded")
+				sdk.SendError("no file loaded")
 				continue
 			}
 
-			var seriesConfigs []ipcplugin.SeriesConfig
-			colorIdx := 0
+			var seriesConfigs []sdk.SeriesConfig
 			for i, entry := range p.fileConfig.Axes {
 				for _, s := range entry.Series {
 					color := s.Color
-					if color == "" {
-						color = ipcplugin.ChartColors[colorIdx%len(ipcplugin.ChartColors)]
-						colorIdx++
-					}
 
 					name := s.Title
 					if name == "" {
@@ -295,7 +290,7 @@ func handleIPC(p *Plugin) {
 
 					id := fmt.Sprintf("axis%d:col%d", i, s.Column)
 
-					seriesConfigs = append(seriesConfigs, ipcplugin.SeriesConfig{
+					seriesConfigs = append(seriesConfigs, sdk.SeriesConfig{
 						ID:        id,
 						Name:      name,
 						Color:     color,
@@ -307,25 +302,25 @@ func handleIPC(p *Plugin) {
 					})
 				}
 			}
-			ipcplugin.SendResponse(ipcplugin.Response{Result: seriesConfigs})
+			sdk.SendResponse(sdk.Response{Result: seriesConfigs})
 
 		case "get_series_data":
 			// Parse ID: axis%d:col%d
 			var axisIdx, colIdx int
 			_, err := fmt.Sscanf(req.SeriesID, "axis%d:col%d", &axisIdx, &colIdx)
 			if err != nil {
-				ipcplugin.SendError("invalid series ID")
+				sdk.SendError("invalid series ID")
 				continue
 			}
 
 			if axisIdx < 0 || axisIdx >= len(p.csvBlocks) {
-				ipcplugin.SendError("axis index out of range")
+				sdk.SendError("axis index out of range")
 				continue
 			}
 
 			block := p.csvBlocks[axisIdx]
 			if colIdx < 0 || colIdx >= len(block.Data) {
-				ipcplugin.SendError("column index out of range")
+				sdk.SendError("column index out of range")
 				continue
 			}
 
@@ -334,7 +329,7 @@ func handleIPC(p *Plugin) {
 
 			if req.PreferredStorage == "arrays" {
 				data := append(xData, yData...)
-				ipcplugin.SendBinaryData(data, "arrays")
+				sdk.SendBinaryData(data, "arrays")
 			} else {
 				// Interleaved
 				data := make([]float64, 2*len(xData))
@@ -342,11 +337,11 @@ func handleIPC(p *Plugin) {
 					data[2*i] = xData[i]
 					data[2*i+1] = yData[i]
 				}
-				ipcplugin.SendBinaryData(data, "interleaved")
+				sdk.SendBinaryData(data, "interleaved")
 			}
 
 		default:
-			ipcplugin.SendError("unknown method: " + req.Method)
+			sdk.SendError("unknown method: " + req.Method)
 		}
 	}
 }

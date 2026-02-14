@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 
-	"olicanaplot/pkg/ipcplugin"
+	sdk "olicanaplot/sdk/go"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
@@ -53,15 +53,15 @@ func handleIPC() {
 			return
 		}
 
-		var req ipcplugin.Request
+		var req sdk.Request
 		if err := json.Unmarshal([]byte(strings.TrimSpace(line)), &req); err != nil {
-			ipcplugin.SendError("failed to parse request")
+			sdk.SendError("failed to parse request")
 			continue
 		}
 
 		switch req.Method {
 		case "info":
-			ipcplugin.SendResponse(ipcplugin.Response{
+			sdk.SendResponse(sdk.Response{
 				Name:    pluginName,
 				Version: pluginVersion,
 			})
@@ -77,29 +77,29 @@ func handleIPC() {
 				})
 			}
 			mainWindow.Show()
-			ipcplugin.SendResponse(ipcplugin.Response{Result: "initialized"})
+			sdk.SendResponse(sdk.Response{Result: "initialized"})
 
 		case "get_chart_config":
-			ipcplugin.SendResponse(ipcplugin.Response{
-				Result: ipcplugin.ChartConfig{
+			sdk.SendResponse(sdk.Response{
+				Result: sdk.ChartConfig{
 					Title:      "Template Data",
 					AxisLabels: []string{"Time", "Value"},
 				},
 			})
 
 		case "get_series_config":
-			ipcplugin.SendResponse(ipcplugin.Response{
-				Result: []ipcplugin.SeriesConfig{
-					{ID: "series1", Name: "Series 1", Color: ipcplugin.ChartColors[0]},
+			sdk.SendResponse(sdk.Response{
+				Result: []sdk.SeriesConfig{
+					{ID: "series1", Name: "Series 1"},
 				},
 			})
 
 		case "get_series_data":
 			data := []float64{0, 0, 1, 1, 2, 0, 3, 1}
-			ipcplugin.SendBinaryData(data, "interleaved")
+			sdk.SendBinaryData(data, "interleaved")
 
 		default:
-			ipcplugin.SendError("unknown method: " + req.Method)
+			sdk.SendError("unknown method: " + req.Method)
 		}
 	}
 }

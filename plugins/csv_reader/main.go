@@ -18,7 +18,7 @@ import (
 	"strconv"
 	"strings"
 
-	"olicanaplot/pkg/ipcplugin"
+	sdk "olicanaplot/sdk/go"
 )
 
 const (
@@ -68,7 +68,7 @@ func handleMetadata() bool {
 
 // processIPC runs the main communication loop reading from stdin.
 func processIPC() {
-	ipcplugin.Log("info", "CSV IPC Plugin started")
+	sdk.Log("info", "CSV IPC Plugin started")
 	scanner := bufio.NewScanner(os.Stdin)
 	// Increase buffer for large JSON messages
 	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
@@ -79,9 +79,9 @@ func processIPC() {
 			continue
 		}
 
-		var req ipcplugin.Request
+		var req sdk.Request
 		if err := json.Unmarshal([]byte(line), &req); err != nil {
-			ipcplugin.SendError(fmt.Sprintf("Invalid JSON: %v", err))
+			sdk.SendError(fmt.Sprintf("Invalid JSON: %v", err))
 			continue
 		}
 
@@ -89,33 +89,33 @@ func processIPC() {
 	}
 
 	if err := scanner.Err(); err != nil {
-		ipcplugin.Log("error", fmt.Sprintf("Scanner error: %v", err))
+		sdk.Log("error", fmt.Sprintf("Scanner error: %v", err))
 	}
 }
 
 // handleMethod dispatches incoming IPC calls to specific handlers.
-func handleMethod(req ipcplugin.Request, scanner *bufio.Scanner) {
+func handleMethod(req sdk.Request, scanner *bufio.Scanner) {
 	switch req.Method {
 	case "info":
-		ipcplugin.SendResponse(ipcplugin.Response{
+		sdk.SendResponse(sdk.Response{
 			Name:    pluginName,
 			Version: pluginVersion,
 		})
 
 	case "initialize":
 		if err := handleInitialize(req.Args, scanner); err != nil {
-			ipcplugin.SendError(err.Error())
+			sdk.SendError(err.Error())
 		} else {
-			ipcplugin.SendResponse(ipcplugin.Response{Result: map[string]interface{}{}})
+			sdk.SendResponse(sdk.Response{Result: map[string]interface{}{}})
 		}
 
 	case "get_chart_config":
-		ipcplugin.SendResponse(ipcplugin.Response{
+		sdk.SendResponse(sdk.Response{
 			Result: getChartConfig(),
 		})
 
 	case "get_series_config":
-		ipcplugin.SendResponse(ipcplugin.Response{
+		sdk.SendResponse(sdk.Response{
 			Result: getSeriesConfig(),
 		})
 
@@ -123,7 +123,7 @@ func handleMethod(req ipcplugin.Request, scanner *bufio.Scanner) {
 		handleGetSeriesData(req.SeriesID, req.PreferredStorage)
 
 	default:
-		ipcplugin.SendError(fmt.Sprintf("Unknown method: %s", req.Method))
+		sdk.SendError(fmt.Sprintf("Unknown method: %s", req.Method))
 	}
 }
 
@@ -153,21 +153,21 @@ func handleInitialize(initStr string, scanner *bufio.Scanner) error {
 	selectedY = result.YColumns
 
 	// Load the actual data ONLY after user confirms
-	ipcplugin.Log("info", fmt.Sprintf("Loading CSV data from %s...", filePath))
+	sdk.Log("info", fmt.Sprintf("Loading CSV data from %s...", filePath))
 	d, err := loadCSVData(filePath, headers)
 	if err != nil {
 		return fmt.Errorf("failed to load data: %w", err)
 	}
 	data = d
 
-	ipcplugin.Log("info", fmt.Sprintf("CSV loaded: %d columns, X=%s, Y=%v", len(headers), selectedX, selectedY))
+	sdk.Log("info", fmt.Sprintf("CSV loaded: %d columns, X=%s, Y=%v", len(headers), selectedX, selectedY))
 	return nil
 }
 
 // resolveFilePath either uses the provided path or requests one from the host via show_form.
 func resolveFilePath(initStr string, scanner *bufio.Scanner) (string, error) {
 	if initStr != "" {
-		ipcplugin.Log("info", fmt.Sprintf("Using provided file path: %s", initStr))
+		sdk.Log("info", fmt.Sprintf("Using provided file path: %s", initStr))
 		return initStr, nil
 	}
 
@@ -189,7 +189,7 @@ func resolveFilePath(initStr string, scanner *bufio.Scanner) (string, error) {
 		},
 	}
 
-	ipcplugin.SendShowForm("Select CSV File", schema, uiSchema, nil)
+	sdk.SendShowForm("Select CSV File", schema, uiSchema, nil)
 
 	if !scanner.Scan() {
 		return "", fmt.Errorf("failed to read file selection response")
@@ -277,7 +277,7 @@ func showColumnSelection(scanner *bufio.Scanner) (*ColumnSelectionResult, error)
 		"yColumns": map[string]interface{}{"ui:widget": "checkboxes"},
 	}
 
-	ipcplugin.SendShowForm("Select Columns", schema, uiSchema, map[string]interface{}{
+	sdk.SendShowForm("Select Columns", schema, uiSchema, map[string]interface{}{
 		"xColumn":  defaultX,
 		"yColumns": defaultY,
 	})
@@ -300,7 +300,7 @@ func showColumnSelection(scanner *bufio.Scanner) (*ColumnSelectionResult, error)
 	return &resp.Result, nil
 }
 
-func getChartConfig() ipcplugin.ChartConfig {
+func getChartConfig() sdk.ChartConfig {
 	title := "CSV Plot"
 	if currentFile != "" {
 		title = fmt.Sprintf("CSV: %s", currentFile)
@@ -309,19 +309,18 @@ func getChartConfig() ipcplugin.ChartConfig {
 	if selectedX != "" {
 		xLabel = selectedX
 	}
-	return ipcplugin.ChartConfig{
+	return sdk.ChartConfig{
 		Title:      title,
 		AxisLabels: []string{xLabel, "Value"},
 	}
 }
 
-func getSeriesConfig() []ipcplugin.SeriesConfig {
-	series := make([]ipcplugin.SeriesConfig, len(selectedY))
+func getSeriesConfig() []sdk.SeriesConfig {
+	series := make([]sdk.SeriesConfig, len(selectedY))
 	for i, yCol := range selectedY {
-		series[i] = ipcplugin.SeriesConfig{
-			ID:    yCol,
-			Name:  yCol,
-			Color: ipcplugin.ChartColors[i%len(ipcplugin.ChartColors)],
+		series[i] = sdk.SeriesConfig{
+			ID:   yCol,
+			Name: yCol,
 		}
 	}
 	return series
@@ -393,7 +392,7 @@ func loadCSVData(path string, headers []string) (map[string][]float64, error) {
 func handleGetSeriesData(seriesID string, preferredStorage string) {
 	yData, ok := data[seriesID]
 	if !ok {
-		ipcplugin.SendError(fmt.Sprintf("series not found: %s", seriesID))
+		sdk.SendError(fmt.Sprintf("series not found: %s", seriesID))
 		return
 	}
 
@@ -427,5 +426,5 @@ func handleGetSeriesData(seriesID string, preferredStorage string) {
 		}
 	}
 
-	ipcplugin.SendBinaryData(result, storage)
+	sdk.SendBinaryData(result, storage)
 }

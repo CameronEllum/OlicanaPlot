@@ -11,19 +11,6 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     pass
 
-CHART_COLORS: list[str] = [
-    "#636EFA",
-    "#EF553B",
-    "#00CC96",
-    "#AB63FA",
-    "#FFA15A",
-    "#19D3F3",
-    "#FF6692",
-    "#B6E880",
-    "#FF97FF",
-    "#FECB52",
-]
-
 
 def send_response(data: dict[str, Any]) -> None:
     """Send a JSON response to the host."""

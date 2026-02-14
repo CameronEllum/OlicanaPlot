@@ -3,24 +3,20 @@ package plugins
 
 import (
 	"olicanaplot/internal/logging"
-	"olicanaplot/pkg/ipcplugin"
 )
 
 // PluginAPIVersion is the current API version for compatibility checking.
 const PluginAPIVersion uint32 = 1
 
-// ChartColors provides a Plotly-inspired color palette for series.
-var ChartColors = ipcplugin.ChartColors
-
-// IMPORTANT: The following structs are intentionally duplicated from pkg/ipcplugin
+// IMPORTANT: The following structs are intentionally duplicated from pkg/sdk
 // instead of using type aliases. This is a workaround for a Wails 3 binding
 // generation bug where cross-package type aliases result in broken JavaScript
 // imports (e.g., undefined "$0" references).
 //
 // If you modify these, you MUST also modify the corresponding structs in
-// pkg/ipcplugin/protocol.go and ensure internal/plugins/sync_test.go passes.
+// pkg/sdk/protocol.go and ensure internal/plugins/sync_test.go passes.
 
-// ChartConfig contains chart display configuration.
+// ChartConfig holds chart display configuration.
 type ChartConfig struct {
 	Title      string            `json:"title"`
 	AxisLabels []string          `json:"axis_labels"`
@@ -50,7 +46,7 @@ type AxisGroupConfig struct {
 	YAxes   []AxisConfig `json:"y_axes,omitempty"`
 }
 
-// SeriesConfig describes a data series available from a plugin.
+// SeriesConfig describes a data series metadata.
 type SeriesConfig struct {
 	ID        string   `json:"id"`
 	Name      string   `json:"name"`

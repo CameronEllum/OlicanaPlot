@@ -286,9 +286,8 @@ func (p *Plugin) GetSeriesConfig() ([]plugins.SeriesConfig, error) {
 	defer p.mu.RUnlock()
 	return []plugins.SeriesConfig{
 		{
-			ID:    "func_0",
-			Name:  p.functionName,
-			Color: plugins.ChartColors[0],
+			ID:   "func_0",
+			Name: p.functionName,
 		},
 	}, nil
 }

@@ -1,16 +1,16 @@
 package plugins
 
 import (
-	"olicanaplot/pkg/ipcplugin"
+	sdk "olicanaplot/sdk/go"
 	"reflect"
 	"testing"
 )
 
-// This test ensures that the duplicated configuration structs in internal/plugins
-// stay in sync with their counterparts in pkg/ipcplugin.
+// This test ensures that the re-exported configuration structs in internal/plugins
+// match their counterparts in pkg/sdk/model.
 //
-// These structs are intentionally duplicated rather than aliased because Wails 3
-// binding generation has issues with cross-package type aliases (generating undefined $0 references).
+// These structs are now type aliases but we still verify consistency for good measure
+// and to ensure no regression to duplication occurs.
 
 func TestStructSynchronization(t *testing.T) {
 	tests := []struct {
@@ -18,11 +18,11 @@ func TestStructSynchronization(t *testing.T) {
 		internal interface{}
 		external interface{}
 	}{
-		{"ChartConfig", ChartConfig{}, ipcplugin.ChartConfig{}},
-		{"AxisConfig", AxisConfig{}, ipcplugin.AxisConfig{}},
-		{"AxisGroupConfig", AxisGroupConfig{}, ipcplugin.AxisGroupConfig{}},
-		{"SeriesConfig", SeriesConfig{}, ipcplugin.SeriesConfig{}},
-		{"FilePattern", FilePattern{}, ipcplugin.FilePattern{}},
+		{"ChartConfig", ChartConfig{}, sdk.ChartConfig{}},
+		{"AxisConfig", AxisConfig{}, sdk.AxisConfig{}},
+		{"AxisGroupConfig", AxisGroupConfig{}, sdk.AxisGroupConfig{}},
+		{"SeriesConfig", SeriesConfig{}, sdk.SeriesConfig{}},
+		{"FilePattern", FilePattern{}, sdk.FilePattern{}},
 	}
 
 	for _, tt := range tests {

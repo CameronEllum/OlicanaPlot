@@ -19,7 +19,7 @@ import (
 	"os"
 	"time"
 
-	"olicanaplot/pkg/ipcplugin"
+	sdk "olicanaplot/sdk/go"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
@@ -158,7 +158,7 @@ func main() {
 }
 
 func ipcLog(level, message string) {
-	ipcplugin.Log(level, message)
+	sdk.Log(level, message)
 }
 
 func handleIPC() {
@@ -166,15 +166,15 @@ func handleIPC() {
 	scanner := bufio.NewScanner(os.Stdin)
 	for scanner.Scan() {
 		line := scanner.Text()
-		var req ipcplugin.Request
+		var req sdk.Request
 		if err := json.Unmarshal([]byte(line), &req); err != nil {
-			ipcplugin.SendError(fmt.Sprintf("Invalid JSON: %v", err))
+			sdk.SendError(fmt.Sprintf("Invalid JSON: %v", err))
 			continue
 		}
 
 		switch req.Method {
 		case "info":
-			ipcplugin.SendResponse(ipcplugin.Response{
+			sdk.SendResponse(sdk.Response{
 				Name:    pluginName,
 				Version: pluginVersion,
 			})
@@ -191,7 +191,7 @@ func handleIPC() {
 			result := <-service.resultChan
 			if result.Cancelled {
 				ipcLog("info", "Configuration cancelled - quitting")
-				ipcplugin.SendError("configuration cancelled")
+				sdk.SendError("configuration cancelled")
 				if mainWindow != nil {
 					mainWindow.Close()
 				}
@@ -213,32 +213,31 @@ func handleIPC() {
 				mainWindow.Close()
 			}
 
-			ipcplugin.SendResponse(ipcplugin.Response{Result: map[string]interface{}{}})
+			sdk.SendResponse(sdk.Response{Result: map[string]interface{}{}})
 
 		case "get_chart_config":
-			config := ipcplugin.ChartConfig{
+			config := sdk.ChartConfig{
 				Title:      "Synthetic Data (IPC)",
 				AxisLabels: []string{"Time (s)", state.simulationType},
 			}
-			ipcplugin.SendResponse(ipcplugin.Response{Result: config})
+			sdk.SendResponse(sdk.Response{Result: config})
 
 		case "get_series_config":
-			series := make([]ipcplugin.SeriesConfig, state.numSeries)
+			series := make([]sdk.SeriesConfig, state.numSeries)
 			for i := 0; i < state.numSeries; i++ {
-				series[i] = ipcplugin.SeriesConfig{
-					ID:    fmt.Sprintf("synthetic_%d", i),
-					Name:  fmt.Sprintf("IPC Series %d", i+1),
-					Color: ipcplugin.ChartColors[i%len(ipcplugin.ChartColors)],
+				series[i] = sdk.SeriesConfig{
+					ID:   fmt.Sprintf("synthetic_%d", i),
+					Name: fmt.Sprintf("IPC Series %d", i+1),
 				}
 			}
-			ipcplugin.SendResponse(ipcplugin.Response{Result: series})
+			sdk.SendResponse(sdk.Response{Result: series})
 
 		case "get_series_data":
 			data, storage := generateData(state, req.SeriesID, req.PreferredStorage)
-			ipcplugin.SendBinaryData(data, storage)
+			sdk.SendBinaryData(data, storage)
 
 		default:
-			ipcplugin.SendError(fmt.Sprintf("Unknown method: %s", req.Method))
+			sdk.SendError(fmt.Sprintf("Unknown method: %s", req.Method))
 		}
 	}
 

@@ -58,9 +58,8 @@ func (p *Plugin) GetChartConfig(args string) (*plugins.ChartConfig, error) {
 func (p *Plugin) GetSeriesConfig() ([]plugins.SeriesConfig, error) {
 	return []plugins.SeriesConfig{
 		{
-			ID:    "sine_0",
-			Name:  "Sine Wave",
-			Color: plugins.ChartColors[0],
+			ID:   "sine_0",
+			Name: "Sine Wave",
 		},
 	}, nil
 }

@@ -3,7 +3,6 @@
 #endif
 
 #include <algorithm>
-#include <array>
 #include <cmath>
 #include <ctime>
 #include <fcntl.h>
@@ -12,7 +11,6 @@
 #include <iomanip>
 #include <iostream>
 #include <random>
-#include <sstream>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -20,8 +18,7 @@
 
 #pragma comment(linker, "/SUBSYSTEM:windows /ENTRY:mainCRTStartup")
 
-// Forward declarations
-void send_response(std::string_view json);
+#include "../../sdk/cpp/protocol.hpp"
 
 // Global configuration
 struct Config {
@@ -37,11 +34,6 @@ static Config g_config;
 // Plugin metadata
 constexpr std::string_view pluginName = "Random Walk Generator";
 constexpr int pluginVersion = 1;
-
-// Colors for series
-constexpr std::array<std::string_view, 10> ChartColors = {
-    "#636EFA", "#EF553B", "#00CC96", "#AB63FA", "#FFA15A",
-    "#19D3F3", "#FF6692", "#B6E880", "#FF97FF", "#FECB52"};
 
 // Form schema for host-controlled UI
 constexpr std::string_view formSchema = R"({
@@ -80,64 +72,6 @@ constexpr std::string_view formSchema = R"({
     }
 })";
 
-// --- IPC Communication Helpers ---
-
-void send_response(std::string_view json) { std::cout << json << std::endl; }
-
-void log_message(std::string_view level, std::string_view message) {
-  std::cout << std::format(
-                   "{{\"method\":\"log\",\"level\":\"{}\",\"message\":\"{}\"}}",
-                   level, message)
-            << std::endl;
-}
-
-void log_info(std::string_view msg) { log_message("info", msg); }
-void log_error(std::string_view msg) { log_message("error", msg); }
-void log_debug(std::string_view msg) { log_message("debug", msg); }
-
-// Simple helper to find a value in a simple JSON object string
-std::string_view find_json_value(std::string_view json, std::string_view key) {
-  std::string search_key = "\"";
-  search_key += key;
-  search_key += "\":";
-
-  size_t pos = json.find(search_key);
-  if (pos == std::string_view::npos) {
-    return "";
-  }
-
-  size_t val_start = pos + search_key.length();
-  // Skip spaces, colons, and open braces/quotes
-  while (val_start < json.length() &&
-         (json[val_start] == ' ' || json[val_start] == ':' ||
-          json[val_start] == '{'))
-    val_start++;
-
-  if (val_start >= json.length()) {
-    return "";
-  }
-
-  if (json[val_start] == '"') {
-    // String value
-    val_start++;
-
-    if (size_t val_end = json.find('"', val_start);
-        val_end == std::string_view::npos) {
-      return "";
-    } else {
-      return json.substr(val_start, val_end - val_start);
-    }
-  } else {
-    // Numeric value
-    size_t val_end = val_start;
-    while (val_end < json.length() &&
-           (isdigit(json[val_end]) || json[val_end] == '.' ||
-            json[val_end] == '-'))
-      val_end++;
-    return json.substr(val_start, val_end - val_start);
-  }
-}
-
 // --- Plugin Logic ---
 
 bool show_host_form() {
@@ -148,7 +82,7 @@ bool show_host_form() {
   schema_str.erase(std::remove(schema_str.begin(), schema_str.end(), '\r'),
                    schema_str.end());
 
-  send_response(schema_str);
+  sdk::send_response(schema_str);
 
   // Read response from host (stdin)
   std::string response;
@@ -162,9 +96,9 @@ bool show_host_form() {
   }
 
   // Parse result
-  std::string_view series_str = find_json_value(response, "numSeries");
-  std::string_view order_str = find_json_value(response, "order");
-  std::string_view mult_str = find_json_value(response, "multiplier");
+  std::string_view series_str = sdk::find_json_value(response, "numSeries");
+  std::string_view order_str = sdk::find_json_value(response, "order");
+  std::string_view mult_str = sdk::find_json_value(response, "multiplier");
 
   bool updated = false;
   if (!series_str.empty()) {
@@ -192,7 +126,7 @@ bool show_host_form() {
   if (updated) {
     g_config.numPoints =
         static_cast<int>(g_config.multiplier * std::pow(10, g_config.order));
-    log_info(std::format(
+    sdk::log_info(std::format(
         "Config updated: points={}, series={}, order={}, multiplier={:.2f}",
         g_config.numPoints, g_config.numSeries, g_config.order,
         g_config.multiplier));
@@ -202,7 +136,7 @@ bool show_host_form() {
 }
 
 void generate_data(std::string_view series_id) {
-  log_info(std::format("Generating data for series: {}", series_id));
+  sdk::log_info(std::format("Generating data for series: {}", series_id));
 
   // Unique seed per series to ensure different data
   std::hash<std::string_view> hasher;
@@ -229,19 +163,7 @@ void generate_data(std::string_view series_id) {
     result.push_back(y);
   }
 
-  // Send header
-  size_t byte_len = result.size() * sizeof(double);
-  std::cout << std::format("{{\"type\":\"binary\",\"length\":{},\"storage\":"
-                           "\"interleaved\"}}",
-                           byte_len)
-            << std::endl;
-  std::cout.flush();
-
-  // Send binary data (stdout must be in binary mode)
-  _setmode(_fileno(stdout), _O_BINARY);
-  fwrite(result.data(), 1, byte_len, stdout);
-  fflush(stdout);
-  _setmode(_fileno(stdout), _O_TEXT);
+  sdk::send_binary_data(result, "interleaved");
 }
 
 int main(int argc, char *argv[]) {
@@ -260,19 +182,19 @@ int main(int argc, char *argv[]) {
       continue;
 
     if (line.find("\"method\":\"info\"") != std::string::npos) {
-      send_response(std::format("{{\"name\":\"{}\",\"version\":{}}}",
-                                pluginName, pluginVersion));
+      sdk::send_response(std::format("{{\"name\":\"{}\",\"version\":{}}}",
+                                     pluginName, pluginVersion));
     } else if (line.find("\"method\":\"initialize\"") != std::string::npos) {
       bool ok = show_host_form();
       if (ok) {
-        send_response("{\"result\":\"initialized\"}");
+        sdk::send_response("{\"result\":\"initialized\"}");
       } else {
-        send_response("{\"error\":\"cancelled\"}");
+        sdk::send_response("{\"error\":\"cancelled\"}");
       }
     } else if (line.find("\"method\":\"get_chart_config\"") !=
                std::string::npos) {
-      send_response("{\"result\":{\"title\":\"C++ Random "
-                    "Walk\",\"axis_labels\":[\"Time\",\"Value\"]}}");
+      sdk::send_response("{\"result\":{\"title\":\"C++ Random "
+                         "Walk\",\"axis_labels\":[\"Time\",\"Value\"]}}");
     } else if (line.find("\"method\":\"get_series_config\"") !=
                std::string::npos) {
       std::string items = "";
@@ -280,10 +202,10 @@ int main(int argc, char *argv[]) {
         if (i > 0)
           items += ",";
         items += std::format("{{\"id\":\"series_{}\",\"name\":\"C++ Series "
-                             "{}\",\"color\":\"{}\"}}",
-                             i, i + 1, ChartColors[i % ChartColors.size()]);
+                             "{}\"}}",
+                             i, i + 1);
       }
-      send_response(std::format("{{\"result\":[{}]}}", items));
+      sdk::send_response(std::format("{{\"result\":[{}]}}", items));
     } else if (line.find("\"method\":\"get_series_data\"") !=
                std::string::npos) {
       std::string_view line_view = line;

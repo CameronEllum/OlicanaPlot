@@ -9,7 +9,7 @@ import (
 	"os"
 	"time"
 
-	"olicanaplot/pkg/ipcplugin"
+	sdk "olicanaplot/sdk/go"
 )
 
 const (
@@ -61,15 +61,15 @@ func handleIPC() {
 	scanner := bufio.NewScanner(os.Stdin)
 	for scanner.Scan() {
 		line := scanner.Text()
-		var req ipcplugin.Request
+		var req sdk.Request
 		if err := json.Unmarshal([]byte(line), &req); err != nil {
-			ipcplugin.SendError("invalid json")
+			sdk.SendError("invalid json")
 			continue
 		}
 
 		switch req.Method {
 		case "info":
-			ipcplugin.SendResponse(ipcplugin.Response{
+			sdk.SendResponse(sdk.Response{
 				Name:    pluginName,
 				Version: pluginVersion,
 			})
@@ -77,7 +77,7 @@ func handleIPC() {
 		case "initialize":
 			// Request form from host
 			schema, uiSchema := getUI(state.modelType)
-			ipcplugin.SendResponse(ipcplugin.Response{
+			sdk.SendResponse(sdk.Response{
 				Method:           "show_form",
 				Title:            "Model Configuration",
 				Schema:           schema,
@@ -100,42 +100,41 @@ func handleIPC() {
 
 				if result, ok := formResp["result"].(map[string]interface{}); ok {
 					updateState(result)
-					ipcplugin.SendResponse(ipcplugin.Response{Result: "success"})
+					sdk.SendResponse(sdk.Response{Result: "success"})
 					break
 				}
 				if err, ok := formResp["error"].(string); ok {
-					ipcplugin.SendError(err)
+					sdk.SendError(err)
 					break
 				}
 			}
 
 		case "get_chart_config":
-			ipcplugin.SendResponse(ipcplugin.Response{
-				Result: ipcplugin.ChartConfig{
+			sdk.SendResponse(sdk.Response{
+				Result: sdk.ChartConfig{
 					Title:      state.modelType + " Simulation",
 					AxisLabels: []string{"Time", "Value"},
 				},
 			})
 
 		case "get_series_config":
-			series := make([]ipcplugin.SeriesConfig, state.numSeries)
+			series := make([]sdk.SeriesConfig, state.numSeries)
 			for i := 0; i < state.numSeries; i++ {
-				series[i] = ipcplugin.SeriesConfig{
-					ID:    fmt.Sprintf("s%d", i),
-					Name:  fmt.Sprintf("%s %d", state.modelType, i+1),
-					Color: ipcplugin.ChartColors[i%len(ipcplugin.ChartColors)],
+				series[i] = sdk.SeriesConfig{
+					ID:   fmt.Sprintf("s%d", i),
+					Name: fmt.Sprintf("%s %d", state.modelType, i+1),
 				}
 			}
-			ipcplugin.SendResponse(ipcplugin.Response{
+			sdk.SendResponse(sdk.Response{
 				Result: series,
 			})
 
 		case "get_series_data":
 			data, storage := generateData(req.SeriesID, req.PreferredStorage)
-			ipcplugin.SendBinaryData(data, storage)
+			sdk.SendBinaryData(data, storage)
 
 		default:
-			ipcplugin.SendError("unknown method")
+			sdk.SendError("unknown method")
 		}
 	}
 }
@@ -147,12 +146,12 @@ func handleFormChange(data map[string]interface{}) {
 	if newModel != "" && newModel != state.modelType {
 		state.modelType = newModel
 		schema, uiSchema := getUI(newModel)
-		ipcplugin.SendFormUpdate(schema, uiSchema, nil)
+		sdk.SendFormUpdate(schema, uiSchema, nil)
 		return
 	}
 
 	// Just send empty update to acknowledge if no model change
-	ipcplugin.SendNoUpdate()
+	sdk.SendNoUpdate()
 }
 
 func updateState(data map[string]interface{}) {

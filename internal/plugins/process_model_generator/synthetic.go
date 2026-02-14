@@ -260,9 +260,8 @@ func (p *Plugin) GetSeriesConfig() ([]plugins.SeriesConfig, error) {
 	series := make([]plugins.SeriesConfig, p.numSeries)
 	for i := 0; i < p.numSeries; i++ {
 		series[i] = plugins.SeriesConfig{
-			ID:    fmt.Sprintf("synthetic_%d", i),
-			Name:  fmt.Sprintf("Series %d", i+1),
-			Color: plugins.ChartColors[i%len(plugins.ChartColors)],
+			ID:   fmt.Sprintf("synthetic_%d", i),
+			Name: fmt.Sprintf("Series %d", i+1),
 		}
 	}
 	return series, nil

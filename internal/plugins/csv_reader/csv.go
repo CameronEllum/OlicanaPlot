@@ -259,9 +259,8 @@ func (p *Plugin) GetSeriesConfig() ([]plugins.SeriesConfig, error) {
 	series := make([]plugins.SeriesConfig, len(p.selectedY))
 	for i, yCol := range p.selectedY {
 		series[i] = plugins.SeriesConfig{
-			ID:    yCol,
-			Name:  yCol,
-			Color: plugins.ChartColors[i%len(plugins.ChartColors)],
+			ID:   yCol,
+			Name: yCol,
 		}
 	}
 	return series, nil

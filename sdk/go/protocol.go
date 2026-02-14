@@ -1,4 +1,4 @@
-package ipcplugin
+package sdk
 
 import (
 	"encoding/json"
@@ -31,6 +31,15 @@ type Response struct {
 	Data             map[string]interface{} `json:"data,omitempty"`     // For form updates
 	HandleFormChange bool                   `json:"handle_form_change,omitempty"`
 }
+
+// IMPORTANT: The following structs are intentionally duplicated from internal/plugins
+// instead of using type aliases. This is a workaround for a Wails 3 binding
+// generation bug where cross-package type aliases result in broken JavaScript
+// imports (e.g., undefined "$0" references).
+//
+// Plugins use this package, while the host uses internal/plugins.
+// If you modify these, you MUST also modify the corresponding structs in
+// internal/plugins/plugin.go and ensure internal/plugins/sync_test.go passes.
 
 // ChartConfig holds chart display configuration.
 type ChartConfig struct {
@@ -79,12 +88,6 @@ type SeriesConfig struct {
 type FilePattern struct {
 	Description string   `json:"description"`
 	Patterns    []string `json:"patterns"`
-}
-
-// ChartColors provides the standard Plotly-inspired color palette.
-var ChartColors = []string{
-	"#636EFA", "#EF553B", "#00CC96", "#AB63FA", "#FFA15A",
-	"#19D3F3", "#FF6692", "#B6E880", "#FF97FF", "#FECB52",
 }
 
 // SendResponse sends a JSON response to stdout.

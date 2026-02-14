@@ -1,11 +1,15 @@
-"""MSC Climate Data Plugin - IPC Handler."""
-
-from __future__ import annotations
-
 import datetime
+import os
+import sys
 from dataclasses import dataclass, field
 
-import ipc_helpers
+# Add SDK path to sys.path
+sdk_path = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "../../sdk/python")
+)
+if sdk_path not in sys.path:
+    sys.path.append(sdk_path)
+
 import msc_api
 
 
@@ -73,7 +77,7 @@ def handle_initialize(args: str) -> None:
                 "startDate": start_date,
                 "endDate": end_date,
             }
-            ipc_helpers.send_show_form(
+            protocol.send_show_form(
                 "MSC Climate Discovery - Step 1/2", schema, ui, data
             )
 
@@ -102,11 +106,11 @@ def handle_initialize(args: str) -> None:
                 if discovered_stations
                 else ""
             }
-            ipc_helpers.send_show_form(
+            protocol.send_show_form(
                 "MSC Climate Discovery - Step 2/2", schema, ui, data
             )
 
-        req = ipc_helpers.read_request()
+        req = protocol.read_request()
         if not req:
             break
 
@@ -117,7 +121,7 @@ def handle_initialize(args: str) -> None:
                 start_date = res.get("startDate", start_date)
                 end_date = res.get("endDate", end_date)
 
-                ipc_helpers.log(
+                protocol.log(
                     "info",
                     f"Verifying stations near {coords['lat']}, {coords['lng']}...",
                 )
@@ -131,13 +135,13 @@ def handle_initialize(args: str) -> None:
                             f"{coords['lat']:.2f}, {coords['lng']:.2f} for that period. "
                             "Please try another location or date range."
                         )
-                        ipc_helpers.log("warn", msg)
-                        ipc_helpers.send_error(msg)
+                        protocol.log("warn", msg)
+                        protocol.send_error(msg)
                         continue
 
                     step = 2
                 except Exception as e:
-                    ipc_helpers.send_error(f"Discovery search failed: {e}")
+                    protocol.send_error(f"Discovery search failed: {e}")
                     continue
 
             elif step == 2:
@@ -151,7 +155,7 @@ def handle_initialize(args: str) -> None:
                     None,
                 )
                 if not stn:
-                    ipc_helpers.send_error("Selection lost. Please try again.")
+                    protocol.send_error("Selection lost. Please try again.")
                     step = 1
                     continue
 
@@ -159,7 +163,7 @@ def handle_initialize(args: str) -> None:
                 state.start_date = start_date
                 state.end_date = end_date
 
-                ipc_helpers.log(
+                protocol.log(
                     "info", f"Selected {stn.name}. Fetching full data set..."
                 )
                 try:
@@ -167,39 +171,39 @@ def handle_initialize(args: str) -> None:
                         selected_id, start_date, end_date
                     )
                     if not state.observations:
-                        ipc_helpers.send_error(
+                        protocol.send_error(
                             "Station verification failed: no actual observations returned."
                         )
                         step = 1
                         continue
 
-                    ipc_helpers.log(
+                    protocol.log(
                         "info",
                         f"Loaded {len(state.observations)} daily observations",
                     )
-                    ipc_helpers.send_response({"result": "initialized"})
+                    protocol.send_response({"result": "initialized"})
                     break
                 except Exception as e:
-                    ipc_helpers.send_error(f"Final data fetch failed: {e}")
+                    protocol.send_error(f"Final data fetch failed: {e}")
                     step = 1
                     continue
 
         elif "error" in req:
-            ipc_helpers.log("info", "Discovery cancelled")
-            ipc_helpers.send_error("cancelled")
+            protocol.log("info", "Discovery cancelled")
+            protocol.send_error("cancelled")
             break
 
 
 def handle_get_chart_config() -> None:
     if not state.station:
-        ipc_helpers.send_error("Not initialized")
+        protocol.send_error("Not initialized")
         return
 
     config = {
         "title": f"{state.station.name} Temperature History",
         "axis_labels": ["Date", "Temperature (°C)"],
     }
-    ipc_helpers.send_response({"result": config})
+    protocol.send_response({"result": config})
 
 
 def handle_get_series_config() -> None:
@@ -208,25 +212,22 @@ def handle_get_series_config() -> None:
         {
             "id": "mean_temp",
             "name": f"{prefix}Mean Temp",
-            "color": ipc_helpers.CHART_COLORS[0],
         },
         {
             "id": "min_temp",
             "name": f"{prefix}Min Temp",
-            "color": ipc_helpers.CHART_COLORS[2],
         },
         {
             "id": "max_temp",
             "name": f"{prefix}Max Temp",
-            "color": ipc_helpers.CHART_COLORS[1],
         },
     ]
-    ipc_helpers.send_response({"result": series})
+    protocol.send_response({"result": series})
 
 
 def handle_get_series_data(series_id: str, preferred_storage: str) -> None:
     if not state.observations:
-        ipc_helpers.send_error("No data available")
+        protocol.send_error("No data available")
         return
 
     # Convert observations to X (timestamps) and Y (values)
@@ -259,20 +260,18 @@ def handle_get_series_data(series_id: str, preferred_storage: str) -> None:
         except Exception:
             continue
 
-    ipc_helpers.send_binary_data(values, "interleaved")
+    protocol.send_binary_data(values, "interleaved")
 
 
 def main() -> None:
     while True:
-        req = ipc_helpers.read_request()
+        req = protocol.read_request()
         if not req:
             break
 
         method = req.get("method")
         if method == "info":
-            ipc_helpers.send_response(
-                {"name": "MSC Climate Data", "version": 1}
-            )
+            protocol.send_response({"name": "MSC Climate Data", "version": 1})
         elif method == "initialize":
             handle_initialize(req.get("args", ""))
         elif method == "get_chart_config":
@@ -285,7 +284,7 @@ def main() -> None:
                 req.get("preferred_storage", "interleaved"),
             )
         else:
-            ipc_helpers.send_error(f"Unknown method: {method}")
+            protocol.send_error(f"Unknown method: {method}")
 
 
 if __name__ == "__main__":
