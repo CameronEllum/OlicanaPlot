@@ -220,23 +220,10 @@ func NewPlugin(execPath string) (*Plugin, error) {
 		return nil, fmt.Errorf("plugin executable not found at %s: %w", execPath, err)
 	}
 
-	// Generate fallback name from exe basename
-	exeName := filepath.Base(execPath)
-	// Remove extension
-	ext := filepath.Ext(exeName)
-	base := strings.TrimSuffix(exeName, ext)
-	// Replace both underscores and dashes with spaces
-	nameWithSpaces := strings.ReplaceAll(base, "-", " ")
-	nameWithSpaces = strings.ReplaceAll(nameWithSpaces, "_", " ")
-	displayName := strings.Title(nameWithSpaces)
-	// Fix acronyms and special names
-	displayName = strings.ReplaceAll(displayName, "Ipc", "IPC")
-	displayName = strings.ReplaceAll(displayName, "Cpp", "C++")
-
 	p := &Plugin{
 		execPath: execPath,
 		workDir:  filepath.Dir(execPath),
-		name:     displayName, // Default
+		name:     displayNameFromPath(execPath),
 		version:  1,
 	}
 
@@ -778,6 +765,22 @@ func bytesToFloats(data []byte) []float64 {
 		return nil
 	}
 	return unsafe.Slice((*float64)(unsafe.Pointer(&data[0])), len(data)/8)
+}
+
+func displayNameFromPath(execPath string) string {
+	// Generate fallback name from exe basename
+	exeName := filepath.Base(execPath)
+	// Remove extension
+	ext := filepath.Ext(exeName)
+	base := strings.TrimSuffix(exeName, ext)
+	// Replace both underscores and dashes with spaces
+	nameWithSpaces := strings.ReplaceAll(base, "-", " ")
+	nameWithSpaces = strings.ReplaceAll(nameWithSpaces, "_", " ")
+	displayName := strings.Title(nameWithSpaces)
+	// Fix acronyms and special names
+	displayName = strings.ReplaceAll(displayName, "Ipc", "IPC")
+	displayName = strings.ReplaceAll(displayName, "Cpp", "C++")
+	return displayName
 }
 
 // Close stops the plugin process.
