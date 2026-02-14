@@ -73,15 +73,16 @@ type AxisGroupConfig struct {
 
 // SeriesConfig describes a data series metadata.
 type SeriesConfig struct {
-	ID        string   `json:"id"`
-	Name      string   `json:"name"`
-	Color     string   `json:"color,omitempty"`
-	Subplot   []int    `json:"subplot,omitempty"`   // [row, col]
-	LineType  string   `json:"line_type,omitempty"` // "solid", "dashed", "dotted"
-	LineWidth *float64 `json:"line_width,omitempty"`
-	Unit      string   `json:"unit,omitempty"`
-	Visible   *bool    `json:"visible,omitempty"`
-	YAxis     string   `json:"y_axis,omitempty"` // references Y axis title
+	ID         string   `json:"id"`
+	Name       string   `json:"name"`
+	Color      string   `json:"color,omitempty"`
+	Subplot    []int    `json:"subplot,omitempty"`   // [row, col]
+	LineType   string   `json:"line_type,omitempty"` // "solid", "dashed", "dotted"
+	LineWidth  *float64 `json:"line_width,omitempty"`
+	MarkerType string   `json:"marker_type,omitempty"` // "none", "circle", "square", "triangle", "diamond", "cross", "x"
+	Unit       string   `json:"unit,omitempty"`
+	Visible    *bool    `json:"visible,omitempty"`
+	YAxis      string   `json:"y_axis,omitempty"` // references Y axis title
 }
 
 // FilePattern describes a file type supported by a plugin.

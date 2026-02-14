@@ -14,6 +14,7 @@ import (
 	"olicanaplot/internal/data"
 	"olicanaplot/internal/logging"
 	"olicanaplot/internal/plugins"
+	"olicanaplot/internal/plugins/attributes_generator"
 	"olicanaplot/internal/plugins/csv_reader"
 	"olicanaplot/internal/plugins/function_generator"
 	"olicanaplot/internal/plugins/ipc"
@@ -77,6 +78,9 @@ func main() {
 	}
 	if err := pluginManager.Register(csv_reader.New(), true); err != nil {
 		logger.Warn("Failed to register CSV plugin", "error", err)
+	}
+	if err := pluginManager.Register(attributes_generator.New(), true); err != nil {
+		logger.Warn("Failed to register attributes plugin", "error", err)
 	}
 
 	// Load IPC plugins from both built-in and user-configured directories

@@ -136,6 +136,15 @@ export class PlotlyAdapter extends ChartAdapter {
       const cellId = `${s.subplotRow || 0},${s.subplotCol || 0}`;
       const axes = cellToAxisMap[cellId];
 
+      const hasMarker = !!(s.marker_type && s.marker_type !== "none");
+      const mode = hasMarker ? "lines+markers" : "lines";
+
+      // Map marker types to Plotly symbols
+      const markerSymbol = s.marker_type === "square" ? "square" :
+        s.marker_type === "triangle" ? "triangle-up" :
+          s.marker_type === "x" ? "x" :
+            (s.marker_type || "circle");
+
       return {
         x: xData,
         y: yData,
@@ -143,11 +152,21 @@ export class PlotlyAdapter extends ChartAdapter {
         yaxis: axes.y,
         name: s.name,
         type: "scattergl" as const,
-        mode: "lines" as const,
+        mode: mode as any,
         line: {
           color: s.color,
-          width: lineWidth || 2,
+          width: s.line_width || lineWidth || 2,
+          dash: s.line_type === "dashed" ? "dash" : s.line_type === "dotted" ? "dot" : "solid",
         },
+        // Using the spread operator to completely omit the 'marker' key if not needed.
+        // This prevents Plotly's WebGL scatter from choking on undefined/null objects.
+        ...(hasMarker && {
+          marker: {
+            color: s.color,
+            size: 8,
+            symbol: markerSymbol,
+          }
+        }),
         hoverinfo: "x+y+name",
       };
     });

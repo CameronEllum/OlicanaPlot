@@ -199,7 +199,9 @@ export class EChartsAdapter extends ChartAdapter {
       return {
         name: s.name,
         type: "line" as const,
-        showSymbol: false,
+        showSymbol: !!s.marker_type && s.marker_type !== "none",
+        symbol: (s.marker_type === "square" ? "rect" : s.marker_type) || "circle",
+        symbolSize: 8,
         datasetIndex: i,
         xAxisIndex: cellIdx,
         yAxisIndex: cellIdx,
@@ -207,7 +209,10 @@ export class EChartsAdapter extends ChartAdapter {
         large: true,
         emphasis: { disabled: true },
         color: s.color,
-        lineStyle: { width: lineWidth || 2 },
+        lineStyle: {
+          width: s.line_width || lineWidth || 2,
+          type: s.line_type || "solid",
+        },
         sampling: "lttb" as const,
       };
     });

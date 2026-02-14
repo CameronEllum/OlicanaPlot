@@ -9,7 +9,7 @@ chart:
 
 layout:
   rows: 2
-  cols: 1
+  cols: 2
 
 behaviour:
   link_x: true
@@ -49,6 +49,36 @@ axes:
         column: 1
         y_axis: "Temperature"
         color: "#d62728"
+
+  - title: "Line Types Demo"
+    subplot: [0, 1]
+    y_axes:
+      - title: "Amplitude"
+    series:
+      - title: "Solid Line"
+        column: 1
+        line_type: "solid"
+      - title: "Dashed Line"
+        column: 2
+        line_type: "dashed"
+      - title: "Dotted Line"
+        column: 3
+        line_type: "dotted"
+
+  - title: "Line Widths Demo"
+    subplot: [1, 1]
+    y_axes:
+      - title: "Width"
+    series:
+      - title: "Thin (1px)"
+        column: 1
+        line_width: 1.0
+      - title: "Medium (4px)"
+        column: 2
+        line_width: 4.0
+      - title: "Thick (8px)"
+        column: 3
+        line_width: 8.0
 """
 
 # Generate data for block 1 (RPM and Torque)
@@ -69,8 +99,35 @@ for t in t_vals:
     temp = 90 + 5 * math.sin(0.1 * t) + 0.1 * random.uniform(-1, 1)
     csv2.append(f"{t:.3f},{temp:.2f}")
 
+# Block 3 CSV (Line Types Demo)
+csv3 = []
+for t in t_vals:
+    y1 = math.sin(t)
+    y2 = math.cos(t)
+    y3 = math.sin(t * 0.5)
+    csv3.append(f"{t:.3f},{y1:.3f},{y2:.3f},{y3:.3f}")
+
+# Block 4 CSV (Line Widths Demo)
+csv4 = []
+for t in t_vals:
+    y1 = math.sin(t * 1.5)
+    y2 = math.cos(t * 1.5)
+    y3 = math.sin(t * 0.75)
+    csv4.append(f"{t:.3f},{y1:.3f},{y2:.3f},{y3:.3f}")
+
 # Combine with form feeds (\x0c)
-output = yaml_header + "\f\n" + "\n".join(csv1) + "\n\f\n" + "\n".join(csv2) + "\n"
+output = (
+    yaml_header
+    + "\f\n"
+    + "\n".join(csv1)
+    + "\n\f\n"
+    + "\n".join(csv2)
+    + "\n\f\n"
+    + "\n".join(csv3)
+    + "\n\f\n"
+    + "\n".join(csv4)
+    + "\n"
+)
 
 # Write to file
 file_path = "test_data.olicanaplot"

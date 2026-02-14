@@ -37,6 +37,7 @@ export interface SeriesConfig {
   subplot?: number[]; // [row, col]
   line_type?: "solid" | "dashed" | "dotted";
   line_width?: number;
+  marker_type?: "none" | "circle" | "square" | "triangle" | "diamond" | "cross" | "x";
   unit?: string;
   visible?: boolean;
   y_axis?: string; // references Y axis title
