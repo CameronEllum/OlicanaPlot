@@ -1,4 +1,4 @@
-package funcplot
+package function_generator
 
 import (
 	"encoding/json"
@@ -131,7 +131,7 @@ func (p *Plugin) applyConfig(cfg ConfigResult) {
 }
 
 func (p *Plugin) showConfigDialog(app *application.App) ConfigResult {
-	requestID := fmt.Sprintf("funcplot-%p", p)
+	requestID := fmt.Sprintf("function_generator-%p", p)
 	resultChan := make(chan ConfigResult, 1)
 	var window *application.WebviewWindow
 
@@ -162,31 +162,37 @@ func (p *Plugin) showConfigDialog(app *application.App) ConfigResult {
 				"default": enum[0],
 			},
 			"functionName": map[string]interface{}{
-				"title": "Function Name",
-				"type":  "string",
+				"title":   "Function Name",
+				"type":    "string",
+				"default": builtinPresets[0].Name,
 			},
 			"expression": map[string]interface{}{
-				"title": "Function Expression y = f(x)",
-				"type":  "string",
+				"title":   "Function Expression y = f(x)",
+				"type":    "string",
+				"default": builtinPresets[0].Expression,
 			},
 			"xMin": map[string]interface{}{
 				"title":   "X Min",
 				"type":    "number",
-				"default": 0,
+				"default": builtinPresets[0].XMin,
 			},
 			"xMax": map[string]interface{}{
 				"title":   "X Max",
 				"type":    "number",
-				"default": 100,
+				"default": builtinPresets[0].XMax,
 			},
 			"numPoints": map[string]interface{}{
 				"title":   "Number of Points",
 				"type":    "integer",
 				"minimum": 2,
 				"maximum": 1000000,
-				"default": 1000,
+				"default": builtinPresets[0].NumPoints,
 			},
 		},
+	}
+
+	uiSchema := map[string]interface{}{
+		"ui:order": []string{"presetFunction", "functionName", "expression", "xMin", "xMax", "numPoints"},
 	}
 
 	// Handle form change for presets
@@ -232,6 +238,7 @@ func (p *Plugin) showConfigDialog(app *application.App) ConfigResult {
 	app.Event.On(fmt.Sprintf("ipc-form-ready-%s", requestID), func(e *application.CustomEvent) {
 		app.Event.Emit(fmt.Sprintf("ipc-form-init-%s", requestID), map[string]interface{}{
 			"schema":             schema,
+			"uiSchema":           uiSchema,
 			"handle_form_change": true,
 		})
 	})

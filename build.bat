@@ -11,7 +11,7 @@ cd /d "%ROOT_DIR%"
 echo.
 echo Cleaning up running processes...
 taskkill /F /IM OlicanaPlot.exe /T >nul 2>&1
-taskkill /F /IM csv.exe /T >nul 2>&1
+taskkill /F /IM csv_reader.exe /T >nul 2>&1
 taskkill /F /IM model_selector.exe /T >nul 2>&1
 taskkill /F /IM olicanaplot_reader.exe /T >nul 2>&1
 taskkill /F /IM random_walk_generator.exe /T >nul 2>&1
@@ -37,11 +37,11 @@ if exist build.bat (
 
 echo.
 echo [3/6] Building CSV IPC (Go Plugin)...
-cd /d "%ROOT_DIR%plugins\csv"
+cd /d "%ROOT_DIR%plugins\csv_reader"
 if exist build.bat (
     call build.bat
 ) else (
-    echo Warning: csv\build.bat not found.
+    echo Warning: csv_reader\build.bat not found.
 )
 
 echo.

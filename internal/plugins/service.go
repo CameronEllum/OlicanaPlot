@@ -111,6 +111,12 @@ func (s *Service) SetPluginEnabled(name string, enabled bool) error {
 		}
 	}
 	s.config.SetDisabledPlugins(disabled)
+
+	// Notify frontend
+	if app, ok := s.app.(*application.App); ok {
+		app.Event.Emit("pluginsChanged")
+	}
+
 	return nil
 }
 

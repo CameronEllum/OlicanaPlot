@@ -14,11 +14,11 @@ import (
 	"olicanaplot/internal/data"
 	"olicanaplot/internal/logging"
 	"olicanaplot/internal/plugins"
-	"olicanaplot/internal/plugins/csv"
-	"olicanaplot/internal/plugins/funcplot"
+	"olicanaplot/internal/plugins/csv_reader"
+	"olicanaplot/internal/plugins/function_generator"
 	"olicanaplot/internal/plugins/ipc"
-	"olicanaplot/internal/plugins/sine"
-	"olicanaplot/internal/plugins/synthetic"
+	"olicanaplot/internal/plugins/process_model_generator"
+	"olicanaplot/internal/plugins/sine_generator"
 )
 
 // Wails uses Go's `embed` package to embed the frontend files into the binary.
@@ -66,16 +66,16 @@ func main() {
 	// Create plugin manager and register plugins
 	pluginManager := plugins.NewManager(logger)
 
-	if err := pluginManager.Register(sine.New(), true); err != nil {
+	if err := pluginManager.Register(sine_generator.New(), true); err != nil {
 		logger.Warn("Failed to register sine plugin", "error", err)
 	}
-	if err := pluginManager.Register(funcplot.New(configService), true); err != nil {
+	if err := pluginManager.Register(function_generator.New(configService), true); err != nil {
 		logger.Warn("Failed to register funcplot plugin", "error", err)
 	}
-	if err := pluginManager.Register(synthetic.New(), true); err != nil {
-		logger.Warn("Failed to register synthetic plugin", "error", err)
+	if err := pluginManager.Register(process_model_generator.New(), true); err != nil {
+		logger.Warn("Failed to register process model plugin", "error", err)
 	}
-	if err := pluginManager.Register(csv.New(), true); err != nil {
+	if err := pluginManager.Register(csv_reader.New(), true); err != nil {
 		logger.Warn("Failed to register CSV plugin", "error", err)
 	}
 

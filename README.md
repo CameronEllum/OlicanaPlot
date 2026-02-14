@@ -59,7 +59,7 @@ This approach is simpler and more efficient than WebSocket:
 
 Built-in plugins are compiled as part of the application. Each plugin is a separate Go package in `internal/plugins/`:
 
-- **CSV Connector** (`internal/plugins/csv/`): Load and plot CSV files
+- **CSV Connector** (`internal/plugins/csv_reader/`): Load and plot CSV files
 - **Synthetic Data Generator** (`internal/plugins/synthetic/`): Generate test data
 
 #### IPC Plugins

@@ -1,12 +1,11 @@
 import csv
 import math
-import os
 import random
 
 
 def generate_sample_1():
     # 4 series, 100 points, starting at T=0
-    filename = "sample_data/sample_1.csv"
+    filename = "sample_1.csv"
     with open(filename, "w", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(["Time", "Sine", "Cosine", "Random_Walk", "Exp_Decay"])
@@ -29,7 +28,7 @@ def generate_sample_1():
 
 def generate_sample_2():
     # 6 series, 150 points, starting at T=5 (overlapping with sample 1)
-    filename = "sample_data/sample_2.csv"
+    filename = "sample_2.csv"
     with open(filename, "w", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(
@@ -59,7 +58,5 @@ def generate_sample_2():
 
 
 if __name__ == "__main__":
-    if not os.path.exists("sample_data"):
-        os.makedirs("sample_data")
     generate_sample_1()
     generate_sample_2()

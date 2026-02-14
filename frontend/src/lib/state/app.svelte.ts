@@ -13,6 +13,7 @@ export interface Point {
 export interface AppPlugin {
     name: string;
     patterns: any[];
+    enabled: boolean;
 }
 
 class AppState {
@@ -22,7 +23,7 @@ class AppState {
     chartLibrary = $state<string>("echarts");
     loading = $state(true);
     error = $state<string | null>(null);
-    dataSource = $state("funcplot");
+    dataSource = $state("function_generator");
     linkX = $state(true); // Default to true as it was the previous behavior
     linkY = $state(false);
     isDarkMode = $state(false);
@@ -106,7 +107,7 @@ class AppState {
             this.chartLibrary = (Array.isArray(val.data) ? val.data[0] : val.data) as string;
             // Clear current data and reset to Sine Wave as requested
             this.currentSeriesData = [];
-            this.dataSource = "sine";
+            this.dataSource = "sine_generator";
             this.initChart(this.chartContainer!);
         }));
 
@@ -114,6 +115,11 @@ class AppState {
             this.showGeneratorsMenu = (Array.isArray(val.data) ? val.data[0] : val.data) as boolean;
         }));
 
+        this.unsubs.push(Events.On("pluginsChanged", async () => {
+            const plugins = await PluginService.ListPlugins();
+            this.allPlugins = plugins || [];
+            PluginService.LogDebug("AppState", "Plugins list refreshed after change", "");
+        }));
         this.unsubs.push(Events.On("defaultLineWidthChanged", (val: any) => {
             this.defaultLineWidth = (Array.isArray(val.data) ? val.data[0] : val.data) as number;
             this.updateChart();
@@ -158,7 +164,7 @@ class AppState {
         if (this.currentSeriesData.length > 0) {
             PluginService.LogDebug("AppState", "initChart() updating existing data", "");
             this.updateChart();
-        } else if (this.dataSource && (this.dataSource.toLowerCase() === "sine" || this.dataSource.toLowerCase() === "funcplot" || this.dataSource === "Function Plotter")) {
+        } else if (this.dataSource && (this.dataSource.toLowerCase() === "sine_generator" || this.dataSource.toLowerCase() === "function_generator" || this.dataSource === "Function Plotter")) {
             // Restore auto-load of default plot on startup
             PluginService.LogDebug("AppState", "Auto-loading Function Plotter on startup", "");
             this.resetToDefault(true);
@@ -531,7 +537,7 @@ class AppState {
     showGenerateMenu(event: MouseEvent) {
         event.stopPropagation();
         const isAddMode = event.ctrlKey;
-        const generators = this.allPlugins.filter(p => (!p.patterns || p.patterns.length === 0) && !p.name.includes("Template"));
+        const generators = this.allPlugins.filter(p => p.enabled && (!p.patterns || p.patterns.length === 0) && !p.name.includes("Template"));
         generators.sort((a, b) => a.name === "Sine Wave" ? -1 : b.name === "Sine Wave" ? 1 : a.name.localeCompare(b.name));
 
         this.showMenu(event.clientX, event.clientY, generators.map(p => ({

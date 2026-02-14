@@ -1,4 +1,4 @@
-module csv-ipc
+module csv_reader-ipc
 
 go 1.25
 

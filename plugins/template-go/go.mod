@@ -1,4 +1,4 @@
-module template-ipc-go
+module template-go
 
 go 1.25
 

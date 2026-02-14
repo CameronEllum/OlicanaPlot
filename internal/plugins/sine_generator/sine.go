@@ -1,5 +1,5 @@
 // Package sine provides a sine wave generator plugin for OlicanaPlot.
-package sine
+package sine_generator
 
 import (
 	"math"

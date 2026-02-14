@@ -1,5 +1,5 @@
 // Package csv provides a CSV file loading plugin for OlicanaPlot.
-package csv
+package csv_reader
 
 import (
 	"encoding/csv"

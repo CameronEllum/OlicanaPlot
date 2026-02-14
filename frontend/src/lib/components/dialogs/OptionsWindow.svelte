@@ -49,6 +49,27 @@
         }
     }
 
+    async function toggleAllExternal(enabled: boolean) {
+        const externalPlugins = plugins.filter((p) => !p.is_internal);
+        try {
+            for (const p of externalPlugins) {
+                if (p.enabled !== enabled) {
+                    await PluginService.SetPluginEnabled(p.name, enabled);
+                }
+            }
+            plugins = await PluginService.ListPlugins();
+        } catch (e) {
+            console.error("Failed to toggle all external plugins:", e);
+        }
+    }
+
+    let allExternalEnabled = $derived(
+        plugins.filter((p) => !p.is_internal).every((p) => p.enabled),
+    );
+    let anyExternalEnabled = $derived(
+        plugins.filter((p) => !p.is_internal).some((p) => p.enabled),
+    );
+
     function handlePluginContextMenu(event: MouseEvent, plugin: any) {
         event.preventDefault();
         event.stopPropagation();
@@ -454,7 +475,33 @@
                     </section>
 
                     <section class="plugin-section">
-                        <h3>External Plugins</h3>
+                        <div class="section-header">
+                            <h3>External Plugins</h3>
+                            <div class="header-actions">
+                                <label class="master-toggle">
+                                    <span class="toggle-label"
+                                        >{allExternalEnabled
+                                            ? "Disable All"
+                                            : "Enable All"}</span
+                                    >
+                                    <div class="switch">
+                                        <input
+                                            type="checkbox"
+                                            checked={allExternalEnabled}
+                                            indeterminate={anyExternalEnabled &&
+                                                !allExternalEnabled}
+                                            onchange={(e) =>
+                                                toggleAllExternal(
+                                                    (
+                                                        e.target as HTMLInputElement
+                                                    ).checked,
+                                                )}
+                                        />
+                                        <span class="slider"></span>
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
                         <div class="plugin-list">
                             {#each plugins.filter((p: any) => !p.is_internal) as plugin}
                                 <div
@@ -463,17 +510,21 @@
                                         handlePluginContextMenu(e, plugin)}
                                     role="listitem"
                                 >
-                                    <input
-                                        type="checkbox"
-                                        id="plugin-ext-{plugin.name}"
-                                        checked={plugin.enabled}
-                                        onchange={(e) =>
-                                            togglePlugin(
-                                                plugin.name,
-                                                (e.target as HTMLInputElement)
-                                                    .checked,
-                                            )}
-                                    />
+                                    <div class="switch">
+                                        <input
+                                            type="checkbox"
+                                            id="plugin-ext-{plugin.name}"
+                                            checked={plugin.enabled}
+                                            onchange={(e) =>
+                                                togglePlugin(
+                                                    plugin.name,
+                                                    (
+                                                        e.target as HTMLInputElement
+                                                    ).checked,
+                                                )}
+                                        />
+                                        <span class="slider"></span>
+                                    </div>
                                     <label
                                         for="plugin-ext-{plugin.name}"
                                         class="plugin-info"
@@ -522,17 +573,21 @@
                                         handlePluginContextMenu(e, plugin)}
                                     role="listitem"
                                 >
-                                    <input
-                                        type="checkbox"
-                                        id="plugin-int-{plugin.name}"
-                                        checked={plugin.enabled}
-                                        onchange={(e) =>
-                                            togglePlugin(
-                                                plugin.name,
-                                                (e.target as HTMLInputElement)
-                                                    .checked,
-                                            )}
-                                    />
+                                    <div class="switch">
+                                        <input
+                                            type="checkbox"
+                                            id="plugin-int-{plugin.name}"
+                                            checked={plugin.enabled}
+                                            onchange={(e) =>
+                                                togglePlugin(
+                                                    plugin.name,
+                                                    (
+                                                        e.target as HTMLInputElement
+                                                    ).checked,
+                                                )}
+                                        />
+                                        <span class="slider"></span>
+                                    </div>
                                     <label
                                         for="plugin-int-{plugin.name}"
                                         class="plugin-info"
@@ -873,8 +928,93 @@
         cursor: pointer;
     }
 
+    /* Switch Component */
+    .switch {
+        position: relative;
+        display: inline-block;
+        width: 32px;
+        height: 18px;
+        flex-shrink: 0;
+    }
+
+    .switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+    }
+
+    .slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: var(--border-color);
+        transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        border-radius: 20px;
+    }
+
+    .slider:before {
+        position: absolute;
+        content: "";
+        height: 12px;
+        width: 12px;
+        left: 3px;
+        bottom: 3px;
+        background-color: white;
+        transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        border-radius: 50%;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    }
+
+    input:checked + .slider {
+        background-color: var(--accent);
+    }
+
+    input:indeterminate + .slider {
+        background-color: var(--accent-hover);
+        opacity: 0.7;
+    }
+
+    input:checked + .slider:before {
+        transform: translateX(14px);
+    }
+
     .checkbox-item {
         margin-top: 4px; /* Local adjustment for options layout */
+    }
+
+    .header-actions {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+    }
+
+    .master-toggle {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        cursor: pointer;
+        padding: 4px 8px;
+        border-radius: 4px;
+        transition: background 0.2s;
+    }
+
+    .master-toggle:hover {
+        background: rgba(0, 0, 0, 0.05);
+    }
+
+    :global(.dark-mode) .master-toggle:hover {
+        background: rgba(255, 255, 255, 0.05);
+    }
+
+    .toggle-label {
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
     }
 
     .plugin-info {

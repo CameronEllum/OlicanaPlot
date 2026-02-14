@@ -1,5 +1,5 @@
-// Package synthetic provides a synthetic data generator plugin for OlicanaPlot.
-package synthetic
+// Package process_model_generator provides a process model data generator plugin for OlicanaPlot.
+package process_model_generator
 
 import (
 	"fmt"
@@ -13,7 +13,7 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
-const pluginName = "Synthetic Data Generator"
+const pluginName = "Process Model Generator"
 
 // Plugin implements the synthetic data generator plugin.
 type Plugin struct {
@@ -25,7 +25,6 @@ type Plugin struct {
 	noise           float64
 	correlationTime float64
 	amplitude       float64
-	frequency       float64
 }
 
 type ConfigResult struct {
@@ -35,7 +34,6 @@ type ConfigResult struct {
 	Noise           float64
 	CorrelationTime float64
 	Amplitude       float64
-	Frequency       float64
 	Cancelled       bool
 }
 
@@ -49,7 +47,7 @@ func NewSyntheticDialog(app *application.App) *SyntheticDialog {
 		result: make(chan ConfigResult, 1),
 	}
 
-	requestID := fmt.Sprintf("synth-%p", d)
+	requestID := fmt.Sprintf("process_model-%p", d)
 
 	schema := map[string]interface{}{
 		"type":  "object",
@@ -58,7 +56,7 @@ func NewSyntheticDialog(app *application.App) *SyntheticDialog {
 			"simulationType": map[string]interface{}{
 				"title":   "Simulation Type",
 				"type":    "string",
-				"enum":    []string{"Random Walk", "Gauss-Markov", "Sinusoidal"},
+				"enum":    []string{"Random Walk", "Gauss-Markov", "Random Constant", "White Noise"},
 				"default": "Random Walk",
 			},
 			"numPoints": map[string]interface{}{
@@ -81,32 +79,25 @@ func NewSyntheticDialog(app *application.App) *SyntheticDialog {
 				"ui:widget": "range",
 			},
 			"noise": map[string]interface{}{
-				"title":   "Noise Level",
+				"title":   "Noise Level / Sigma",
 				"type":    "number",
 				"minimum": 0,
-				"maximum": 10,
+				"maximum": 100,
 				"default": 1.0,
 			},
 			"correlationTime": map[string]interface{}{
-				"title":   "Correlation Time",
+				"title":   "Correlation Time (for GM)",
 				"type":    "number",
 				"minimum": 0.1,
 				"maximum": 100,
 				"default": 10.0,
 			},
 			"amplitude": map[string]interface{}{
-				"title":   "Amplitude",
+				"title":   "Mean / Constant Value",
 				"type":    "number",
-				"minimum": 0,
+				"minimum": -100,
 				"maximum": 100,
-				"default": 1.0,
-			},
-			"frequency": map[string]interface{}{
-				"title":   "Frequency (Hz)",
-				"type":    "number",
-				"minimum": 0.001,
-				"maximum": 10,
-				"default": 0.1,
+				"default": 0.0,
 			},
 		},
 	}
@@ -125,7 +116,6 @@ func NewSyntheticDialog(app *application.App) *SyntheticDialog {
 					Noise:           data["noise"].(float64),
 					CorrelationTime: data["correlationTime"].(float64),
 					Amplitude:       data["amplitude"].(float64),
-					Frequency:       data["frequency"].(float64),
 				}
 				d.submit(result)
 			}
@@ -186,8 +176,7 @@ func New() *Plugin {
 		seed:            uint64(time.Now().UnixNano()),
 		noise:           1.0,
 		correlationTime: 10.0,
-		amplitude:       1.0,
-		frequency:       0.1,
+		amplitude:       0.0,
 	}
 }
 
@@ -258,7 +247,6 @@ func (p *Plugin) SetParameters(result ConfigResult) error {
 	p.noise = result.Noise
 	p.correlationTime = result.CorrelationTime
 	p.amplitude = result.Amplitude
-	p.frequency = result.Frequency
 	// Reset seed for new generation
 	p.seed = uint64(time.Now().UnixNano())
 	return nil
@@ -289,7 +277,6 @@ func (p *Plugin) GetSeriesData(seriesID string, preferredStorage string) ([]floa
 	noise := p.noise
 	correlationTime := p.correlationTime
 	amplitude := p.amplitude
-	frequency := p.frequency
 	p.mu.Unlock()
 
 	// Parse series index from ID to create unique seed per series
@@ -330,10 +317,15 @@ func (p *Plugin) GetSeriesData(seriesID string, preferredStorage string) ([]floa
 		case "Gauss-Markov":
 			noiseVal := rng.NormFloat64() * math.Sqrt(dt) * noise
 			y = y - theta*y*dt + noiseVal
-		case "Sinusoidal":
-			whiteNoise := rng.NormFloat64() * 0.1
-			phase := float64(seriesIdx) * 0.5
-			y = amplitude*math.Sin(2*math.Pi*frequency*t+phase) + whiteNoise
+		case "Random Constant":
+			// amplitude is the mean, noise is the variation of the constant
+			if i == 1 {
+				y = amplitude + rng.NormFloat64()*noise
+			}
+			// stay at the same y for subsequent points
+		case "White Noise":
+			// amplitude is the mean, noise is the sigma
+			y = amplitude + rng.NormFloat64()*noise
 		default:
 			y += rng.NormFloat64() * math.Sqrt(dt)
 		}
