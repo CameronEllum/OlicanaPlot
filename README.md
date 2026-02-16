@@ -1,6 +1,108 @@
 # OlicanaPlot
 
-A high-performance plotting application built with **Wails v3** (Go) and **Svelte 5** using Apache ECharts for visualization. Features efficient binary data transfer via Asset Middleware and a hybrid plugin architecture supporting both built-in and IPC-based plugins.
+A high-performance plotting application built with **Wails v3** (Go) and **Svelte 5** using Apache ECharts and Plotly.js for visualization. Features efficient binary data transfer via Asset Middleware and a hybrid plugin architecture supporting both built-in and IPC-based plugins.
+
+Currently supports loading data from CSV and an internal multi-axes file format.
+
+Through its inter-process communication other formats can be added by plugins written in any language. Example plugins in Go, C++, and Python are included. Plug-ins can specify a UI schema that the main application can display, or they can use their own UI.
+
+## Screenshots
+
+### Mutliple Axes
+
+<img width="1206" height="971" alt="image" src="https://github.com/user-attachments/assets/214bd377-2ee6-4eac-b98e-765932366e7f" />
+
+### Adding Data
+
+<img width="655" height="720" alt="image" src="https://github.com/user-attachments/assets/dabf1fae-3c74-4552-9dfd-def0ff1be038" />
+
+### Plug-in Management
+
+<img width="800" height="600" alt="image" src="https://github.com/user-attachments/assets/c92dc87b-d72c-4bfa-b7db-1f878d111adc" />
+
+### Internal File Format
+
+
+```yaml
+version: 1
+
+chart:
+  title: "Vehicle Performance"
+  line_width: 2.0
+
+layout:
+  rows: 2
+  cols: 2
+
+behaviour:
+  link_x: true
+  link_y: false
+
+axes:
+  - title: "Engine Dynamics"
+    subplot: [0, 0]
+    x_axes:
+      - title: "Time"
+        unit: "s"
+        position: "bottom"
+    y_axes:
+      - title: "RPM"
+        unit: "rpm"
+        position: "left"
+      - title: "Torque"
+        unit: "Nm"
+        position: "right"
+    series:
+      - title: "Engine Speed"
+        column: 1
+        y_axis: "RPM"
+        color: "#1f77b4"
+      - title: "Output Torque"
+        column: 2
+        y_axis: "Torque"
+        line_type: "dashed"
+
+  - title: "Temperature Sensors"
+    subplot: [1, 0]
+    y_axes:
+      - title: "Temperature"
+        unit: "degC"
+    series:
+      - title: "Coolant Temp"
+        column: 1
+        y_axis: "Temperature"
+        color: "#d62728"
+
+  - title: "Line Types Demo"
+    subplot: [0, 1]
+    y_axes:
+      - title: "Amplitude"
+    series:
+      - title: "Solid Line"
+        column: 1
+        line_type: "solid"
+      - title: "Dashed Line"
+        column: 2
+        line_type: "dashed"
+      - title: "Dotted Line"
+        column: 3
+        line_type: "dotted"
+
+  - title: "Line Widths Demo"
+    subplot: [1, 1]
+    y_axes:
+      - title: "Width"
+    series:
+      - title: "Thin (1px)"
+        column: 1
+        line_width: 1.0
+      - title: "Medium (4px)"
+        column: 2
+        line_width: 4.0
+      - title: "Thick (8px)"
+        column: 3
+        line_width: 8.0
+```
 
 ## Features
 
