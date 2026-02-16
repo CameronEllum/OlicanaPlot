@@ -106,7 +106,7 @@ axes:
 
 ## Features
 
-- **High-Performance Charting**: Uses Apache ECharts with canvas renderer for smooth visualization of large datasets
+- **High-Performance Charting**: Uses Apache ECharts with canvas renderer or Plotly.js with ScatterGL for smooth visualization of large datasets
 - **Efficient Binary Data Transfer**: Asset Middleware pattern - binary `float64` arrays are fetched directly via HTTP, bypassing JSON serialization overhead
 - **Plugin Architecture**: Hybrid system supporting:
   - **Built-in plugins**: Compiled into the application as Go packages
