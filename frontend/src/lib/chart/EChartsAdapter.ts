@@ -103,7 +103,7 @@ export class EChartsAdapter extends ChartAdapter {
 
     // Use pixel-based gaps converted to percentages to keep spacing consistent across window sizes
     const hGapPct = numCols > 1 ? (80 / containerWidth) * 100 : 0;
-    const vGapPct = numRows > 1 ? (60 / containerHeight) * 100 : 0;
+    const vGapPct = numRows > 1 ? (80 / containerHeight) * 100 : 0;
 
     const totalUsableWidthPct = 100 - leftMarginPct - rightMarginPct;
     const cellWidthPct =
@@ -179,7 +179,7 @@ export class EChartsAdapter extends ChartAdapter {
         type: "value" as const,
         name: customName || defaultName,
         nameLocation: "center" as const,
-        nameGap: cell.col === 0 ? 45 : 20,
+        nameGap: cell.col === 0 ? 60 : 40,
         nameRotate: 90,
         gridIndex: i,
         min: globalYMin,

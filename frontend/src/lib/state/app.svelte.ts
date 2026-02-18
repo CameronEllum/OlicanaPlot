@@ -391,10 +391,36 @@ class AppState {
             const config = await PluginService.GetChartConfig();
             if (config) {
                 if (row === 0 && col === 0 && config.title) this.currentTitle = config.title;
-                if (config.axis_labels && config.axis_labels.length >= 2) {
+
+                // Extract axis names from the rich axes config if available
+                if (config.axes && config.axes.length > 0) {
+                    for (const axisGroup of config.axes) {
+                        const cellRow = axisGroup.subplot?.[0] ?? 0;
+                        const cellCol = axisGroup.subplot?.[1] ?? 0;
+                        const cellKey = `${cellRow},${cellCol}`;
+
+                        // Use the first Y-axis title as the subplot Y label
+                        if (axisGroup.y_axes && axisGroup.y_axes.length > 0 && axisGroup.y_axes[0].title) {
+                            this.subplotNames[cellKey] = axisGroup.y_axes[0].title;
+                        }
+
+                        // Use the first X-axis title found as the global X label
+                        if (axisGroup.x_axes && axisGroup.x_axes.length > 0 && axisGroup.x_axes[0].title) {
+                            this.xAxisName = axisGroup.x_axes[0].title;
+                        }
+                    }
+                } else if (config.axis_labels && config.axis_labels.length >= 2) {
+                    // Fall back to legacy axis_labels for simpler plugins
                     if (row === 0) this.xAxisName = config.axis_labels[0];
-                    // Update the subplot's Y label
                     this.subplotNames[`${row},${col}`] = config.axis_labels[1];
+                }
+
+                // Apply link behaviour if provided by the plugin
+                if (config.link_x !== undefined && config.link_x !== null) {
+                    this.linkX = config.link_x;
+                }
+                if (config.link_y !== undefined && config.link_y !== null) {
+                    this.linkY = config.link_y;
                 }
             }
         } catch (e) {

@@ -202,14 +202,14 @@ export class PlotlyAdapter extends ChartAdapter {
         l: 100,
         r: marginRight,
         t: 60,
-        b: 0,
+        b: 60,
       },
       dragmode: "pan" as const,
       grid: {
         subplots: gridSubplots,
         pattern: "independent",
-        xgap: 0.18,
-        ygap: 0.22,
+        xgap: 0.22,
+        ygap: 0.28,
         roworder: "top to bottom",
       },
     };
@@ -237,13 +237,13 @@ export class PlotlyAdapter extends ChartAdapter {
           cell.row === grid.maxRow
             ? {
               text: `<b>${xAxisName}</b>`,
-              font: { size: 16, color: textColor },
-              standoff: 25,
+              font: { size: 14, color: textColor },
+              standoff: 15,
             }
             : undefined,
         gridcolor: gridColor,
         zerolinecolor: gridColor,
-        tickfont: { color: textColor },
+        tickfont: { color: textColor, size: 11 },
         anchor: axes.y,
         matches: linkX ? (i === 0 ? undefined : "x") : undefined,
         showticklabels: true,
@@ -262,8 +262,8 @@ export class PlotlyAdapter extends ChartAdapter {
       layout[axes.yaxisKey] = {
         title: {
           text: `<b>${customYName || defaultYName}</b>`,
-          font: { size: 14, color: textColor },
-          standoff: 25,
+          font: { size: 12, color: textColor },
+          standoff: 15,
         },
         gridcolor: gridColor,
         zerolinecolor: gridColor,
