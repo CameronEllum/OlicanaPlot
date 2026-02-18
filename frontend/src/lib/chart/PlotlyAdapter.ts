@@ -199,10 +199,10 @@ export class PlotlyAdapter extends ChartAdapter {
         font: { color: textColor },
       },
       margin: {
-        l: 100,
+        l: 60,
         r: marginRight,
-        t: 60,
-        b: 60,
+        t: 50,
+        b: 50,
       },
       dragmode: "pan" as const,
       grid: {
@@ -238,7 +238,6 @@ export class PlotlyAdapter extends ChartAdapter {
             ? {
               text: `<b>${xAxisName}</b>`,
               font: { size: 14, color: textColor },
-              standoff: 15,
             }
             : undefined,
         gridcolor: gridColor,
@@ -263,7 +262,6 @@ export class PlotlyAdapter extends ChartAdapter {
         title: {
           text: `<b>${customYName || defaultYName}</b>`,
           font: { size: 12, color: textColor },
-          standoff: 15,
         },
         gridcolor: gridColor,
         zerolinecolor: gridColor,

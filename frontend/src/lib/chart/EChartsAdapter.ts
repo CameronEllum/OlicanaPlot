@@ -15,6 +15,9 @@ export class EChartsAdapter extends ChartAdapter {
   private lastArgs: any = null;
   private cells: any[] = [];
 
+  // Approximate pixel width per character at the default 12px axis label font.
+  private static readonly CHAR_WIDTH_PX = 7;
+
   // Create a new ECharts instance within the provided container.
   init(container: HTMLElement) {
     this.container = container;
@@ -97,7 +100,12 @@ export class EChartsAdapter extends ChartAdapter {
     // container width so that we can distribute the "inner" columns equally using percentages.
     const containerWidth = this.container?.clientWidth || 800;
     const containerHeight = this.container?.clientHeight || 600;
-    const leftMarginPct = 8;
+
+    // Estimate the widest Y-axis tick label (in px) for column-0 cells so the
+    // left margin adapts to the data instead of using a fixed percentage.
+    const col0TickWidth = this.estimateYTickWidth(seriesArr, cells.filter(c => c.col === 0));
+    const leftMarginPx = col0TickWidth + 30; // tick width + axis title + padding
+    const leftMarginPct = (leftMarginPx / containerWidth) * 100;
     const rightMarginPx = getGridRight(seriesArr);
     const rightMarginPct = (rightMarginPx / containerWidth) * 100;
 
@@ -175,11 +183,18 @@ export class EChartsAdapter extends ChartAdapter {
           ? "Main"
           : `Subplot ${cell.row},${cell.col}`;
 
+      // Compute nameGap dynamically from the widest tick label in this cell.
+      const cellTickWidth = this.estimateYTickWidth(
+        seriesArr.filter(s => `${s.subplotRow || 0},${s.subplotCol || 0}` === cell.id),
+        [cell],
+      );
+      const nameGap = cellTickWidth + 15;
+
       return {
         type: "value" as const,
         name: customName || defaultName,
         nameLocation: "center" as const,
-        nameGap: cell.col === 0 ? 60 : 40,
+        nameGap,
         nameRotate: 90,
         gridIndex: i,
         min: globalYMin,
@@ -330,6 +345,46 @@ export class EChartsAdapter extends ChartAdapter {
       y,
     ]) as number[];
     return pixel ? { x: pixel[0], y: pixel[1] } : null;
+  }
+
+  // Estimate the pixel width of the widest Y-axis tick label for series
+  // belonging to the given cells. Scans Y data to find min/max, formats
+  // them, and returns an approximate pixel width.
+  private estimateYTickWidth(
+    seriesArr: SeriesConfig[],
+    cells: { row: number; col: number; id: string }[],
+  ): number {
+    const cellIds = new Set(cells.map((c) => c.id));
+    let min = Infinity;
+    let max = -Infinity;
+
+    for (const s of seriesArr) {
+      const id = `${s.subplotRow || 0},${s.subplotCol || 0}`;
+      if (!cellIds.has(id) || !s.data) continue;
+      // Data is interleaved [x, y, x, y ...]
+      for (let j = 1; j < s.data.length; j += 2) {
+        const val = s.data[j];
+        if (!Number.isNaN(val)) {
+          if (val < min) min = val;
+          if (val > max) max = val;
+        }
+      }
+    }
+
+    if (min === Infinity) return 30; // No data fallback
+
+    // Format extreme values to estimate the longest label ECharts will produce
+    const candidates = [min, max].map((v) => {
+      // Use a compact format similar to ECharts' default axis label formatter
+      if (Math.abs(v) >= 1e6) return v.toExponential(1);
+      if (Number.isInteger(v)) return v.toString();
+      // Limit to a reasonable number of decimal places
+      const s = v.toString();
+      return s.length > 8 ? v.toPrecision(5) : s;
+    });
+
+    const maxLen = Math.max(...candidates.map((s) => s.length));
+    return maxLen * EChartsAdapter.CHAR_WIDTH_PX;
   }
 
   // Release all resources held by the ECharts instance and disconnect from

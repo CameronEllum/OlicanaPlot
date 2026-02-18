@@ -39,7 +39,7 @@
 <style>
     .content-area {
         flex: 1;
-        background-color: var(--bg-primary);
+        background-color: var(--chart-bg);
         padding: 0;
         overflow: hidden;
         position: relative;
@@ -47,7 +47,8 @@
     }
 
     .chart-container {
-        width: 100%;
-        height: 100%;
+        width: calc(100% - 16px);
+        height: calc(100% - 16px);
+        margin: 8px;
     }
 </style>

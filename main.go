@@ -136,7 +136,11 @@ func main() {
 	// 'BackgroundColour' is the background colour of the window.
 	// 'URL' is the URL that will be loaded into the webview.
 	app.Window.NewWithOptions(application.WebviewWindowOptions{
-		Title: "OlicanaPlot",
+		Title:     "OlicanaPlot",
+		Width:     1024,
+		Height:    768,
+		MinWidth:  800,
+		MinHeight: 600,
 		Mac: application.MacWindow{
 			InvisibleTitleBarHeight: 50,
 			Backdrop:                application.MacBackdropTranslucent,
