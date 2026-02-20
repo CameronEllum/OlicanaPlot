@@ -1,17 +1,61 @@
 <script lang="ts">
     import { onMount, onDestroy } from "svelte";
 
-    interface Props {
+    interface Marker {
         lat: number;
         lng: number;
-        onSelect: (lat: number, lng: number) => void;
+        popup?: string;
     }
 
-    let { lat, lng, onSelect }: Props = $props();
+    interface Props {
+        lat?: number;
+        lng?: number;
+        markers?: Marker[];
+        onSelect?: (lat: number, lng: number) => void;
+    }
+
+    let { lat, lng, markers = [], onSelect }: Props = $props();
     let mapElement: HTMLElement;
     let map: any;
-    let marker: any;
+    let primaryMarker: any;
+    let markerLayerGroup: any;
     let L: any;
+
+    $effect(() => {
+        if (!map || !L || !markerLayerGroup) return;
+
+        // Clear all layers
+        markerLayerGroup.clearLayers();
+        primaryMarker = null;
+
+        const bounds = L.latLngBounds();
+
+        // Single primary marker
+        if (lat && lng) {
+            const latLng = [lat, lng];
+            primaryMarker = L.marker(latLng).addTo(markerLayerGroup);
+            bounds.extend(latLng);
+        }
+
+        // Multiple markers
+        if (Array.isArray(markers) && markers.length > 0) {
+            for (const m of markers) {
+                if (m.lat && m.lng) {
+                    const latLng = [m.lat, m.lng];
+                    const mrk = L.marker(latLng);
+                    if (m.popup) {
+                        mrk.bindPopup(m.popup);
+                    }
+                    markerLayerGroup.addLayer(mrk);
+                    bounds.extend(latLng);
+                }
+            }
+        }
+
+        if (bounds.isValid()) {
+            map.fitBounds(bounds, { padding: [30, 30], maxZoom: 12 });
+        }
+    });
 
     onMount(async () => {
         // Load Leaflet dynamically if not already present
@@ -31,6 +75,10 @@
 
         L = (window as any).L;
 
+        // Fix for missing default icon in some bundlers
+        L.Icon.Default.imagePath =
+            "https://unpkg.com/leaflet@1.9.4/dist/images/";
+
         // Center of Canada roughly
         const initialLat = lat || 56.1304;
         const initialLng = lng || -106.3468;
@@ -42,18 +90,13 @@
             attribution: "© OpenStreetMap contributors",
         }).addTo(map);
 
-        if (lat && lng) {
-            marker = L.marker([lat, lng]).addTo(map);
-        }
+        markerLayerGroup = L.layerGroup().addTo(map);
 
         map.on("click", (e: any) => {
-            const { lat, lng } = e.latlng;
-            if (marker) {
-                marker.setLatLng(e.latlng);
-            } else {
-                marker = L.marker(e.latlng).addTo(map);
+            if (onSelect) {
+                const { lat, lng } = e.latlng;
+                onSelect(lat, lng);
             }
-            onSelect(lat, lng);
         });
     });
 

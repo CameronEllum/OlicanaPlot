@@ -1,0 +1,18 @@
+[project]
+name = "open-meteo-climate-downloader"
+version = "0.1.0"
+description = "Open Meteo Climate Downloader"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "polars>=1.38.1",
+    "requests>=2.32.5",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.15.2",
+]
+
+[tool.ruff]
+line-length = 81

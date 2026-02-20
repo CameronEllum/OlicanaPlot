@@ -308,3 +308,28 @@ select:focus {
     background-clip: text;
     -webkit-text-fill-color: transparent;
 }
+
+/* Grid System Helper Classes */
+.grid {
+    display: grid !important;
+}
+
+.grid-cols-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+}
+
+.gap-4 {
+    gap: 1rem !important;
+}
+
+.col-span-1 {
+    grid-column: span 1 / span 1 !important;
+}
+
+.col-span-2 {
+    grid-column: span 2 / span 2 !important;
+}
+
+.col-span-3 {
+    grid-column: span 3 / span 3;
+}

@@ -43,6 +43,22 @@ def send_show_form(
     send_response(resp)
 
 
+def send_form_update(
+    schema: dict[str, Any] | None = None,
+    ui_schema: dict[str, Any] | None = None,
+    data: dict[str, Any] | None = None,
+) -> None:
+    """Send an updated form configuration dynamically."""
+    resp: dict[str, Any] = {}
+    if schema is not None:
+        resp["schema"] = schema
+    if ui_schema is not None:
+        resp["uiSchema"] = ui_schema
+    if data is not None:
+        resp["data"] = data
+    send_response(resp)
+
+
 def send_binary_data(values: list[float], storage: str = "interleaved") -> None:
     """Send binary float64 data following a JSON header."""
     # JSON header

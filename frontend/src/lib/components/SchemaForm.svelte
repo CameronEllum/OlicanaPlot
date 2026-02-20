@@ -17,6 +17,7 @@
         format?: string;
         items?: {
             type?: string;
+            title?: string;
             enum?: any[];
             oneOf?: any[];
         };
@@ -214,14 +215,14 @@
         <h3 class="text-gradient">{title}</h3>
     </header>
 
-    <div class="form-content">
+    <div class="form-content {uiSchema?.['ui:classNames'] || ''}">
         {#if schema && schema.properties}
             {#each uiSchema?.["ui:order"] || Object.keys(schema.properties) as key}
                 {@const prop = schema.properties[key]}
                 {#if prop}
                     {@const ui = (uiSchema || {})[key] || {}}
 
-                    <div class="form-group">
+                    <div class="form-group {ui?.['ui:classNames'] || ''}">
                         <div class="label-row">
                             <label for={key}>{prop.title || key}</label>
                             {#if ui["ui:widget"] === "range"}
@@ -235,8 +236,13 @@
                             <MapPicker
                                 lat={formData[key]?.lat}
                                 lng={formData[key]?.lng}
+                                markers={Array.isArray(formData[key])
+                                    ? formData[key]
+                                    : undefined}
                                 onSelect={(lat, lng) => {
-                                    formData[key] = { lat, lng };
+                                    if (!Array.isArray(formData[key])) {
+                                        formData[key] = { lat, lng };
+                                    }
                                 }}
                             />
                         {:else if prop.enum || prop.oneOf}
@@ -292,6 +298,69 @@
                                         {option.title || val}
                                     </label>
                                 {/each}
+                            </div>
+                        {:else if prop.type === "array" && prop.items?.type === "string" && !prop.items?.enum && !prop.items?.oneOf}
+                            <div class="repeater-group">
+                                {#each formData[key] || [] as item, i}
+                                    <div class="repeater-item">
+                                        <input
+                                            type="text"
+                                            value={formData[key][i]}
+                                            onchange={(e) => {
+                                                const target =
+                                                    e.target as HTMLInputElement;
+                                                formData[key][i] = target.value;
+                                            }}
+                                            placeholder={prop.items.title ||
+                                                "Item"}
+                                        />
+                                        <button
+                                            class="btn-icon remove"
+                                            title="Remove item"
+                                            onclick={() => {
+                                                formData[key] = (
+                                                    formData[key] || []
+                                                ).filter(
+                                                    (_: any, index: number) =>
+                                                        index !== i,
+                                                );
+                                            }}
+                                        >
+                                            <svg
+                                                width="14"
+                                                height="14"
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                stroke-width="2"
+                                                stroke-linecap="round"
+                                                stroke-linejoin="round"
+                                                ><line
+                                                    x1="18"
+                                                    y1="6"
+                                                    x2="6"
+                                                    y2="18"
+                                                ></line><line
+                                                    x1="6"
+                                                    y1="6"
+                                                    x2="18"
+                                                    y2="18"
+                                                ></line></svg
+                                            >
+                                        </button>
+                                    </div>
+                                {/each}
+                                <button
+                                    class="btn-text"
+                                    onclick={() => {
+                                        formData[key] = [
+                                            ...(formData[key] || []),
+                                            "",
+                                        ];
+                                    }}
+                                >
+                                    + Add Item
+                                </button>
                             </div>
                         {:else if prop.type === "integer" || prop.type === "number"}
                             {#if ui["ui:widget"] === "range"}
@@ -431,6 +500,62 @@
         transition: color 0.2s;
     }
 
+    .repeater-group {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .repeater-item {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .repeater-item input {
+        flex: 1;
+    }
+
+    .btn-icon.remove {
+        background: transparent;
+        border: none;
+        color: var(--text-secondary);
+        cursor: pointer;
+        padding: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 6px;
+        transition: all 0.2s;
+    }
+
+    .btn-icon.remove:hover {
+        background: rgba(239, 68, 68, 0.1);
+        color: var(--error);
+    }
+
+    .btn-text {
+        background: transparent;
+        border: 1px dashed var(--border-color);
+        color: var(--text-secondary);
+        cursor: pointer;
+        padding: 6px 12px;
+        border-radius: 8px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        transition: all 0.2s;
+        align-self: flex-start;
+        margin-top: 2px;
+    }
+
+    .btn-text:hover {
+        background: rgba(255, 255, 255, 0.05);
+        color: var(--text-primary);
+        border-color: var(--text-secondary);
+    }
+
     .checkbox-label:hover {
         color: #fff;
     }
@@ -495,7 +620,7 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        z-index: 100;
+        z-index: 5000;
     }
 
     .spinner {
