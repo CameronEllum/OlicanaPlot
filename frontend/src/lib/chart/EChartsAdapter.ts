@@ -259,6 +259,9 @@ export class EChartsAdapter extends ChartAdapter {
       });
     }
 
+    const currentOption = (this.instance ? this.instance.getOption() : null) as any;
+    const currentSelected = currentOption?.legend?.[0]?.selected || {};
+
     const option = {
       backgroundColor: bgColor,
       animation: false,
@@ -286,6 +289,7 @@ export class EChartsAdapter extends ChartAdapter {
       dataZoom: dataZoom,
       legend: {
         data: seriesArr.map((s) => s.name),
+        selected: currentSelected,
         orient: "vertical" as const,
         right: 10,
         top: 60,
@@ -401,13 +405,6 @@ export class EChartsAdapter extends ChartAdapter {
   onLegendClick(handler: (seriesName: string, event: any) => void) {
     if (!this.instance) return;
     this.instance.on("legendselectchanged", (params: any) => {
-      const option = this.instance!.getOption() as any;
-      const selected = option.legend[0].selected || {};
-      // Maintain visibility by overriding the automatic hide behavior
-      for (const name of Object.keys(selected)) {
-        selected[name] = true;
-      }
-      this.instance!.setOption({ legend: { selected } });
       handler(params.name, params);
     });
   }
