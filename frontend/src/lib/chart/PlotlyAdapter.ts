@@ -163,8 +163,8 @@ export class PlotlyAdapter extends ChartAdapter {
         ...(hasMarker && {
           marker: {
             color: s.color,
-            size: 8,
-            symbol: markerSymbol,
+            size: s.marker_size || 8,
+            symbol: s.marker_fill === "empty" ? `${markerSymbol}-open` : markerSymbol,
           }
         }),
         hoverinfo: "x+y+name",

@@ -80,30 +80,28 @@ func (p *Plugin) GetSeriesConfig() ([]plugins.SeriesConfig, error) {
 			Subplot:  []int{0, 0},
 			LineType: "dotted",
 		},
-		// Subplot (0,1) - Marker Types
+		// Subplot (0,1) - Marker Sizes & Fills
 		{
 			ID:         "markers_0",
-			Name:       "Circle",
+			Name:       "Small Filled (4px)",
 			Subplot:    []int{0, 1},
 			MarkerType: "circle",
+			MarkerSize: floatPtr(4.0),
 		},
 		{
 			ID:         "markers_1",
-			Name:       "Square",
+			Name:       "Medium Empty (8px)",
 			Subplot:    []int{0, 1},
 			MarkerType: "square",
+			MarkerSize: floatPtr(8.0),
+			MarkerFill: "empty",
 		},
 		{
 			ID:         "markers_2",
-			Name:       "Triangle",
+			Name:       "Large Filled (14px)",
 			Subplot:    []int{0, 1},
 			MarkerType: "triangle",
-		},
-		{
-			ID:         "markers_3",
-			Name:       "Diamond",
-			Subplot:    []int{0, 1},
-			MarkerType: "diamond",
+			MarkerSize: floatPtr(14.0),
 		},
 		// Subplot (1,1) - Line Widths
 		{
@@ -124,6 +122,28 @@ func (p *Plugin) GetSeriesConfig() ([]plugins.SeriesConfig, error) {
 			Subplot:   []int{1, 0},
 			LineWidth: floatPtr(8.0),
 		},
+		// Subplot (1,1) - Opacity Variations
+		{
+			ID:        "opacity_0",
+			Name:      "Full Opacity (100%)",
+			Subplot:   []int{1, 1},
+			Color:     "rgba(255, 0, 0, 1.0)",
+			LineWidth: floatPtr(4.0),
+		},
+		{
+			ID:        "opacity_1",
+			Name:      "Medium Opacity (50%)",
+			Subplot:   []int{1, 1},
+			Color:     "rgba(255, 0, 0, 0.5)",
+			LineWidth: floatPtr(4.0),
+		},
+		{
+			ID:        "opacity_2",
+			Name:      "Low Opacity (25%)",
+			Subplot:   []int{1, 1},
+			Color:     "rgba(255, 0, 0, 0.25)",
+			LineWidth: floatPtr(4.0),
+		},
 	}, nil
 }
 
@@ -140,6 +160,8 @@ func (p *Plugin) GetSeriesData(seriesID string, preferredStorage string) ([]floa
 		fmt.Sscanf(seriesID, "widths_%d", &index)
 	} else if strings.HasPrefix(seriesID, "markers_") {
 		fmt.Sscanf(seriesID, "markers_%d", &index)
+	} else if strings.HasPrefix(seriesID, "opacity_") {
+		fmt.Sscanf(seriesID, "opacity_%d", &index)
 	}
 
 	if p.logger != nil {

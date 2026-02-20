@@ -80,6 +80,8 @@ type SeriesConfig struct {
 	LineType   string   `json:"line_type,omitempty"` // "solid", "dashed", "dotted"
 	LineWidth  *float64 `json:"line_width,omitempty"`
 	MarkerType string   `json:"marker_type,omitempty"` // "none", "circle", "square", "triangle", "diamond", "cross", "x"
+	MarkerSize *float64 `json:"marker_size,omitempty"`
+	MarkerFill string   `json:"marker_fill,omitempty"` // "empty" or "solid"
 	Unit       string   `json:"unit,omitempty"`
 	Visible    *bool    `json:"visible,omitempty"`
 	YAxis      string   `json:"y_axis,omitempty"` // references Y axis title

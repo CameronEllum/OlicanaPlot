@@ -211,12 +211,15 @@ export class EChartsAdapter extends ChartAdapter {
     const series = seriesArr.map((s, i) => {
       const cellId = `${s.subplotRow || 0},${s.subplotCol || 0}`;
       const cellIdx = cellToIndexMap[cellId];
+      const echartSymbol = (s.marker_type === "square" ? "rect" : s.marker_type) || "circle";
+      const finalSymbol = s.marker_fill === "empty" ? `empty${echartSymbol.charAt(0).toUpperCase() + echartSymbol.slice(1)}` : echartSymbol;
+
       return {
         name: s.name,
         type: "line" as const,
         showSymbol: !!s.marker_type && s.marker_type !== "none",
-        symbol: (s.marker_type === "square" ? "rect" : s.marker_type) || "circle",
-        symbolSize: 8,
+        symbol: finalSymbol,
+        symbolSize: s.marker_size || 8,
         datasetIndex: i,
         xAxisIndex: cellIdx,
         yAxisIndex: cellIdx,
