@@ -34,6 +34,8 @@ class AppState {
     currentTitle = $state("");
     xAxisName = $state("Time");
     subplotNames = $state<Record<string, string>>({}); // key is "row,col"
+    xAxisTypes = $state<Record<string, string>>({});
+    yAxisTypes = $state<Record<string, string>>({});
     allPlugins = $state<AppPlugin[]>([]);
     showGeneratorsMenu = $state(true);
     defaultLineWidth = $state(2.0);
@@ -399,14 +401,24 @@ class AppState {
                         const cellCol = axisGroup.subplot?.[1] ?? 0;
                         const cellKey = `${cellRow},${cellCol}`;
 
-                        // Use the first Y-axis title as the subplot Y label
-                        if (axisGroup.y_axes && axisGroup.y_axes.length > 0 && axisGroup.y_axes[0].title) {
-                            this.subplotNames[cellKey] = axisGroup.y_axes[0].title;
+                        // Use the first Y-axis title and type as the subplot Y config
+                        if (axisGroup.y_axes && axisGroup.y_axes.length > 0) {
+                            if (axisGroup.y_axes[0].title) {
+                                this.subplotNames[cellKey] = axisGroup.y_axes[0].title;
+                            }
+                            if (axisGroup.y_axes[0].type) {
+                                this.yAxisTypes[cellKey] = axisGroup.y_axes[0].type;
+                            }
                         }
 
-                        // Use the first X-axis title found as the global X label
-                        if (axisGroup.x_axes && axisGroup.x_axes.length > 0 && axisGroup.x_axes[0].title) {
-                            this.xAxisName = axisGroup.x_axes[0].title;
+                        // Use the first X-axis found as the globally applied X config
+                        if (axisGroup.x_axes && axisGroup.x_axes.length > 0) {
+                            if (axisGroup.x_axes[0].title) {
+                                this.xAxisName = axisGroup.x_axes[0].title;
+                            }
+                            if (axisGroup.x_axes[0].type) {
+                                this.xAxisTypes[cellKey] = axisGroup.x_axes[0].type;
+                            }
                         }
                     }
                 } else if (config.axis_labels && config.axis_labels.length >= 2) {
@@ -439,7 +451,9 @@ class AppState {
             this.xAxisName,
             this.subplotNames,
             this.linkX,
-            this.linkY
+            this.linkY,
+            this.xAxisTypes,
+            this.yAxisTypes
         );
     }
 

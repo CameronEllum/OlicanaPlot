@@ -336,7 +336,13 @@ def handle_get_chart_config() -> None:
 
     config = {
         "title": title,
-        "axis_labels": ["Date", "Temperature (°C)"],
+        "axes": [
+            {
+                "subplot": [0, 0],
+                "x_axes": [{"title": "Date", "type": "date"}],
+                "y_axes": [{"title": "Temperature (°C)"}],
+            }
+        ],
     }
     protocol.send_response({"result": config})
 

@@ -104,6 +104,25 @@ axes:
         line_width: 8.0
 ```
 
+### Axis Types & Date Requirements
+
+Both the Internal File Format and the Plugin System support specifying the `type` of an axis:
+
+- **`value`** (default): Standard linear numeric scale.
+- **`date`**: Renders numeric values as formatted dates/times.
+- **`log`**: Logarithmic scale.
+
+#### Date Requirements as Unix Seconds
+
+Because OlicanaPlot uses the Asset Middleware to transfer all chart data as raw `float64` binary arrays for maximum performance, **all timestamp or date data must be transferred as Unix timestamps in seconds (as `float64`)** via IPC or from built-in plugins. The frontend charts will automatically convert these numeric timestamps back into formatted dates if the corresponding axis is set to `type: "date"`.
+
+For files like `.olicanaplot` and `.csv`, representations can be explicitly specified on axes or series to help parse string dates during loading:
+- `unix_seconds_timepoint` (default for numbers)
+- `iso8601_timepoint` (e.g., `2026-01-02T15:04:05Z`)
+- `iso8601_basic_timepoint` (e.g., `20260102150405`)
+
+These textual dates are parsed into `float64` Unix seconds upon loading.
+
 ## Features
 
 - **High-Performance Charting**: Uses Apache ECharts with canvas renderer or Plotly.js with ScatterGL for smooth visualization of large datasets

@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	sdk "olicanaplot/sdk/go"
 
@@ -56,22 +57,27 @@ type AxisEntry struct {
 }
 
 type AxisDetail struct {
-	Title    string   `yaml:"title"`
-	Position string   `yaml:"position"`
-	Unit     string   `yaml:"unit"`
-	Type     string   `yaml:"type"`
-	Min      *float64 `yaml:"min"`
-	Max      *float64 `yaml:"max"`
+	Title          string   `yaml:"title"`
+	Position       string   `yaml:"position"`
+	Unit           string   `yaml:"unit"`
+	Type           string   `yaml:"type"`
+	Min            *float64 `yaml:"min"`
+	Max            *float64 `yaml:"max"`
+	Representation string   `yaml:"representation"`
 }
 
 type SeriesEntry struct {
-	Title     string   `yaml:"title"`
-	Column    int      `yaml:"column"`
-	YAxis     string   `yaml:"y_axis"`
-	Color     string   `yaml:"color"`
-	LineType  string   `yaml:"line_type"`
-	LineWidth *float64 `yaml:"line_width"`
-	Visible   *bool    `yaml:"visible"`
+	Title          string   `yaml:"title"`
+	Column         int      `yaml:"column"`
+	YAxis          string   `yaml:"y_axis"`
+	Color          string   `yaml:"color"`
+	LineType       string   `yaml:"line_type"`
+	LineWidth      *float64 `yaml:"line_width"`
+	Visible        *bool    `yaml:"visible"`
+	Representation string   `yaml:"representation"`
+	MarkerType     string   `yaml:"marker_type"`
+	MarkerFill     string   `yaml:"marker_fill"`
+	MarkerSize     *float64 `yaml:"marker_size"`
 }
 
 type CsvBlock struct {
@@ -125,7 +131,23 @@ func (p *Plugin) loadFile(path string) error {
 	// Parse CSV blocks
 	p.csvBlocks = nil
 	for i := 1; i < len(parts); i++ {
-		block, err := p.parseCsvBlock(parts[i])
+		colReps := make(map[int]string)
+		if i-1 < len(config.Axes) {
+			for _, s := range config.Axes[i-1].Series {
+				if s.Representation != "" {
+					colReps[s.Column] = s.Representation
+				}
+			}
+			// Check if X axis is set to date, but column 0 has no representation set
+			if len(config.Axes[i-1].XAxes) > 0 {
+				// If the user specified a representation on the X-axis itself, use it.
+				if config.Axes[i-1].XAxes[0].Representation != "" {
+					colReps[0] = config.Axes[i-1].XAxes[0].Representation
+				}
+			}
+		}
+
+		block, err := p.parseCsvBlock(parts[i], colReps)
 		if err != nil {
 			return fmt.Errorf("failed to parse CSV block %d: %w", i-1, err)
 		}
@@ -135,7 +157,52 @@ func (p *Plugin) loadFile(path string) error {
 	return nil
 }
 
-func (p *Plugin) parseCsvBlock(content string) (CsvBlock, error) {
+func parseValue(valStr string, rep string) float64 {
+	valStr = strings.TrimSpace(valStr)
+	if valStr == "" {
+		return math.NaN()
+	}
+
+	if rep == "iso8601_timepoint" {
+		t, err := time.Parse(time.RFC3339, valStr)
+		if err != nil {
+			t, err = time.Parse("2006-01-02T15:04:05", valStr)
+		}
+		if err == nil {
+			return float64(t.Unix()) + float64(t.Nanosecond())/1e9
+		}
+	} else if rep == "iso8601_basic_timepoint" {
+		layout := "20060102150405"
+		if strings.Contains(valStr, ".") {
+			dotIdx := strings.Index(valStr, ".")
+			fractions := len(valStr) - dotIdx - 1
+			if fractions > 0 {
+				layout += "." + strings.Repeat("0", fractions)
+			}
+		}
+		t, err := time.Parse(layout, valStr)
+		if err == nil {
+			return float64(t.Unix()) + float64(t.Nanosecond())/1e9
+		}
+	}
+
+	// Default numeric float fallback
+	if val, err := strconv.ParseFloat(valStr, 64); err == nil {
+		return val
+	}
+
+	// Implicit ISO8601 fallback if rep wasn't specified but numeric fallback failed
+	if t, err := time.Parse(time.RFC3339, valStr); err == nil {
+		return float64(t.Unix()) + float64(t.Nanosecond())/1e9
+	}
+	if t, err := time.Parse("2006-01-02T15:04:05", valStr); err == nil {
+		return float64(t.Unix()) + float64(t.Nanosecond())/1e9
+	}
+
+	return math.NaN()
+}
+
+func (p *Plugin) parseCsvBlock(content string, colReps map[int]string) (CsvBlock, error) {
 	reader := csv.NewReader(strings.NewReader(strings.TrimSpace(content)))
 	reader.FieldsPerRecord = -1 // Allow variable fields if needed, but we expect consistency
 
@@ -154,18 +221,13 @@ func (p *Plugin) parseCsvBlock(content string) (CsvBlock, error) {
 	data := make([][]float64, cols)
 	for c := 0; c < cols; c++ {
 		data[c] = make([]float64, rows)
+		rep := colReps[c]
 		for r := 0; r < rows; r++ {
 			valStr := ""
 			if c < len(records[r]) {
-				valStr = strings.TrimSpace(records[r][c])
+				valStr = records[r][c]
 			}
-
-			val, err := strconv.ParseFloat(valStr, 64)
-			if err != nil || valStr == "" {
-				data[c][r] = math.NaN()
-			} else {
-				data[c][r] = val
-			}
+			data[c][r] = parseValue(valStr, rep)
 		}
 	}
 
@@ -291,14 +353,17 @@ func handleIPC(p *Plugin) {
 					id := fmt.Sprintf("axis%d:col%d", i, s.Column)
 
 					seriesConfigs = append(seriesConfigs, sdk.SeriesConfig{
-						ID:        id,
-						Name:      name,
-						Color:     color,
-						Subplot:   entry.Subplot,
-						LineType:  s.LineType,
-						LineWidth: s.LineWidth,
-						Visible:   s.Visible,
-						YAxis:     s.YAxis,
+						ID:         id,
+						Name:       name,
+						Color:      color,
+						Subplot:    entry.Subplot,
+						LineType:   s.LineType,
+						LineWidth:  s.LineWidth,
+						MarkerType: s.MarkerType,
+						MarkerFill: s.MarkerFill,
+						MarkerSize: s.MarkerSize,
+						Visible:    s.Visible,
+						YAxis:      s.YAxis,
 					})
 				}
 			}

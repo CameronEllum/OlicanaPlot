@@ -31,6 +31,8 @@ export class PlotlyAdapter extends ChartAdapter {
     yAxisNames: Record<string, string>,
     linkX: boolean,
     linkY: boolean,
+    xAxisTypes: Record<string, string>,
+    yAxisTypes: Record<string, string>
   ) {
     if (!this.container) return;
 
@@ -52,7 +54,7 @@ export class PlotlyAdapter extends ChartAdapter {
       grid.numCols,
     );
 
-    const traces = this.createTraces(seriesArr, cellToAxisMap, lineWidth);
+    const traces = this.createTraces(seriesArr, cellToAxisMap, lineWidth, xAxisTypes, yAxisTypes);
     const layout = this.createBaseLayout(
       title,
       getGridRight(seriesArr),
@@ -67,6 +69,8 @@ export class PlotlyAdapter extends ChartAdapter {
       yAxisNames,
       linkX,
       linkY,
+      xAxisTypes,
+      yAxisTypes
     );
 
     this.handleGridChange(grid.numRows, grid.numCols);
@@ -128,13 +132,28 @@ export class PlotlyAdapter extends ChartAdapter {
     seriesArr: SeriesConfig[],
     cellToAxisMap: Record<string, any>,
     lineWidth: number,
+    xAxisTypes: Record<string, string>,
+    yAxisTypes: Record<string, string>
   ) {
     return seriesArr.map((s) => {
       const pointCount = s.data.length / 2;
-      const xData = s.data.subarray(0, pointCount);
-      const yData = s.data.subarray(pointCount);
       const cellId = `${s.subplotRow || 0},${s.subplotCol || 0}`;
       const axes = cellToAxisMap[cellId];
+
+      let xData: Float64Array | number[] = s.data.subarray(0, pointCount);
+      let yData: Float64Array | number[] = s.data.subarray(pointCount);
+
+      const isXDate = xAxisTypes[cellId] === "date";
+      const isYDate = yAxisTypes[cellId] === "date";
+
+      if (isXDate) {
+        xData = new Float64Array(pointCount);
+        for (let j = 0; j < pointCount; j++) xData[j] = s.data[j] * 1000;
+      }
+      if (isYDate) {
+        yData = new Float64Array(pointCount);
+        for (let j = 0; j < pointCount; j++) yData[j] = s.data[pointCount + j] * 1000;
+      }
 
       const hasMarker = !!(s.marker_type && s.marker_type !== "none");
       const mode = hasMarker ? "lines+markers" : "lines";
@@ -224,6 +243,8 @@ export class PlotlyAdapter extends ChartAdapter {
     yAxisNames: Record<string, string>,
     linkX: boolean,
     linkY: boolean,
+    xAxisTypes: Record<string, string>,
+    yAxisTypes: Record<string, string>
   ) {
     const textColor = getCSSVar("--chart-text");
     const gridColor = getCSSVar("--chart-grid");
@@ -242,6 +263,7 @@ export class PlotlyAdapter extends ChartAdapter {
             : undefined,
         gridcolor: gridColor,
         zerolinecolor: gridColor,
+        type: xAxisTypes[cell.id] === "date" ? "date" : "linear",
         tickfont: { color: textColor, size: 11 },
         anchor: axes.y,
         matches: linkX ? (i === 0 ? undefined : "x") : undefined,
@@ -265,6 +287,7 @@ export class PlotlyAdapter extends ChartAdapter {
         },
         gridcolor: gridColor,
         zerolinecolor: gridColor,
+        type: yAxisTypes[cell.id] === "date" ? "date" : "linear",
         tickfont: { color: textColor },
         anchor: axes.x,
         matches: linkY ? (i === 0 ? undefined : "y") : undefined,

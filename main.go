@@ -15,6 +15,7 @@ import (
 	"olicanaplot/internal/logging"
 	"olicanaplot/internal/plugins"
 	"olicanaplot/internal/plugins/attributes_generator"
+	"olicanaplot/internal/plugins/axis_attributes_generator"
 	"olicanaplot/internal/plugins/csv_reader"
 	"olicanaplot/internal/plugins/function_generator"
 	"olicanaplot/internal/plugins/ipc"
@@ -82,6 +83,9 @@ func main() {
 	if err := pluginManager.Register(attributes_generator.New(), true); err != nil {
 		logger.Warn("Failed to register attributes plugin", "error", err)
 	}
+	if err := pluginManager.Register(axis_attributes_generator.New(), true); err != nil {
+		logger.Warn("Failed to register axis attributes plugin", "error", err)
+	}
 
 	// Load IPC plugins from both built-in and user-configured directories
 	builtInDir, _ := filepath.Abs("plugins")
@@ -137,8 +141,8 @@ func main() {
 	// 'URL' is the URL that will be loaded into the webview.
 	app.Window.NewWithOptions(application.WebviewWindowOptions{
 		Title:     "OlicanaPlot",
-		Width:     1024,
-		Height:    768,
+		Width:     800,
+		Height:    600,
 		MinWidth:  800,
 		MinHeight: 600,
 		Mac: application.MacWindow{

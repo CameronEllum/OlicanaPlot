@@ -80,6 +80,8 @@ export abstract class ChartAdapter {
     yAxisNames: Record<string, string>,
     linkX: boolean,
     linkY: boolean,
+    xAxisTypes: Record<string, string>,
+    yAxisTypes: Record<string, string>
   ): void;
 
   // Trigger the chart to update its dimensions to fit its container.

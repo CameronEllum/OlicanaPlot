@@ -38,6 +38,8 @@ export class EChartsAdapter extends ChartAdapter {
     yAxisNames: Record<string, string>,
     linkX: boolean,
     linkY: boolean,
+    xAxisTypes: Record<string, string>,
+    yAxisTypes: Record<string, string>
   ) {
     if (!this.instance) return;
     this.lastArgs = {
@@ -49,6 +51,8 @@ export class EChartsAdapter extends ChartAdapter {
       yAxisNames,
       linkX,
       linkY,
+      xAxisTypes,
+      yAxisTypes
     };
 
     const textColor = getCSSVar("--chart-text");
@@ -134,13 +138,28 @@ export class EChartsAdapter extends ChartAdapter {
       };
     });
 
-    const datasets = seriesArr.map((s) => ({
-      source: s.data,
-      dimensions: ["x", "y"],
-    }));
+    const datasets = seriesArr.map((s) => {
+      const cellId = `${s.subplotRow || 0},${s.subplotCol || 0}`;
+      const isXDate = xAxisTypes[cellId] === "date";
+      const isYDate = yAxisTypes[cellId] === "date";
+
+      let source = s.data;
+      if (isXDate || isYDate) {
+        source = new Float64Array(s.data.length);
+        for (let j = 0; j < s.data.length; j += 2) {
+          source[j] = isXDate ? s.data[j] * 1000 : s.data[j];
+          source[j + 1] = isYDate ? s.data[j + 1] * 1000 : s.data[j + 1];
+        }
+      }
+
+      return {
+        source: source,
+        dimensions: ["x", "y"],
+      };
+    });
 
     const xAxes = cells.map((cell, i) => ({
-      type: "value" as const,
+      type: (xAxisTypes[cell.id] === "date" ? "time" : "value") as "time" | "value",
       name: cell.row === maxRow ? xAxisName : "",
       nameLocation: "center" as const,
       nameGap: 30,
@@ -191,7 +210,7 @@ export class EChartsAdapter extends ChartAdapter {
       const nameGap = cellTickWidth + 15;
 
       return {
-        type: "value" as const,
+        type: (yAxisTypes[cell.id] === "date" ? "time" : "value") as "time" | "value",
         name: customName || defaultName,
         nameLocation: "center" as const,
         nameGap,
@@ -327,6 +346,8 @@ export class EChartsAdapter extends ChartAdapter {
           this.lastArgs.yAxisNames,
           this.lastArgs.linkX,
           this.lastArgs.linkY,
+          this.lastArgs.xAxisTypes,
+          this.lastArgs.yAxisTypes
         );
       }
     }
