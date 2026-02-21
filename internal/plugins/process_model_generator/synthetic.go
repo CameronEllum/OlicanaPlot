@@ -231,8 +231,13 @@ func (p *Plugin) GetChartConfig(args string) (*plugins.ChartConfig, error) {
 	defer p.mu.Unlock()
 
 	return &plugins.ChartConfig{
-		Title:      "Synthetic Data",
-		AxisLabels: []string{"Time (s)", p.simulationType},
+		Title: "Synthetic Data",
+		Axes: []plugins.AxisGroupConfig{
+			{
+				XAxes: []plugins.AxisConfig{{Title: "Time (s)"}},
+				YAxes: []plugins.AxisConfig{{Title: p.simulationType}},
+			},
+		},
 	}, nil
 }
 

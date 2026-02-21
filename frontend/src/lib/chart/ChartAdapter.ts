@@ -1,9 +1,21 @@
+// SubPlot describes a cell in the chart grid.
+export interface SubPlot {
+  row: number;
+  col: number;
+}
+
+// GridConfig describes the subplot grid layout.
+export interface GridConfig {
+  rows: number;
+  cols: number;
+}
+
 // AxisConfig describes an axis within a subplot.
 export interface AxisConfig {
-  title?: string;
+  title: string;
+  type: "linear" | "log" | "date";
   position?: "bottom" | "top" | "left" | "right";
   unit?: string;
-  type?: "linear" | "log" | "date";
   min?: number;
   max?: number;
 }
@@ -11,20 +23,18 @@ export interface AxisConfig {
 // AxisGroupConfig describes all axes and series for one subplot cell.
 export interface AxisGroupConfig {
   title?: string;
-  subplot: number[]; // [row, col]
-  x_axes?: AxisConfig[];
-  y_axes?: AxisConfig[];
+  subplot: SubPlot;
+  x_axes: AxisConfig[];
+  y_axes: AxisConfig[];
 }
+
 // ChartConfig contains chart display configuration.
 export interface ChartConfig {
   title: string;
-  axis_labels: string[];
-  line_width?: number;
-  axes?: AxisGroupConfig[];
+  grid: GridConfig;
+  axes: AxisGroupConfig[];
   link_x?: boolean;
   link_y?: boolean;
-  rows?: number;
-  cols?: number;
 }
 
 // Define the structure for a single data series to be plotted, including its
@@ -34,18 +44,15 @@ export interface SeriesConfig {
   name: string;
   color: string;
   data: Float64Array;
-  subplot?: number[]; // [row, col]
-  line_type?: "solid" | "dashed" | "dotted";
-  line_width?: number;
-  marker_type?: "none" | "circle" | "square" | "triangle" | "diamond" | "cross" | "x";
-  marker_size?: number;
-  marker_fill?: string;
+  subplot: SubPlot;
+  line_type: "solid" | "dashed" | "dotted";
+  line_width: number;
+  marker_type: "none" | "circle" | "square" | "triangle" | "diamond" | "cross" | "x";
+  marker_size: number;
+  marker_fill: string;
+  visible: boolean;
   unit?: string;
-  visible?: boolean;
   y_axis?: string; // references Y axis title
-  // Compatibility fields
-  subplotRow?: number;
-  subplotCol?: number;
 }
 
 // Define the standardized structure for context menu events across chart
@@ -75,13 +82,13 @@ export abstract class ChartAdapter {
     seriesData: SeriesConfig[],
     title: string,
     getGridRight: (data: SeriesConfig[]) => number,
-    lineWidth: number,
     xAxisName: string,
     yAxisNames: Record<string, string>,
     linkX: boolean,
     linkY: boolean,
     xAxisTypes: Record<string, string>,
-    yAxisTypes: Record<string, string>
+    yAxisTypes: Record<string, string>,
+    grid: GridConfig
   ): void;
 
   // Trigger the chart to update its dimensions to fit its container.

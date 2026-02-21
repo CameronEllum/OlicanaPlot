@@ -73,8 +73,7 @@ func handleChartConfig(w http.ResponseWriter, r *http.Request, manager *plugins.
 	response := map[string]interface{}{
 		"activePlugin": manager.ActiveName(),
 		"plugins":      manager.List(),
-		"title":        config.Title,
-		"axisLabels":   config.AxisLabels,
+		"config":       config,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -93,6 +92,11 @@ func handleSeriesConfig(w http.ResponseWriter, r *http.Request, manager *plugins
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+
+	// Ensure all series have defaults set
+	for i := range series {
+		series[i].SetDefaults()
 	}
 
 	w.Header().Set("Content-Type", "application/json")

@@ -52,38 +52,17 @@ func (p *Plugin) Initialize(ctx interface{}, initStr string, logger logging.Logg
 func (p *Plugin) GetChartConfig(args string) (*plugins.ChartConfig, error) {
 	return &plugins.ChartConfig{
 		Title: "Axis Attributes Demonstration",
-		Rows:  1,
-		Cols:  2,
 		Axes: []plugins.AxisGroupConfig{
 			{
-				Title:   "Time Representation",
-				Subplot: []int{0, 0},
-				XAxes: []plugins.AxisConfig{
-					{
-						Title: "Date",
-						Type:  "date",
-					},
-				},
-				YAxes: []plugins.AxisConfig{
-					{
-						Title: "Amplitude",
-					},
-				},
+				Title: "Time Representation",
+				XAxes: []plugins.AxisConfig{{Title: "Date", Type: "date"}},
+				YAxes: []plugins.AxisConfig{{Title: "Amplitude"}},
 			},
 			{
 				Title:   "Linear vs Log",
-				Subplot: []int{0, 1},
-				XAxes: []plugins.AxisConfig{
-					{
-						Title: "Linear Scale",
-					},
-				},
-				YAxes: []plugins.AxisConfig{
-					{
-						Title: "Log Scale",
-						Type:  "log",
-					},
-				},
+				Subplot: &plugins.SubPlot{Row: 0, Col: 1},
+				XAxes:   []plugins.AxisConfig{{Title: "Linear Scale"}},
+				YAxes:   []plugins.AxisConfig{{Title: "Log Scale", Type: "log"}},
 			},
 		},
 	}, nil
@@ -96,14 +75,13 @@ func (p *Plugin) GetSeriesConfig() ([]plugins.SeriesConfig, error) {
 		{
 			ID:         "time_0",
 			Name:       "Daily Variation",
-			Subplot:    []int{0, 0},
 			MarkerType: "circle",
 		},
 		// Subplot (0,1) - Log Y Axis
 		{
 			ID:       "log_0",
 			Name:     "Exponential Growth",
-			Subplot:  []int{0, 1},
+			Subplot:  &plugins.SubPlot{Row: 0, Col: 1},
 			LineType: "solid",
 		},
 	}, nil

@@ -4,6 +4,7 @@ import {
   ChartAdapter,
   type ContextMenuEvent,
   type SeriesConfig,
+  type GridConfig,
   getCSSVar,
 } from "./ChartAdapter.ts";
 
@@ -33,26 +34,26 @@ export class EChartsAdapter extends ChartAdapter {
     seriesData: SeriesConfig[],
     title: string,
     getGridRight: (data: SeriesConfig[]) => number,
-    lineWidth: number,
     xAxisName: string,
     yAxisNames: Record<string, string>,
     linkX: boolean,
     linkY: boolean,
     xAxisTypes: Record<string, string>,
-    yAxisTypes: Record<string, string>
+    yAxisTypes: Record<string, string>,
+    grid: GridConfig
   ) {
     if (!this.instance) return;
     this.lastArgs = {
       seriesData,
       title,
       getGridRight,
-      lineWidth,
       xAxisName,
       yAxisNames,
       linkX,
       linkY,
       xAxisTypes,
-      yAxisTypes
+      yAxisTypes,
+      grid
     };
 
     const textColor = getCSSVar("--chart-text");
@@ -65,7 +66,7 @@ export class EChartsAdapter extends ChartAdapter {
     // Find 2D grid dimensions
     const cells = [
       ...new Set(
-        seriesArr.map((s) => `${s.subplotRow || 0},${s.subplotCol || 0}`),
+        seriesArr.map((s) => `${s.subplot.row},${s.subplot.col}`),
       ),
     ]
       .map((str) => {
@@ -78,10 +79,10 @@ export class EChartsAdapter extends ChartAdapter {
 
     this.cells = cells;
 
-    const maxRow = Math.max(0, ...cells.map((c) => c.row));
-    const maxCol = Math.max(0, ...cells.map((c) => c.col));
-    const numRows = maxRow + 1;
-    const numCols = maxCol + 1;
+    this.cells = cells;
+
+    const numRows = grid.rows;
+    const numCols = grid.cols;
 
     PluginService.LogDebug(
       "EChartsAdapter",
@@ -131,7 +132,7 @@ export class EChartsAdapter extends ChartAdapter {
         right: `${right}%`,
         top: `${top}%`,
         bottom:
-          cell.row === maxRow
+          cell.row === numRows - 1
             ? "10%"
             : `${100 - (top + cellHeight - vGapPct)}%`,
         containLabel: true,
@@ -139,7 +140,7 @@ export class EChartsAdapter extends ChartAdapter {
     });
 
     const datasets = seriesArr.map((s) => {
-      const cellId = `${s.subplotRow || 0},${s.subplotCol || 0}`;
+      const cellId = `${s.subplot.row},${s.subplot.col}`;
       const isXDate = xAxisTypes[cellId] === "date";
       const isYDate = yAxisTypes[cellId] === "date";
 
@@ -160,7 +161,7 @@ export class EChartsAdapter extends ChartAdapter {
 
     const xAxes = cells.map((cell, i) => ({
       type: (xAxisTypes[cell.id] === "date" ? "time" : "value") as "time" | "value",
-      name: cell.row === maxRow ? xAxisName : "",
+      name: cell.row === numRows - 1 ? xAxisName : "",
       nameLocation: "center" as const,
       nameGap: 30,
       gridIndex: i,
@@ -204,7 +205,7 @@ export class EChartsAdapter extends ChartAdapter {
 
       // Compute nameGap dynamically from the widest tick label in this cell.
       const cellTickWidth = this.estimateYTickWidth(
-        seriesArr.filter(s => `${s.subplotRow || 0},${s.subplotCol || 0}` === cell.id),
+        seriesArr.filter(s => `${s.subplot.row},${s.subplot.col}` === cell.id),
         [cell],
       );
       const nameGap = cellTickWidth + 15;
@@ -228,7 +229,7 @@ export class EChartsAdapter extends ChartAdapter {
     });
 
     const series = seriesArr.map((s, i) => {
-      const cellId = `${s.subplotRow || 0},${s.subplotCol || 0}`;
+      const cellId = `${s.subplot.row},${s.subplot.col}`;
       const cellIdx = cellToIndexMap[cellId];
       const echartSymbol = (s.marker_type === "square" ? "rect" : s.marker_type) || "circle";
       const finalSymbol = s.marker_fill === "empty" ? `empty${echartSymbol.charAt(0).toUpperCase() + echartSymbol.slice(1)}` : echartSymbol;
@@ -247,8 +248,8 @@ export class EChartsAdapter extends ChartAdapter {
         emphasis: { disabled: true },
         color: s.color,
         lineStyle: {
-          width: s.line_width || lineWidth || 2,
-          type: s.line_type || "solid",
+          width: s.line_width,
+          type: s.line_type,
         },
         sampling: "lttb" as const,
       };
@@ -341,13 +342,13 @@ export class EChartsAdapter extends ChartAdapter {
           this.lastArgs.seriesData,
           this.lastArgs.title,
           this.lastArgs.getGridRight,
-          this.lastArgs.lineWidth,
           this.lastArgs.xAxisName,
           this.lastArgs.yAxisNames,
           this.lastArgs.linkX,
           this.lastArgs.linkY,
           this.lastArgs.xAxisTypes,
-          this.lastArgs.yAxisTypes
+          this.lastArgs.yAxisTypes,
+          this.lastArgs.grid
         );
       }
     }
@@ -387,7 +388,7 @@ export class EChartsAdapter extends ChartAdapter {
     let max = -Infinity;
 
     for (const s of seriesArr) {
-      const id = `${s.subplotRow || 0},${s.subplotCol || 0}`;
+      const id = `${s.subplot.row},${s.subplot.col}`;
       if (!cellIds.has(id) || !s.data) continue;
       // Data is interleaved [x, y, x, y ...]
       for (let j = 1; j < s.data.length; j += 2) {

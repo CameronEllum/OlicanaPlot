@@ -305,13 +305,18 @@ func getChartConfig() sdk.ChartConfig {
 	if currentFile != "" {
 		title = fmt.Sprintf("CSV: %s", currentFile)
 	}
-	xLabel := "Index"
+	xLabel := "X"
 	if selectedX != "" {
 		xLabel = selectedX
 	}
 	return sdk.ChartConfig{
-		Title:      title,
-		AxisLabels: []string{xLabel, "Value"},
+		Title: title,
+		Axes: []sdk.AxisGroupConfig{
+			{
+				XAxes: []sdk.AxisConfig{{Title: xLabel}},
+				YAxes: []sdk.AxisConfig{{Title: "Y"}},
+			},
+		},
 	}
 }
 

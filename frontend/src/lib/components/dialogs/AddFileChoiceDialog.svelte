@@ -3,7 +3,7 @@
 
     const seriesInCell = (r: number, c: number) =>
         appState.currentSeriesData.filter(
-            (s) => (s.subplotRow || 0) === r && (s.subplotCol || 0) === c,
+            (s) => s.subplot.row === r && s.subplot.col === c,
         );
 
     function getGridInfo() {
@@ -17,8 +17,8 @@
             };
         }
 
-        const maxRow = Math.max(0, ...series.map((s) => s.subplotRow || 0));
-        const maxCol = Math.max(0, ...series.map((s) => s.subplotCol || 0));
+        const maxRow = Math.max(0, ...series.map((s) => s.subplot.row));
+        const maxCol = Math.max(0, ...series.map((s) => s.subplot.col));
         const rows = maxRow + 1;
         const cols = maxCol + 1;
 

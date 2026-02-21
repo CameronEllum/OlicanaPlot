@@ -4,6 +4,7 @@ import {
   ChartAdapter,
   type ContextMenuEvent,
   type SeriesConfig,
+  type GridConfig,
   getCSSVar,
 } from "./ChartAdapter.ts";
 
@@ -26,35 +27,35 @@ export class PlotlyAdapter extends ChartAdapter {
     seriesData: SeriesConfig[],
     title: string,
     getGridRight: (data: SeriesConfig[]) => number,
-    lineWidth: number,
     xAxisName: string,
     yAxisNames: Record<string, string>,
     linkX: boolean,
     linkY: boolean,
     xAxisTypes: Record<string, string>,
-    yAxisTypes: Record<string, string>
+    yAxisTypes: Record<string, string>,
+    grid: GridConfig
   ) {
     if (!this.container) return;
 
     this.currentData = seriesData;
 
     const seriesArr = Array.isArray(seriesData) ? seriesData : [seriesData];
-    const grid = this.getGridInfo(seriesArr);
-    this.cells = grid.cells;
+    const cells = this.getGridInfo(seriesArr);
+    this.cells = cells;
 
     PluginService.LogDebug(
       "PlotlyAdapter",
       "Rendering 2D subplots",
-      `Rows: ${grid.numRows}, Cols: ${grid.numCols}, Unique Cells: ${grid.cells.length}`,
+      `Rows: ${grid.rows}, Cols: ${grid.cols}, Unique Cells: ${cells.length}`,
     );
 
     const { cellToAxisMap, gridSubplots } = this.createAxisMapping(
-      grid.cells,
-      grid.numRows,
-      grid.numCols,
+      cells,
+      grid.rows,
+      grid.cols,
     );
 
-    const traces = this.createTraces(seriesArr, cellToAxisMap, lineWidth, xAxisTypes, yAxisTypes);
+    const traces = this.createTraces(seriesArr, cellToAxisMap, xAxisTypes, yAxisTypes);
     const layout = this.createBaseLayout(
       title,
       getGridRight(seriesArr),
@@ -63,6 +64,7 @@ export class PlotlyAdapter extends ChartAdapter {
 
     this.applyAxisConfiguration(
       layout,
+      cells,
       grid,
       cellToAxisMap,
       xAxisName,
@@ -73,16 +75,16 @@ export class PlotlyAdapter extends ChartAdapter {
       yAxisTypes
     );
 
-    this.handleGridChange(grid.numRows, grid.numCols);
+    this.handleGridChange(grid.rows, grid.cols);
     this.renderPlot(traces, layout);
     this.setupPostPlotHandlers();
   }
 
   // Determine the dimensions and cell layout of the subplot grid.
   private getGridInfo(seriesArr: SeriesConfig[]) {
-    const cells = [
+    return [
       ...new Set(
-        seriesArr.map((s) => `${s.subplotRow || 0},${s.subplotCol || 0}`),
+        seriesArr.map((s) => `${s.subplot.row},${s.subplot.col}`),
       ),
     ]
       .map((str) => {
@@ -90,17 +92,6 @@ export class PlotlyAdapter extends ChartAdapter {
         return { row: r, col: c, id: str };
       })
       .sort((a, b) => a.row - b.row || a.col - b.col);
-
-    const maxRow = Math.max(0, ...cells.map((c) => c.row));
-    const maxCol = Math.max(0, ...cells.map((c) => c.col));
-
-    return {
-      cells,
-      numRows: maxRow + 1,
-      numCols: maxCol + 1,
-      maxRow,
-      maxCol,
-    };
   }
 
   // Map each grid cell to its corresponding Plotly axis identifier.
@@ -131,13 +122,12 @@ export class PlotlyAdapter extends ChartAdapter {
   private createTraces(
     seriesArr: SeriesConfig[],
     cellToAxisMap: Record<string, any>,
-    lineWidth: number,
     xAxisTypes: Record<string, string>,
     yAxisTypes: Record<string, string>
   ) {
     return seriesArr.map((s) => {
       const pointCount = s.data.length / 2;
-      const cellId = `${s.subplotRow || 0},${s.subplotCol || 0}`;
+      const cellId = `${s.subplot.row},${s.subplot.col}`;
       const axes = cellToAxisMap[cellId];
 
       let xData: Float64Array | number[] = s.data.subarray(0, pointCount);
@@ -174,7 +164,7 @@ export class PlotlyAdapter extends ChartAdapter {
         mode: mode as any,
         line: {
           color: s.color,
-          width: s.line_width || lineWidth || 2,
+          width: s.line_width,
           dash: s.line_type === "dashed" ? "dash" : s.line_type === "dotted" ? "dot" : "solid",
         },
         // Using the spread operator to completely omit the 'marker' key if not needed.
@@ -182,7 +172,7 @@ export class PlotlyAdapter extends ChartAdapter {
         ...(hasMarker && {
           marker: {
             color: s.color,
-            size: s.marker_size || 8,
+            size: s.marker_size,
             symbol: s.marker_fill === "empty" ? `${markerSymbol}-open` : markerSymbol,
           }
         }),
@@ -237,7 +227,8 @@ export class PlotlyAdapter extends ChartAdapter {
   // Apply specific axis settings and linking to the layout.
   private applyAxisConfiguration(
     layout: any,
-    grid: { cells: any[]; maxRow: number },
+    cells: any[],
+    grid: GridConfig,
     cellToAxisMap: Record<string, any>,
     xAxisName: string,
     yAxisNames: Record<string, string>,
@@ -250,12 +241,12 @@ export class PlotlyAdapter extends ChartAdapter {
     const gridColor = getCSSVar("--chart-grid");
     const axisLineColor = getCSSVar("--chart-axis");
 
-    for (const [i, cell] of grid.cells.entries()) {
+    for (const [i, cell] of cells.entries()) {
       const axes = cellToAxisMap[cell.id];
 
       layout[axes.xaxisKey] = {
         title:
-          cell.row === grid.maxRow
+          cell.row === grid.rows - 1
             ? {
               text: `<b>${xAxisName}</b>`,
               font: { size: 14, color: textColor },

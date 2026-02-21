@@ -1,7 +1,7 @@
 import { Events, Dialogs } from "@wailsio/runtime";
 import * as PluginService from "../../../bindings/olicanaplot/internal/plugins/service";
 import * as ConfigService from "../../../bindings/olicanaplot/internal/appconfig/configservice";
-import type { ChartAdapter, SeriesConfig, ContextMenuEvent } from "../chart/ChartAdapter";
+import type { ChartAdapter, SeriesConfig, GridConfig, ContextMenuEvent } from "../chart/ChartAdapter";
 import { EChartsAdapter } from "../chart/EChartsAdapter";
 import { PlotlyAdapter } from "../chart/PlotlyAdapter";
 
@@ -36,13 +36,14 @@ class AppState {
     subplotNames = $state<Record<string, string>>({}); // key is "row,col"
     xAxisTypes = $state<Record<string, string>>({});
     yAxisTypes = $state<Record<string, string>>({});
+    gridConfig = $state<GridConfig>({ rows: 1, cols: 1 });
     allPlugins = $state<AppPlugin[]>([]);
     showGeneratorsMenu = $state(true);
     defaultLineWidth = $state(2.0);
 
     get hasSubplots(): boolean {
         const cells = new Set(
-            this.currentSeriesData.map(s => `${s.subplotRow || 0},${s.subplotCol || 0}`)
+            this.currentSeriesData.map(s => `${s.subplot.row},${s.subplot.col}`)
         );
         return cells.size > 1;
     }
@@ -242,11 +243,10 @@ class AppState {
             const colors = ["#636EFA", "#EF553B", "#00CC96", "#AB63FA", "#FFA15A", "#19D3F3", "#FF6692", "#B6E880", "#FF97FF", "#FECB52"];
             newSeriesData.forEach((s, i) => {
                 // Determine color based on existing series in this specific cell
-                const countInCell = this.currentSeriesData.filter(ser => (ser.subplotRow || 0) === targetCell.row && (ser.subplotCol || 0) === targetCell.col).length;
+                const countInCell = this.currentSeriesData.filter(ser => ser.subplot.row === targetCell.row && ser.subplot.col === targetCell.col).length;
                 s.color = colors[(countInCell + i) % colors.length];
                 s.id = `added_${Date.now()}_${s.id}`;
-                s.subplotRow = targetCell.row;
-                s.subplotCol = targetCell.col;
+                s.subplot = targetCell;
             });
 
             this.currentSeriesData = [...this.currentSeriesData, ...newSeriesData];
@@ -285,7 +285,7 @@ class AppState {
     async addFile(event: MouseEvent) {
         let targetCell: { row: number, col: number } | null = null;
         if (event.ctrlKey) {
-            const maxRow = Math.max(0, ...this.currentSeriesData.map(s => s.subplotRow || 0));
+            const maxRow = Math.max(0, ...this.currentSeriesData.map(s => s.subplot.row));
             targetCell = { row: maxRow + 1, col: 0 };
         } else if (event.altKey) {
             targetCell = { row: 0, col: 0 };
@@ -368,8 +368,9 @@ class AppState {
             const defaultColors = ["#636EFA", "#EF553B", "#00CC96", "#AB63FA", "#FFA15A", "#19D3F3", "#FF6692", "#B6E880", "#FF97FF", "#FECB52"];
 
             seriesData.forEach((s: any, i) => {
-                s.subplotRow = (s.subplot && s.subplot.length === 2) ? s.subplot[0] : 0;
-                s.subplotCol = (s.subplot && s.subplot.length === 2) ? s.subplot[1] : 0;
+                if (!s.subplot) {
+                    s.subplot = { row: 0, col: 0 };
+                }
                 if (!s.color) {
                     s.color = defaultColors[i % defaultColors.length];
                 }
@@ -378,6 +379,12 @@ class AppState {
             this.currentSeriesData = seriesData;
             this.dataSource = source;
             this.isDefault = false; // Reset to false whenever any data is loaded
+
+            this.currentTitle = "";
+            this.xAxisName = "Time";
+            this.subplotNames = {};
+            this.xAxisTypes = {};
+            this.yAxisTypes = {};
 
             await this.fetchPluginConfig();
             this.updateChart();
@@ -397,8 +404,8 @@ class AppState {
                 // Extract axis names from the rich axes config if available
                 if (config.axes && config.axes.length > 0) {
                     for (const axisGroup of config.axes) {
-                        const cellRow = axisGroup.subplot?.[0] ?? 0;
-                        const cellCol = axisGroup.subplot?.[1] ?? 0;
+                        const cellRow = axisGroup.subplot.row;
+                        const cellCol = axisGroup.subplot.col;
                         const cellKey = `${cellRow},${cellCol}`;
 
                         // Use the first Y-axis title and type as the subplot Y config
@@ -406,9 +413,7 @@ class AppState {
                             if (axisGroup.y_axes[0].title) {
                                 this.subplotNames[cellKey] = axisGroup.y_axes[0].title;
                             }
-                            if (axisGroup.y_axes[0].type) {
-                                this.yAxisTypes[cellKey] = axisGroup.y_axes[0].type;
-                            }
+                            this.yAxisTypes[cellKey] = axisGroup.y_axes[0].type || "";
                         }
 
                         // Use the first X-axis found as the globally applied X config
@@ -416,15 +421,13 @@ class AppState {
                             if (axisGroup.x_axes[0].title) {
                                 this.xAxisName = axisGroup.x_axes[0].title;
                             }
-                            if (axisGroup.x_axes[0].type) {
-                                this.xAxisTypes[cellKey] = axisGroup.x_axes[0].type;
-                            }
+                            this.xAxisTypes[cellKey] = axisGroup.x_axes[0].type || "";
                         }
                     }
-                } else if (config.axis_labels && config.axis_labels.length >= 2) {
-                    // Fall back to legacy axis_labels for simpler plugins
-                    if (row === 0) this.xAxisName = config.axis_labels[0];
-                    this.subplotNames[`${row},${col}`] = config.axis_labels[1];
+                }
+
+                if (config.grid) {
+                    this.gridConfig = config.grid;
                 }
 
                 // Apply link behaviour if provided by the plugin
@@ -440,20 +443,19 @@ class AppState {
         }
     }
 
-
     updateChart() {
         if (!this.chartAdapter || !this.currentSeriesData) return;
         this.chartAdapter.setData(
             this.currentSeriesData,
             this.currentTitle,
             this.getGridRight.bind(this),
-            this.defaultLineWidth,
             this.xAxisName,
             this.subplotNames,
             this.linkX,
             this.linkY,
             this.xAxisTypes,
-            this.yAxisTypes
+            this.yAxisTypes,
+            this.gridConfig
         );
     }
 

@@ -49,8 +49,13 @@ func (p *Plugin) Initialize(ctx interface{}, initStr string, logger logging.Logg
 // GetChartConfig returns chart display configuration.
 func (p *Plugin) GetChartConfig(args string) (*plugins.ChartConfig, error) {
 	return &plugins.ChartConfig{
-		Title:      "Sine Wave",
-		AxisLabels: []string{"Degrees", "Amplitude"},
+		Title: "Sine Wave",
+		Axes: []plugins.AxisGroupConfig{
+			{
+				XAxes: []plugins.AxisConfig{{Title: "Degrees"}},
+				YAxes: []plugins.AxisConfig{{Title: "Amplitude"}},
+			},
+		},
 	}, nil
 }
 

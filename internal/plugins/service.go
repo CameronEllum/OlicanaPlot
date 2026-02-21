@@ -260,5 +260,12 @@ func (s *Service) GetChartConfig() (*ChartConfig, error) {
 	if active == nil {
 		return nil, fmt.Errorf("no active plugin")
 	}
-	return active.GetChartConfig("")
+	config, err := active.GetChartConfig("")
+	if err != nil {
+		return nil, err
+	}
+	if config != nil {
+		config.SetDefaults()
+	}
+	return config, nil
 }

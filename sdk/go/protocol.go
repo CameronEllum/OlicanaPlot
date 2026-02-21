@@ -43,14 +43,17 @@ type Response struct {
 
 // ChartConfig holds chart display configuration.
 type ChartConfig struct {
-	Title      string            `json:"title"`
-	AxisLabels []string          `json:"axis_labels"`
-	LineWidth  *float64          `json:"line_width,omitempty"`
-	Axes       []AxisGroupConfig `json:"axes,omitempty"`
-	LinkX      *bool             `json:"link_x,omitempty"`
-	LinkY      *bool             `json:"link_y,omitempty"`
-	Rows       int               `json:"rows,omitempty"`
-	Cols       int               `json:"cols,omitempty"`
+	Title string            `json:"title"`
+	Grid  *GridConfig       `json:"grid,omitempty"`
+	Axes  []AxisGroupConfig `json:"axes,omitempty"`
+	LinkX *bool             `json:"link_x,omitempty"`
+	LinkY *bool             `json:"link_y,omitempty"`
+}
+
+// GridConfig describes the subplot grid layout.
+type GridConfig struct {
+	Rows int `json:"rows"`
+	Cols int `json:"cols"`
 }
 
 // AxisConfig describes an axis within a subplot.
@@ -63,10 +66,16 @@ type AxisConfig struct {
 	Max      *float64 `json:"max,omitempty"`
 }
 
+// SubPlot describes a cell in the chart grid.
+type SubPlot struct {
+	Row int `json:"row"`
+	Col int `json:"col"`
+}
+
 // AxisGroupConfig describes all axes and series for one subplot cell.
 type AxisGroupConfig struct {
 	Title   string       `json:"title,omitempty"`
-	Subplot []int        `json:"subplot"` // [row, col]
+	Subplot *SubPlot     `json:"subplot,omitempty"`
 	XAxes   []AxisConfig `json:"x_axes,omitempty"`
 	YAxes   []AxisConfig `json:"y_axes,omitempty"`
 }
@@ -76,14 +85,14 @@ type SeriesConfig struct {
 	ID         string   `json:"id"`
 	Name       string   `json:"name"`
 	Color      string   `json:"color,omitempty"`
-	Subplot    []int    `json:"subplot,omitempty"`   // [row, col]
+	Subplot    *SubPlot `json:"subplot,omitempty"`
 	LineType   string   `json:"line_type,omitempty"` // "solid", "dashed", "dotted"
 	LineWidth  *float64 `json:"line_width,omitempty"`
 	MarkerType string   `json:"marker_type,omitempty"` // "none", "circle", "square", "triangle", "diamond", "cross", "x"
 	MarkerSize *float64 `json:"marker_size,omitempty"`
 	MarkerFill string   `json:"marker_fill,omitempty"` // "empty" or "solid"
 	Unit       string   `json:"unit,omitempty"`
-	Visible    *bool    `json:"visible,omitempty"`
+	Visible    *bool    `json:"visible"`
 	YAxis      string   `json:"y_axis,omitempty"` // references Y axis title
 }
 

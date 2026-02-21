@@ -19,6 +19,7 @@ func TestStructSynchronization(t *testing.T) {
 		external interface{}
 	}{
 		{"ChartConfig", ChartConfig{}, sdk.ChartConfig{}},
+		{"GridConfig", GridConfig{}, sdk.GridConfig{}},
 		{"AxisConfig", AxisConfig{}, sdk.AxisConfig{}},
 		{"AxisGroupConfig", AxisGroupConfig{}, sdk.AxisGroupConfig{}},
 		{"SeriesConfig", SeriesConfig{}, sdk.SeriesConfig{}},

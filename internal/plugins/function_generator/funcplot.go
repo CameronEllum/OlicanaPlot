@@ -276,8 +276,7 @@ func (p *Plugin) GetChartConfig(args string) (*plugins.ChartConfig, error) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	return &plugins.ChartConfig{
-		Title:      p.functionName,
-		AxisLabels: []string{"X", "Y"},
+		Title: p.functionName,
 	}, nil
 }
 

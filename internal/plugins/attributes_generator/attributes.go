@@ -51,10 +51,8 @@ func (p *Plugin) Initialize(ctx interface{}, initStr string, logger logging.Logg
 // GetChartConfig returns chart display configuration.
 func (p *Plugin) GetChartConfig(args string) (*plugins.ChartConfig, error) {
 	return &plugins.ChartConfig{
-		Title:      "Line Attributes Demonstration",
-		AxisLabels: []string{"Time", "Value"},
-		Rows:       2,
-		Cols:       2,
+		Title: "Line Attributes Demonstration",
+		Grid:  &plugins.GridConfig{Rows: 2, Cols: 2},
 	}, nil
 }
 
@@ -65,33 +63,30 @@ func (p *Plugin) GetSeriesConfig() ([]plugins.SeriesConfig, error) {
 		{
 			ID:       "types_0",
 			Name:     "Solid Line",
-			Subplot:  []int{0, 0},
 			LineType: "solid",
 		},
 		{
 			ID:       "types_1",
 			Name:     "Dashed Line",
-			Subplot:  []int{0, 0},
 			LineType: "dashed",
 		},
 		{
 			ID:       "types_2",
 			Name:     "Dotted Line",
-			Subplot:  []int{0, 0},
 			LineType: "dotted",
 		},
 		// Subplot (0,1) - Marker Sizes & Fills
 		{
 			ID:         "markers_0",
 			Name:       "Small Filled (4px)",
-			Subplot:    []int{0, 1},
+			Subplot:    &plugins.SubPlot{Row: 0, Col: 1},
 			MarkerType: "circle",
 			MarkerSize: floatPtr(4.0),
 		},
 		{
 			ID:         "markers_1",
 			Name:       "Medium Empty (8px)",
-			Subplot:    []int{0, 1},
+			Subplot:    &plugins.SubPlot{Row: 0, Col: 1},
 			MarkerType: "square",
 			MarkerSize: floatPtr(8.0),
 			MarkerFill: "empty",
@@ -99,7 +94,7 @@ func (p *Plugin) GetSeriesConfig() ([]plugins.SeriesConfig, error) {
 		{
 			ID:         "markers_2",
 			Name:       "Large Filled (14px)",
-			Subplot:    []int{0, 1},
+			Subplot:    &plugins.SubPlot{Row: 0, Col: 1},
 			MarkerType: "triangle",
 			MarkerSize: floatPtr(14.0),
 		},
@@ -107,40 +102,40 @@ func (p *Plugin) GetSeriesConfig() ([]plugins.SeriesConfig, error) {
 		{
 			ID:        "widths_0",
 			Name:      "Thin (1px)",
-			Subplot:   []int{1, 0},
+			Subplot:   &plugins.SubPlot{Row: 1, Col: 0},
 			LineWidth: floatPtr(1.0),
 		},
 		{
 			ID:        "widths_1",
 			Name:      "Medium (4px)",
-			Subplot:   []int{1, 0},
+			Subplot:   &plugins.SubPlot{Row: 1, Col: 0},
 			LineWidth: floatPtr(4.0),
 		},
 		{
 			ID:        "widths_2",
 			Name:      "Thick (8px)",
-			Subplot:   []int{1, 0},
+			Subplot:   &plugins.SubPlot{Row: 1, Col: 0},
 			LineWidth: floatPtr(8.0),
 		},
 		// Subplot (1,1) - Opacity Variations
 		{
 			ID:        "opacity_0",
 			Name:      "Full Opacity (100%)",
-			Subplot:   []int{1, 1},
+			Subplot:   &plugins.SubPlot{Row: 1, Col: 1},
 			Color:     "rgba(255, 0, 0, 1.0)",
 			LineWidth: floatPtr(4.0),
 		},
 		{
 			ID:        "opacity_1",
 			Name:      "Medium Opacity (50%)",
-			Subplot:   []int{1, 1},
+			Subplot:   &plugins.SubPlot{Row: 1, Col: 1},
 			Color:     "rgba(255, 0, 0, 0.5)",
 			LineWidth: floatPtr(4.0),
 		},
 		{
 			ID:        "opacity_2",
 			Name:      "Low Opacity (25%)",
-			Subplot:   []int{1, 1},
+			Subplot:   &plugins.SubPlot{Row: 1, Col: 1},
 			Color:     "rgba(255, 0, 0, 0.25)",
 			LineWidth: floatPtr(4.0),
 		},

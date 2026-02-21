@@ -106,7 +106,7 @@ func main() {
 		}
 	}
 
-	ipcLog("info", "Starting Synthetic IPC Plugin")
+	sdk.Log("info", "Starting Synthetic IPC Plugin")
 
 	state = &pluginState{
 		simulationType:  "Random Walk",
@@ -150,19 +150,15 @@ func main() {
 	}()
 
 	if err := app.Run(); err != nil {
-		ipcLog("error", fmt.Sprintf("Wails Run error: %v", err))
+		sdk.Log("error", fmt.Sprintf("Wails Run error: %v", err))
 	}
 
 	<-ipcDone
 	os.Exit(0)
 }
 
-func ipcLog(level, message string) {
-	sdk.Log(level, message)
-}
-
 func handleIPC() {
-	ipcLog("info", "IPC handler started")
+	sdk.Log("info", "IPC handler started")
 	scanner := bufio.NewScanner(os.Stdin)
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -180,7 +176,7 @@ func handleIPC() {
 			})
 
 		case "initialize":
-			ipcLog("info", "Waiting for user configuration")
+			sdk.Log("info", "Waiting for user configuration")
 			// Clear any stale results
 			select {
 			case <-service.resultChan:
@@ -190,7 +186,7 @@ func handleIPC() {
 			// Block until user submits or cancels via the UI
 			result := <-service.resultChan
 			if result.Cancelled {
-				ipcLog("info", "Configuration cancelled - quitting")
+				sdk.Log("info", "Configuration cancelled - quitting")
 				sdk.SendError("configuration cancelled")
 				if mainWindow != nil {
 					mainWindow.Close()
@@ -217,8 +213,13 @@ func handleIPC() {
 
 		case "get_chart_config":
 			config := sdk.ChartConfig{
-				Title:      "Synthetic Data (IPC)",
-				AxisLabels: []string{"Time (s)", state.simulationType},
+				Title: "Synthetic Data (IPC)",
+				Axes: []sdk.AxisGroupConfig{
+					{
+						XAxes: []sdk.AxisConfig{{Title: "Time (s)"}},
+						YAxes: []sdk.AxisConfig{{Title: state.simulationType}},
+					},
+				},
 			}
 			sdk.SendResponse(sdk.Response{Result: config})
 
@@ -242,7 +243,7 @@ func handleIPC() {
 	}
 
 	if err := scanner.Err(); err != nil {
-		ipcLog("error", fmt.Sprintf("Scanner error: %v", err))
+		sdk.Log("error", fmt.Sprintf("Scanner error: %v", err))
 	}
 }
 

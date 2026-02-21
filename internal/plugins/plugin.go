@@ -2,6 +2,7 @@
 package plugins
 
 import (
+	"fmt"
 	"olicanaplot/internal/logging"
 )
 
@@ -18,14 +19,17 @@ const PluginAPIVersion uint32 = 1
 
 // ChartConfig holds chart display configuration.
 type ChartConfig struct {
-	Title      string            `json:"title"`
-	AxisLabels []string          `json:"axis_labels"`
-	LineWidth  *float64          `json:"line_width,omitempty"`
-	Axes       []AxisGroupConfig `json:"axes,omitempty"`
-	LinkX      *bool             `json:"link_x,omitempty"`
-	LinkY      *bool             `json:"link_y,omitempty"`
-	Rows       int               `json:"rows,omitempty"`
-	Cols       int               `json:"cols,omitempty"`
+	Title string            `json:"title"`
+	Grid  *GridConfig       `json:"grid,omitempty"`
+	Axes  []AxisGroupConfig `json:"axes,omitempty"`
+	LinkX *bool             `json:"link_x,omitempty"`
+	LinkY *bool             `json:"link_y,omitempty"`
+}
+
+// GridConfig describes the subplot grid layout.
+type GridConfig struct {
+	Rows int `json:"rows"`
+	Cols int `json:"cols"`
 }
 
 // AxisConfig describes an axis within a subplot.
@@ -38,10 +42,16 @@ type AxisConfig struct {
 	Max      *float64 `json:"max,omitempty"`
 }
 
+// SubPlot describes a cell in the chart grid.
+type SubPlot struct {
+	Row int `json:"row"`
+	Col int `json:"col"`
+}
+
 // AxisGroupConfig describes all axes and series for one subplot cell.
 type AxisGroupConfig struct {
 	Title   string       `json:"title,omitempty"`
-	Subplot []int        `json:"subplot"` // [row, col]
+	Subplot *SubPlot     `json:"subplot,omitempty"`
 	XAxes   []AxisConfig `json:"x_axes,omitempty"`
 	YAxes   []AxisConfig `json:"y_axes,omitempty"`
 }
@@ -51,15 +61,157 @@ type SeriesConfig struct {
 	ID         string   `json:"id"`
 	Name       string   `json:"name"`
 	Color      string   `json:"color,omitempty"`
-	Subplot    []int    `json:"subplot,omitempty"`   // [row, col]
+	Subplot    *SubPlot `json:"subplot,omitempty"`
 	LineType   string   `json:"line_type,omitempty"` // "solid", "dashed", "dotted"
 	LineWidth  *float64 `json:"line_width,omitempty"`
 	MarkerType string   `json:"marker_type,omitempty"` // "none", "circle", "square", "triangle", "diamond", "cross", "x"
 	MarkerSize *float64 `json:"marker_size,omitempty"`
 	MarkerFill string   `json:"marker_fill,omitempty"` // "empty" or "solid"
 	Unit       string   `json:"unit,omitempty"`
-	Visible    *bool    `json:"visible,omitempty"`
+	Visible    *bool    `json:"visible"`
 	YAxis      string   `json:"y_axis,omitempty"` // references Y axis title
+}
+
+// SetDefaults ensures all required fields have sensible defaults if they are empty
+func (s *SeriesConfig) SetDefaults() {
+	if s.Subplot == nil {
+		s.Subplot = &SubPlot{Row: 0, Col: 0}
+	}
+	if s.LineType == "" {
+		s.LineType = "solid"
+	}
+	if s.LineWidth == nil {
+		w := 2.0
+		s.LineWidth = &w
+	}
+	if s.MarkerType == "" {
+		s.MarkerType = "none"
+	}
+	if s.MarkerSize == nil {
+		sz := 8.0
+		s.MarkerSize = &sz
+	}
+	if s.MarkerFill == "" {
+		s.MarkerFill = "solid"
+	}
+	if s.Visible == nil {
+		v := true
+		s.Visible = &v
+	}
+}
+
+// SetDefaults ensures all required fields have sensible defaults
+func (a *AxisConfig) SetDefaults(defaultTitle string, defaultPos string) {
+	if a.Title == "" {
+		a.Title = defaultTitle
+	}
+	if a.Position == "" {
+		a.Position = defaultPos
+	}
+	if a.Type == "" {
+		a.Type = "linear"
+	}
+}
+
+// SetDefaults ensures all sub-configs have defaults
+func (ag *AxisGroupConfig) SetDefaults() {
+	if ag.Subplot == nil {
+		ag.Subplot = &SubPlot{Row: 0, Col: 0}
+	}
+	if len(ag.XAxes) == 0 {
+		ag.XAxes = []AxisConfig{{Title: "X", Position: "bottom", Type: "linear"}}
+	}
+	if len(ag.YAxes) == 0 {
+		ag.YAxes = []AxisConfig{{Title: "Y", Position: "left", Type: "linear"}}
+	}
+	for i := range ag.XAxes {
+		title := "X"
+		if i > 0 {
+			title = fmt.Sprintf("X%d", i+1)
+		}
+		ag.XAxes[i].SetDefaults(title, "bottom")
+	}
+	for i := range ag.YAxes {
+		title := "Y"
+		if i > 0 {
+			title = fmt.Sprintf("Y%d", i+1)
+		}
+		ag.YAxes[i].SetDefaults(title, "left")
+	}
+}
+
+// SetDefaults ensures all sub-configs have defaults
+func (c *ChartConfig) SetDefaults() {
+	if len(c.Axes) == 0 {
+		c.Axes = []AxisGroupConfig{
+			{
+				Subplot: &SubPlot{Row: 0, Col: 0},
+				XAxes:   []AxisConfig{{Title: "X", Position: "bottom", Type: "linear"}},
+				YAxes:   []AxisConfig{{Title: "Y", Position: "left", Type: "linear"}},
+			},
+		}
+	}
+
+	// Calculate grid dimensions from axes if not provided
+	maxRow := 0
+	maxCol := 0
+	for _, ag := range c.Axes {
+		row := 0
+		col := 0
+		if ag.Subplot != nil {
+			row = ag.Subplot.Row
+			col = ag.Subplot.Col
+		}
+		if row > maxRow {
+			maxRow = row
+		}
+		if col > maxCol {
+			maxCol = col
+		}
+	}
+
+	if c.Grid == nil {
+		c.Grid = &GridConfig{
+			Rows: maxRow + 1,
+			Cols: maxCol + 1,
+		}
+	} else {
+		if c.Grid.Rows <= maxRow {
+			c.Grid.Rows = maxRow + 1
+		}
+		if c.Grid.Cols <= maxCol {
+			c.Grid.Cols = maxCol + 1
+		}
+	}
+
+	// Ensure all cells in the grid have axis configurations
+	axisMap := make(map[string]bool)
+	for _, ag := range c.Axes {
+		row := 0
+		col := 0
+		if ag.Subplot != nil {
+			row = ag.Subplot.Row
+			col = ag.Subplot.Col
+		}
+		axisMap[fmt.Sprintf("%d,%d", row, col)] = true
+	}
+
+	for r := 0; r < c.Grid.Rows; r++ {
+		for col := 0; col < c.Grid.Cols; col++ {
+			key := fmt.Sprintf("%d,%d", r, col)
+			if !axisMap[key] {
+				c.Axes = append(c.Axes, AxisGroupConfig{
+					Subplot: &SubPlot{Row: r, Col: col},
+					XAxes:   []AxisConfig{{Title: "X", Position: "bottom", Type: "linear"}},
+					YAxes:   []AxisConfig{{Title: "Y", Position: "left", Type: "linear"}},
+				})
+			}
+		}
+	}
+
+	for i := range c.Axes {
+		c.Axes[i].SetDefaults()
+	}
 }
 
 // FilePattern describes a file type supported by a plugin.

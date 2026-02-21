@@ -298,8 +298,10 @@ func handleIPC(p *Plugin) {
 			axes := make([]sdk.AxisGroupConfig, len(p.fileConfig.Axes))
 			for i, entry := range p.fileConfig.Axes {
 				axes[i] = sdk.AxisGroupConfig{
-					Title:   entry.Title,
-					Subplot: entry.Subplot,
+					Title: entry.Title,
+				}
+				if len(entry.Subplot) >= 2 {
+					axes[i].Subplot = &sdk.SubPlot{Row: entry.Subplot[0], Col: entry.Subplot[1]}
 				}
 				for _, x := range entry.XAxes {
 					axes[i].XAxes = append(axes[i].XAxes, sdk.AxisConfig{
@@ -324,13 +326,14 @@ func handleIPC(p *Plugin) {
 			}
 
 			config := sdk.ChartConfig{
-				Title:     p.fileConfig.Chart.Title,
-				LineWidth: p.fileConfig.Chart.LineWidth,
-				Axes:      axes,
-				LinkX:     p.fileConfig.Behaviour.LinkX,
-				LinkY:     p.fileConfig.Behaviour.LinkY,
-				Rows:      p.fileConfig.Layout.Rows,
-				Cols:      p.fileConfig.Layout.Cols,
+				Title: p.fileConfig.Chart.Title,
+				Axes:  axes,
+				LinkX: p.fileConfig.Behaviour.LinkX,
+				LinkY: p.fileConfig.Behaviour.LinkY,
+				Grid: &sdk.GridConfig{
+					Rows: p.fileConfig.Layout.Rows,
+					Cols: p.fileConfig.Layout.Cols,
+				},
 			}
 			sdk.SendResponse(sdk.Response{Result: config})
 
@@ -352,11 +355,16 @@ func handleIPC(p *Plugin) {
 
 					id := fmt.Sprintf("axis%d:col%d", i, s.Column)
 
+					var subplot *sdk.SubPlot
+					if len(entry.Subplot) >= 2 {
+						subplot = &sdk.SubPlot{Row: entry.Subplot[0], Col: entry.Subplot[1]}
+					}
+
 					seriesConfigs = append(seriesConfigs, sdk.SeriesConfig{
 						ID:         id,
 						Name:       name,
 						Color:      color,
-						Subplot:    entry.Subplot,
+						Subplot:    subplot,
 						LineType:   s.LineType,
 						LineWidth:  s.LineWidth,
 						MarkerType: s.MarkerType,

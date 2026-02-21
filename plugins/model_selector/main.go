@@ -112,8 +112,13 @@ func handleIPC() {
 		case "get_chart_config":
 			sdk.SendResponse(sdk.Response{
 				Result: sdk.ChartConfig{
-					Title:      state.modelType + " Simulation",
-					AxisLabels: []string{"Time", "Value"},
+					Title: state.modelType + " Simulation",
+					Axes: []sdk.AxisGroupConfig{
+						{
+							XAxes: []sdk.AxisConfig{{Title: "Time"}},
+							YAxes: []sdk.AxisConfig{{Title: "Value"}},
+						},
+					},
 				},
 			})
 

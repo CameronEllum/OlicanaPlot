@@ -246,8 +246,13 @@ func (p *Plugin) GetChartConfig(args string) (*plugins.ChartConfig, error) {
 	}
 
 	return &plugins.ChartConfig{
-		Title:      title,
-		AxisLabels: []string{xLabel, yLabel},
+		Title: title,
+		Axes: []plugins.AxisGroupConfig{
+			{
+				XAxes: []plugins.AxisConfig{{Title: xLabel}},
+				YAxes: []plugins.AxisConfig{{Title: yLabel}},
+			},
+		},
 	}, nil
 }
 
