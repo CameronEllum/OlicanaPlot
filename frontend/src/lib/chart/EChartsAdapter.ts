@@ -5,6 +5,7 @@ import {
   type ContextMenuEvent,
   type SeriesConfig,
   type GridConfig,
+  type ChartConfig,
   getCSSVar,
 } from "./ChartAdapter.ts";
 
@@ -30,31 +31,32 @@ export class EChartsAdapter extends ChartAdapter {
 
   // Configure and render the ECharts visualization, including subplots, axes,
   // data mapping, and stylized components.
-  setData(
+  update(
     seriesData: SeriesConfig[],
-    title: string,
     getGridRight: (data: SeriesConfig[]) => number,
-    xAxisName: string,
-    yAxisNames: Record<string, string>,
-    linkX: boolean,
-    linkY: boolean,
-    xAxisTypes: Record<string, string>,
-    yAxisTypes: Record<string, string>,
-    grid: GridConfig
+    config: ChartConfig,
   ) {
     if (!this.instance) return;
-    this.lastArgs = {
-      seriesData,
-      title,
-      getGridRight,
-      xAxisName,
-      yAxisNames,
-      linkX,
-      linkY,
-      xAxisTypes,
-      yAxisTypes,
-      grid
-    };
+    this.lastArgs = { seriesData, getGridRight, config };
+
+    const { title, grid, link_x, link_y } = config;
+    const linkX = !!link_x;
+    const linkY = !!link_y;
+    const xAxisName = config.axes[0]?.x_axes[0]?.title || "X";
+    const yAxisNames: Record<string, string> = {};
+    const xAxisTypes: Record<string, string> = {};
+    const yAxisTypes: Record<string, string> = {};
+
+    config.axes.forEach(ag => {
+      const key = `${ag.subplot.row},${ag.subplot.col}`;
+      if (ag.y_axes[0]) {
+        yAxisNames[key] = ag.y_axes[0].title;
+        yAxisTypes[key] = ag.y_axes[0].type;
+      }
+      if (ag.x_axes[0]) {
+        xAxisTypes[key] = ag.x_axes[0].type;
+      }
+    });
 
     const textColor = getCSSVar("--chart-text");
     const bgColor = getCSSVar("--chart-bg");
@@ -335,20 +337,13 @@ export class EChartsAdapter extends ChartAdapter {
   resize() {
     if (this.instance) {
       this.instance.resize();
-      // Re-trigger setData if we have args, to re-calculate equal percentages
+      // Re-trigger update if we have args, to re-calculate equal percentages
       // for subplots based on the new container width.
       if (this.lastArgs) {
-        this.setData(
+        this.update(
           this.lastArgs.seriesData,
-          this.lastArgs.title,
           this.lastArgs.getGridRight,
-          this.lastArgs.xAxisName,
-          this.lastArgs.yAxisNames,
-          this.lastArgs.linkX,
-          this.lastArgs.linkY,
-          this.lastArgs.xAxisTypes,
-          this.lastArgs.yAxisTypes,
-          this.lastArgs.grid
+          this.lastArgs.config
         );
       }
     }

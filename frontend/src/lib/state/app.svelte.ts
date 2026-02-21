@@ -1,7 +1,7 @@
 import { Events, Dialogs } from "@wailsio/runtime";
 import * as PluginService from "../../../bindings/olicanaplot/internal/plugins/service";
 import * as ConfigService from "../../../bindings/olicanaplot/internal/appconfig/configservice";
-import type { ChartAdapter, SeriesConfig, GridConfig, ContextMenuEvent } from "../chart/ChartAdapter";
+import type { ChartAdapter, SeriesConfig, GridConfig, ContextMenuEvent, ChartConfig, AxisGroupConfig } from "../chart/ChartAdapter";
 import { EChartsAdapter } from "../chart/EChartsAdapter";
 import { PlotlyAdapter } from "../chart/PlotlyAdapter";
 
@@ -32,10 +32,7 @@ class AppState {
     // Data State
     currentSeriesData = $state<SeriesConfig[]>([]);
     currentTitle = $state("");
-    xAxisName = $state("Time");
-    subplotNames = $state<Record<string, string>>({}); // key is "row,col"
-    xAxisTypes = $state<Record<string, string>>({});
-    yAxisTypes = $state<Record<string, string>>({});
+    axes = $state<AxisGroupConfig[]>([]);
     gridConfig = $state<GridConfig>({ rows: 1, cols: 1 });
     allPlugins = $state<AppPlugin[]>([]);
     showGeneratorsMenu = $state(true);
@@ -378,13 +375,10 @@ class AppState {
 
             this.currentSeriesData = seriesData;
             this.dataSource = source;
+            this.axes = [];
             this.isDefault = false; // Reset to false whenever any data is loaded
 
             this.currentTitle = "";
-            this.xAxisName = "Time";
-            this.subplotNames = {};
-            this.xAxisTypes = {};
-            this.yAxisTypes = {};
 
             await this.fetchPluginConfig();
             this.updateChart();
@@ -399,31 +393,11 @@ class AppState {
         try {
             const config = await PluginService.GetChartConfig();
             if (config) {
-                if (row === 0 && col === 0 && config.title) this.currentTitle = config.title;
-
-                // Extract axis names from the rich axes config if available
                 if (config.axes && config.axes.length > 0) {
-                    for (const axisGroup of config.axes) {
-                        const cellRow = axisGroup.subplot.row;
-                        const cellCol = axisGroup.subplot.col;
-                        const cellKey = `${cellRow},${cellCol}`;
-
-                        // Use the first Y-axis title and type as the subplot Y config
-                        if (axisGroup.y_axes && axisGroup.y_axes.length > 0) {
-                            if (axisGroup.y_axes[0].title) {
-                                this.subplotNames[cellKey] = axisGroup.y_axes[0].title;
-                            }
-                            this.yAxisTypes[cellKey] = axisGroup.y_axes[0].type || "";
-                        }
-
-                        // Use the first X-axis found as the globally applied X config
-                        if (axisGroup.x_axes && axisGroup.x_axes.length > 0) {
-                            if (axisGroup.x_axes[0].title) {
-                                this.xAxisName = axisGroup.x_axes[0].title;
-                            }
-                            this.xAxisTypes[cellKey] = axisGroup.x_axes[0].type || "";
-                        }
-                    }
+                    this.axes = config.axes as any;
+                }
+                if (config.title) {
+                    this.currentTitle = config.title;
                 }
 
                 if (config.grid) {
@@ -445,17 +419,17 @@ class AppState {
 
     updateChart() {
         if (!this.chartAdapter || !this.currentSeriesData) return;
-        this.chartAdapter.setData(
+
+        this.chartAdapter.update(
             this.currentSeriesData,
-            this.currentTitle,
             this.getGridRight.bind(this),
-            this.xAxisName,
-            this.subplotNames,
-            this.linkX,
-            this.linkY,
-            this.xAxisTypes,
-            this.yAxisTypes,
-            this.gridConfig
+            {
+                title: this.currentTitle,
+                grid: this.gridConfig,
+                axes: this.axes,
+                link_x: this.linkX,
+                link_y: this.linkY,
+            }
         );
     }
 
@@ -541,8 +515,20 @@ class AppState {
                 label: "Rename",
                 action: () => {
                     this.openRenameDialog(`Rename ${e.type === "xAxis" ? "X" : "Y"} Axis`, "New Name", e.axisLabel || "", (val) => {
-                        if (e.type === "xAxis") this.xAxisName = val;
-                        else this.subplotNames[`${e.row},${e.col}`] = val;
+                        const cellKey = `${e.row},${e.col}`;
+                        const ag = this.axes.find(a => `${a.subplot.row},${a.subplot.col}` === cellKey);
+
+                        if (e.type === "xAxis") {
+                            // Link X behavior: rename all if linked, or just this one?
+                            // For now, let's stick to global X if linked, per previous behavior
+                            if (this.linkX) {
+                                this.axes.forEach(a => { if (a.x_axes[0]) a.x_axes[0].title = val; });
+                            } else if (ag && ag.x_axes[0]) {
+                                ag.x_axes[0].title = val;
+                            }
+                        } else {
+                            if (ag && ag.y_axes[0]) ag.y_axes[0].title = val;
+                        }
                         this.updateChart();
                     });
                 }
@@ -635,7 +621,8 @@ class AppState {
             }
         }
 
-        const newSeriesName = `d(${series.name})/d(${this.xAxisName})`;
+        const xAxisName = series.subplot ? this.axes.find(a => a.subplot.row === series.subplot.row && a.subplot.col === series.subplot.col)?.x_axes[0]?.title || "X" : "X";
+        const newSeriesName = `d(${series.name})/d(${xAxisName})`;
         const newSeries: SeriesConfig = {
             ...series,
             id: `diff_${Date.now()}_${series.id}`,

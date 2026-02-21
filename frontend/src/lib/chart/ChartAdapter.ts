@@ -78,17 +78,10 @@ export abstract class ChartAdapter {
 
   // Render the provided series data on the chart with a title
   // and dynamic grid calculation.
-  abstract setData(
+  abstract update(
     seriesData: SeriesConfig[],
-    title: string,
     getGridRight: (data: SeriesConfig[]) => number,
-    xAxisName: string,
-    yAxisNames: Record<string, string>,
-    linkX: boolean,
-    linkY: boolean,
-    xAxisTypes: Record<string, string>,
-    yAxisTypes: Record<string, string>,
-    grid: GridConfig
+    config: ChartConfig
   ): void;
 
   // Trigger the chart to update its dimensions to fit its container.
